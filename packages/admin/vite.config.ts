@@ -6,8 +6,13 @@ export default defineConfig({
   server: {
     port: 5173,
     headers: {
+      // COOP + COEP habilitam crossOriginIsolated (SharedArrayBuffer), exigido
+      // pelo FFmpeg.wasm que transcodifica os vídeos no upload.
       'Cross-Origin-Opener-Policy': 'same-origin',
-      'Cross-Origin-Embedder-Policy': 'require-corp',
+      // 'credentialless' (em vez de 'require-corp') mantém o SharedArrayBuffer
+      // E permite carregar imagens cross-origin SEM header CORP — necessário pras
+      // miniaturas/logo do Supabase Storage, que senão ficam bloqueadas e não carregam.
+      'Cross-Origin-Embedder-Policy': 'credentialless',
     },
   },
   optimizeDeps: {

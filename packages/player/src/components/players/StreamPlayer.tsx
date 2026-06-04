@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 import Hls from 'hls.js'
-import { audioUnlocked, onAudioUnlock } from '../../lib/audioUnlock'
+import { onAudioUnlock } from '../../lib/audioUnlock'
 
 interface Props {
   url: string
@@ -16,37 +16,41 @@ export default function StreamPlayer({ url, duration, muted, onEnd }: Props) {
     const video = videoRef.current
     if (!video) return
     const wantSound = !muted
-    // Sempre começa mudo para garantir o autoplay
-    // Inicializa com o estado desejado
-    video.muted = muted
     let hls: Hls | null = null
     let durTimer: ReturnType<typeof setTimeout> | undefined
     let unmuteTimer: ReturnType<typeof setTimeout> | undefined
+    let gaveUpSound = false
 
-    // Liga o som logo após começar a tocar (se a tela quer som)
-    const enableSound = () => { if (wantSound) video.muted = false }
-
-    // Também liga o som se o usuário interagir
-    const offUnlock = onAudioUnlock(enableSound)
-    if (wantSound && audioUnlocked()) {
-      enableSound()
+    // Recuperação de pausa: se pausar sozinho (não terminou), retoma. Se a pausa
+    // veio de desmutar (o navegador bloqueia som sem gesto), desiste do som e segue
+    // tocando MUDO — assim nunca fica naquele liga/pausa em loop.
+    const onPause = () => {
+      if (video.ended) return
+      if (wantSound && !video.muted && !gaveUpSound) {
+        gaveUpSound = true
+        video.muted = true
+      }
+      video.play().catch(() => { /* ignore */ })
     }
+    video.addEventListener('pause', onPause)
 
-    // Autoplay inteligente: tenta tocar com som, se falhar, toca mudo.
+    // Interação real do usuário → libera o som de vez.
+    const offUnlock = onAudioUnlock(() => {
+      gaveUpSound = false
+      if (wantSound) video.muted = false
+      video.play().catch(() => { /* ignore */ })
+    })
+
+    // SEMPRE inicia MUDO (autoplay garantido). Depois tenta o som UMA vez.
     const safePlay = () => {
-      video.muted = muted
+      video.muted = true
       video.play()
         .then(() => {
-          if (wantSound) enableSound()
+          if (wantSound) {
+            unmuteTimer = setTimeout(() => { if (!gaveUpSound) video.muted = false }, 700)
+          }
         })
-        .catch(() => {
-          video.muted = true
-          video.play()
-            .then(() => {
-              if (wantSound) unmuteTimer = setTimeout(enableSound, 500)
-            })
-            .catch(() => {})
-        })
+        .catch(() => { /* nem mudo tocou: onError/onEnded cuidam */ })
     }
 
     if (video.canPlayType('application/vnd.apple.mpegurl')) {
@@ -62,6 +66,7 @@ export default function StreamPlayer({ url, duration, muted, onEnd }: Props) {
         if (data.fatal) onEnd()  // erro fatal → pula para o próximo
       })
     } else {
+      video.removeEventListener('pause', onPause)
       onEnd()
       return
     }
@@ -72,6 +77,7 @@ export default function StreamPlayer({ url, duration, muted, onEnd }: Props) {
     }
 
     return () => {
+      video.removeEventListener('pause', onPause)
       offUnlock()
       if (durTimer) clearTimeout(durTimer)
       if (unmuteTimer) clearTimeout(unmuteTimer)

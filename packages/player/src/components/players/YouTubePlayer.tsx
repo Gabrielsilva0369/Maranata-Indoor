@@ -40,50 +40,20 @@ export default function YouTubePlayer({ url, duration, muted, onEnd }: Props) {
     if (!id) { onEnd(); return }
     endedRef.current = false
     let fallbackTimer: ReturnType<typeof setTimeout> | undefined
+    let unmuteTimer: ReturnType<typeof setTimeout> | undefined
+    let triedUnmute = false   // só tenta desmutar UMA vez
+    let gaveUpSound = false    // desmutar pausou → desiste do som, toca mudo
+    let unmutedAt = 0
 
-    const simulateClick = (iframe: any) => {
-      try {
-        if (iframe) {
-          iframe.focus()
-          const rect = iframe.getBoundingClientRect()
-          const x = rect.left + rect.width / 2
-          const y = rect.top + rect.height / 2
-          
-          const events = ['mouseover', 'mousedown', 'pointerdown', 'mouseup', 'pointerup', 'click']
-          events.forEach(name => {
-            const ev = new MouseEvent(name, {
-              clientX: x,
-              clientY: y,
-              bubbles: true,
-              cancelable: true,
-              view: window
-            })
-            iframe.dispatchEvent(ev)
-          })
-        }
-      } catch { /* ignore */ }
-    }
-
-    const enableSound = (target: any) => {
-      try {
-        if (!wantSound) return
-        target.unMute()
-        target.setVolume(100)
-      } catch { /* ignore */ }
-    }
-
+    // Interação real do usuário → libera o som de vez.
     const offUnlock = onAudioUnlock(() => {
-      if (playerRef.current) {
-        enableSound(playerRef.current)
-      }
+      gaveUpSound = false
+      try { playerRef.current?.unMute(); playerRef.current?.setVolume(100); playerRef.current?.playVideo() } catch { /* ignore */ }
     })
 
     loadYTApi().then(() => {
       if (!containerRef.current) return
-
-      try {
-        playerRef.current?.destroy()
-      } catch {}
+      try { playerRef.current?.destroy() } catch {}
 
       playerRef.current = new (window as any).YT.Player(containerRef.current, {
         videoId: id,
@@ -91,55 +61,43 @@ export default function YouTubePlayer({ url, duration, muted, onEnd }: Props) {
         width: '100%',
         playerVars: {
           autoplay: 1,
-          mute: wantSound ? 0 : 1,
+          mute: 1,            // SEMPRE inicia mudo → autoplay garantido
           controls: 0,
           disablekb: 1,
           fs: 0,
           modestbranding: 1,
           rel: 0,
           playsinline: 1,
-          enablejsapi: 1
+          enablejsapi: 1,
         },
         events: {
           onReady: (e: any) => {
-            if (wantSound) {
-              e.target.unMute()
-              e.target.setVolume(100)
-            } else {
-              e.target.mute()
-            }
-            e.target.playVideo()
-
-            // Simula clique no centro do iframe para forçar o áudio
-            if (wantSound) {
-              try {
-                const iframe = e.target.getIframe()
-                if (iframe) {
-                  iframe.setAttribute('allow', 'autoplay; encrypted-media')
-                  simulateClick(iframe)
-                  setTimeout(() => simulateClick(iframe), 100)
-                  setTimeout(() => simulateClick(iframe), 300)
-                  setTimeout(() => simulateClick(iframe), 500)
-                }
-              } catch { /* ignore */ }
-            }
+            try { e.target.mute(); e.target.playVideo() } catch { /* ignore */ }
           },
           onStateChange: (e: any) => {
-            if (e.data === 1) { // PLAYING
-              if (wantSound) {
-                enableSound(e.target)
-                setTimeout(() => enableSound(e.target), 100)
-                setTimeout(() => enableSound(e.target), 300)
-                try {
-                  const iframe = e.target.getIframe()
-                  if (iframe) simulateClick(iframe)
-                } catch {}
+            const t = e.target
+            if (e.data === 1) {
+              // PLAYING: tenta ligar o som UMA vez, já tocando.
+              if (wantSound && !gaveUpSound && !triedUnmute) {
+                triedUnmute = true
+                unmuteTimer = setTimeout(() => {
+                  if (gaveUpSound) return
+                  unmutedAt = Date.now()
+                  try { t.unMute(); t.setVolume(100) } catch { /* ignore */ }
+                }, 700)
               }
-            }
-            // 0 = ended (vídeo normal) → avança
-            if (e.data === 0 && !endedRef.current) {
-              endedRef.current = true
-              onEnd()
+            } else if (e.data === 2) {
+              // PAUSED inesperado. Se foi logo após desmutar, o navegador bloqueou
+              // o som → desiste do som e segue tocando MUDO (sem loop liga/pausa).
+              if (endedRef.current) return
+              if (!gaveUpSound && unmutedAt && Date.now() - unmutedAt < 2500) {
+                gaveUpSound = true
+                try { t.mute() } catch { /* ignore */ }
+              }
+              try { t.playVideo() } catch { /* ignore */ }
+            } else if (e.data === 0) {
+              // ENDED (vídeo normal) → avança
+              if (!endedRef.current) { endedRef.current = true; onEnd() }
             }
           },
         },
@@ -155,6 +113,7 @@ export default function YouTubePlayer({ url, duration, muted, onEnd }: Props) {
     return () => {
       offUnlock()
       if (fallbackTimer) clearTimeout(fallbackTimer)
+      if (unmuteTimer) clearTimeout(unmuteTimer)
       try { playerRef.current?.destroy() } catch { /* ignore */ }
     }
   }, [url, id, duration, muted, onEnd])
