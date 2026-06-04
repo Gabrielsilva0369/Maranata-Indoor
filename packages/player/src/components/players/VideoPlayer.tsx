@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { getPublicUrl } from '../../lib/supabase'
+import { useCachedUrl } from '../../hooks/useCachedUrl'
 
 interface Props {
   storagePath: string
@@ -9,54 +9,34 @@ interface Props {
 
 export default function VideoPlayer({ storagePath, muted, onEnd }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null)
-  const bgRef    = useRef<HTMLVideoElement>(null)
-  const url = getPublicUrl(storagePath)
+  // Cache-first: se o vídeo já foi baixado localmente, toca do IndexedDB
+  // (funciona OFFLINE / sem internet). Se ainda não, faz streaming da rede.
+  const { url } = useCachedUrl(storagePath)
 
   useEffect(() => {
     const v = videoRef.current
-    if (!v) return
+    if (!v || !url) return
     v.muted = muted
-    v.currentTime = 0
+    try { v.currentTime = 0 } catch { /* ignore */ }
     v.play().catch(() => {
+      // Autoplay com som bloqueado → tenta mudo; se ainda falhar, pula.
       v.muted = true
       v.play().catch(() => onEnd())
     })
-
-    // Fundo borrado sincroniza com o principal
-    const bg = bgRef.current
-    if (bg) { bg.muted = true; bg.currentTime = 0; bg.play().catch(() => {}) }
-  }, [storagePath, muted, onEnd])
+  }, [url, muted, onEnd])
 
   return (
-    <div style={{ width: '100%', height: '100%', position: 'relative', overflow: 'hidden', background: '#000' }}>
-
-      {/* Fundo borrado */}
-      <video
-        ref={bgRef}
-        src={url}
-        loop
-        muted
-        playsInline
-        style={{
-          position: 'absolute', inset: 0,
-          width: '100%', height: '100%',
-          objectFit: 'cover',
-          filter: 'blur(24px) brightness(0.4)',
-          transform: 'scale(1.08)',
-        }}
-      />
-
-      {/* Vídeo principal — preenche toda a área (sem barras), corte mínimo */}
+    <div style={{ width: '100%', height: '100%', background: '#000', overflow: 'hidden' }}>
       <video
         ref={videoRef}
-        src={url}
+        src={url || undefined}
         onEnded={onEnd}
-        onError={onEnd}
+        onError={() => onEnd()}   // formato não suportado / falha → pula para o próximo
         playsInline
+        preload="auto"
         style={{
-          position: 'relative', zIndex: 1,
           width: '100%', height: '100%',
-          objectFit: 'cover',
+          objectFit: 'contain',
           display: 'block',
         }}
       />

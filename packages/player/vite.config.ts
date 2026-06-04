@@ -1,12 +1,30 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import legacy from '@vitejs/plugin-legacy'
 import { VitePWA } from 'vite-plugin-pwa'
 
 export default defineConfig({
   plugins: [
     react(),
+    legacy({
+      // Alvos amplos: cobre WebView antiga de boxes Android 9 (Chrome ~55+).
+      targets: ['defaults', 'Android >= 5', 'Chrome >= 55'],
+      // Polyfills de APIs JS (Promise.allSettled, Array.flat, fetch via core-js…)
+      // tanto no bundle legado quanto no moderno, para não quebrar em runtime.
+      polyfills: true,
+      modernPolyfills: true,
+      // Garante polyfills essenciais mesmo que o detector de uso não os pegue.
+      additionalLegacyPolyfills: ['regenerator-runtime/runtime'],
+      renderLegacyChunks: true,
+    }),
     VitePWA({
       registerType: 'autoUpdate',
+      // Registramos o SW manualmente em main.tsx (pra checar atualização
+      // periodicamente), então não injetamos o registro automático aqui.
+      injectRegister: false,
+      // PWA hospedado (usado por um app de kiosk no box): o Service Worker dá
+      // o offline (cacheia o app + mídias) e o autoUpdate publica versões novas
+      // automaticamente quando o site é redeployado.
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
         runtimeCaching: [
@@ -59,5 +77,8 @@ export default defineConfig({
       },
     }),
   ],
+  build: {
+    target: ['es2015', 'chrome60']
+  },
   server: { port: 5174 },
 })

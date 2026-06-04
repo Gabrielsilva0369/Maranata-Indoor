@@ -1,15 +1,31 @@
 import { useState, useRef, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
-import type { Media, MediaType, ClockConfig, WeatherConfig } from '../lib/database.types'
-import { Upload, Trash2, Plus, Image, Film, Code, Clock, Cloud, Search, MapPin } from 'lucide-react'
+import type { Media, MediaType, ClockConfig, WeatherConfig, MediaFolder } from '../lib/database.types'
+import { Upload, Trash2, Plus, Image, Film, Code, Clock, Cloud, Search, MapPin, Pencil, Folder, FolderPlus, Layers, Youtube, Radio } from 'lucide-react'
+import { transcodeVideo } from '../lib/videoTranscode'
 
 const TYPE_LABELS: Record<MediaType, string> = {
-  image: 'Imagem', video: 'Vídeo', html: 'HTML', clock: 'Relógio', weather: 'Clima',
+  image: 'Imagem', video: 'Vídeo', html: 'HTML', clock: 'Relógio', weather: 'Clima', youtube: 'YouTube', stream: 'Stream',
 }
 const TYPE_ICONS: Record<MediaType, React.ReactNode> = {
   image: <Image size={14} />, video: <Film size={14} />, html: <Code size={14} />,
   clock: <Clock size={14} />, weather: <Cloud size={14} />,
+  youtube: <Youtube size={14} />, stream: <Radio size={14} />,
+}
+
+// Extrai o ID de vídeo do YouTube de várias formas de URL
+export function youtubeId(url: string): string | null {
+  const patterns = [
+    /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/live\/|youtube\.com\/shorts\/)([\w-]{11})/,
+  ]
+  for (const p of patterns) {
+    const m = url.match(p)
+    if (m) return m[1]
+  }
+  // Já é um ID puro
+  if (/^[\w-]{11}$/.test(url.trim())) return url.trim()
+  return null
 }
 
 const TIMEZONES = [
@@ -427,6 +443,7 @@ function ClockForm({ cfg, onChange, bgUrl, onBgFileChange }: {
 export default function MediaPage() {
   const qc = useQueryClient()
   const [showAdd, setShowAdd] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
   const [type, setType] = useState<MediaType>('image')
   const [name, setName] = useState('')
   const [url, setUrl] = useState('')
@@ -438,7 +455,15 @@ export default function MediaPage() {
   const [bgFile, setBgFile] = useState<File | null>(null)
   const [bgPreviewUrl, setBgPreviewUrl] = useState<string>()
   const [uploading, setUploading] = useState(false)
+  const [transcodeStatus, setTranscodeStatus] = useState<'loading' | 'analyzing' | 'transcoding' | 'done' | 'error' | null>(null)
+  const [transcodeProgress, setTranscodeProgress] = useState(0)
   const fileRef = useRef<HTMLInputElement>(null)
+
+  // Pastas: 'all' = todas, null = sem pasta, ou um id de pasta
+  const [selectedFolder, setSelectedFolder] = useState<string | null | 'all'>('all')
+  const [folderId, setFolderId] = useState<string | null>(null)  // pasta no formulário
+  const [showNewFolder, setShowNewFolder] = useState(false)
+  const [newFolderName, setNewFolderName] = useState('')
 
   // Gera preview local da imagem de fundo
   useEffect(() => {
@@ -457,17 +482,65 @@ export default function MediaPage() {
     },
   })
 
+  const { data: folders = [] } = useQuery<MediaFolder[]>({
+    queryKey: ['media-folders'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('media_folders').select('*').order('name')
+      if (error) throw error
+      return data
+    },
+  })
+
+  const createFolder = useMutation({
+    mutationFn: async (name: string) => {
+      const { error } = await supabase.from('media_folders').insert({ name: name.trim() })
+      if (error) throw error
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['media-folders'] })
+      setShowNewFolder(false); setNewFolderName('')
+    },
+  })
+
+  const deleteFolder = useMutation({
+    mutationFn: async (id: string) => {
+      // media.folder_id vira null automaticamente (ON DELETE SET NULL)
+      const { error } = await supabase.from('media_folders').delete().eq('id', id)
+      if (error) throw error
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['media-folders'] })
+      qc.invalidateQueries({ queryKey: ['media'] })
+      setSelectedFolder('all')
+    },
+  })
+
+  // Mídias filtradas pela pasta selecionada
+  const visibleMedia = mediaList.filter(m =>
+    selectedFolder === 'all' ? true : m.folder_id === selectedFolder
+  )
+
   const addMedia = useMutation({
     mutationFn: async () => {
       setUploading(true)
+      setTranscodeStatus(null)
+      setTranscodeProgress(0)
       let storagePath: string | null = null
       let finalClock = clockCfg
 
       // Upload arquivo (imagem/vídeo)
       if ((type === 'image' || type === 'video') && file) {
-        const ext = file.name.split('.').pop()
+        let fileToUpload = file
+        if (type === 'video') {
+          fileToUpload = await transcodeVideo({
+            file,
+            onProgress: setTranscodeProgress,
+            onStatusChange: setTranscodeStatus,
+          })
+        }
+        const ext = fileToUpload.name.split('.').pop()
         const path = `${type}s/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
-        const { error: err } = await supabase.storage.from('media').upload(path, file)
+        const { error: err } = await supabase.storage.from('media').upload(path, fileToUpload)
         if (err) throw err
         storagePath = path
       }
@@ -489,8 +562,67 @@ export default function MediaPage() {
         html_content: htmlContent.trim() || null,
         clock_config: type === 'clock' ? finalClock : null,
         weather_config: type === 'weather' ? weatherCfg : null,
+        folder_id: folderId,
         duration,
       })
+      if (error) throw error
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['media'] })
+      resetForm()
+    },
+    onError: () => setUploading(false),
+  })
+
+  const updateMedia = useMutation({
+    mutationFn: async () => {
+      if (!editingId) return
+      setUploading(true)
+      const existing = mediaList.find(m => m.id === editingId)
+      const patch: Record<string, unknown> = {
+        name: name.trim(),
+        url: url.trim() || null,
+        html_content: htmlContent.trim() || null,
+        weather_config: type === 'weather' ? weatherCfg : null,
+        folder_id: folderId,
+        duration,
+      }
+
+      // Substituir arquivo de imagem/vídeo (se um novo foi escolhido)
+      if ((type === 'image' || type === 'video') && file) {
+        setTranscodeStatus(null)
+        setTranscodeProgress(0)
+        let fileToUpload = file
+        if (type === 'video') {
+          fileToUpload = await transcodeVideo({
+            file,
+            onProgress: setTranscodeProgress,
+            onStatusChange: setTranscodeStatus,
+          })
+        }
+        const ext = fileToUpload.name.split('.').pop()
+        const path = `${type}s/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
+        const { error: err } = await supabase.storage.from('media').upload(path, fileToUpload)
+        if (err) throw err
+        if (existing?.storage_path) await supabase.storage.from('media').remove([existing.storage_path])
+        patch.storage_path = path
+      }
+
+      // Relógio: substituir fundo (se novo) ou manter o existente
+      if (type === 'clock') {
+        let finalClock = clockCfg
+        if (clockCfg.bg_type === 'image' && bgFile) {
+          const ext = bgFile.name.split('.').pop()
+          const path = `clock-bg/${Date.now()}.${ext}`
+          const { error: err } = await supabase.storage.from('media').upload(path, bgFile)
+          if (err) throw err
+          if (existing?.clock_config?.bg_image_path) await supabase.storage.from('media').remove([existing.clock_config.bg_image_path])
+          finalClock = { ...clockCfg, bg_image_path: path }
+        }
+        patch.clock_config = finalClock
+      }
+
+      const { error } = await supabase.from('media').update(patch).eq('id', editingId)
       if (error) throw error
     },
     onSuccess: () => {
@@ -517,43 +649,142 @@ export default function MediaPage() {
     setName(''); setUrl(''); setHtmlContent(''); setDuration(30)
     setFile(null); setType('image'); setClockCfg({ ...DEFAULT_CLOCK }); setWeatherCfg({ ...DEFAULT_WEATHER })
     setBgFile(null); setBgPreviewUrl(undefined); setUploading(false)
-    setShowAdd(false)
+    setTranscodeStatus(null); setTranscodeProgress(0)
+    setEditingId(null); setFolderId(null); setShowAdd(false)
   }
 
-  const isSaveDisabled = !name.trim() || uploading || addMedia.isPending ||
-    ((type === 'image' || type === 'video') && !file) ||
-    (type === 'weather' && weatherCfg.latitude === 0)
+  const openCreate = () => {
+    resetForm()
+    // Cria já dentro da pasta atual (se uma pasta específica estiver selecionada)
+    setFolderId(selectedFolder === 'all' ? null : selectedFolder)
+    setShowAdd(true)
+  }
+
+  const openEdit = (item: Media) => {
+    setEditingId(item.id)
+    setType(item.type)
+    setName(item.name)
+    setUrl(item.url ?? '')
+    setHtmlContent(item.html_content ?? '')
+    setDuration(item.duration)
+    setFolderId(item.folder_id)
+    setFile(null)
+    setBgFile(null)
+    setClockCfg(item.clock_config ?? { ...DEFAULT_CLOCK })
+    setWeatherCfg(item.weather_config ?? { ...DEFAULT_WEATHER })
+    // Preview do fundo do relógio existente
+    setBgPreviewUrl(
+      item.clock_config?.bg_image_path
+        ? supabase.storage.from('media').getPublicUrl(item.clock_config.bg_image_path).data.publicUrl
+        : undefined
+    )
+    setShowAdd(true)
+  }
+
+  const handleSave = () => {
+    if (editingId) updateMedia.mutate()
+    else addMedia.mutate()
+  }
+
+  // Ao editar, o arquivo de imagem/vídeo é opcional (mantém o atual)
+  const isSaveDisabled = !name.trim() || uploading || addMedia.isPending || updateMedia.isPending ||
+    ((type === 'image' || type === 'video') && !file && !editingId) ||
+    (type === 'weather' && weatherCfg.latitude === 0) ||
+    (type === 'youtube' && !youtubeId(url)) ||
+    (type === 'stream' && !url.trim())
 
   return (
     <div className="p-8">
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-2xl font-bold">Mídias</h2>
-        <button onClick={() => setShowAdd(true)}
-          className="flex items-center gap-2 bg-brand-600 hover:bg-brand-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-        >
-          <Plus size={16} /> Nova Mídia
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={() => { setShowNewFolder(true); setNewFolderName('') }}
+            className="flex items-center gap-2 border px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors"
+          >
+            <FolderPlus size={16} /> Nova Pasta
+          </button>
+          <button onClick={openCreate}
+            className="flex items-center gap-2 bg-brand-600 hover:bg-brand-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+          >
+            <Plus size={16} /> Nova Mídia
+          </button>
+        </div>
       </div>
+
+      {/* Barra de pastas */}
+      <div className="flex items-center gap-2 mb-6 flex-wrap">
+        <button onClick={() => setSelectedFolder('all')}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${selectedFolder === 'all' ? 'bg-brand-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+          <Layers size={14} /> Todas
+          <span className="text-xs opacity-70">({mediaList.length})</span>
+        </button>
+        <button onClick={() => setSelectedFolder(null)}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${selectedFolder === null ? 'bg-brand-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+          Sem pasta
+          <span className="text-xs opacity-70">({mediaList.filter(m => !m.folder_id).length})</span>
+        </button>
+        {folders.map(f => {
+          const count = mediaList.filter(m => m.folder_id === f.id).length
+          const active = selectedFolder === f.id
+          return (
+            <div key={f.id} className={`group flex items-center gap-1.5 pl-3 pr-2 py-1.5 rounded-lg text-sm font-medium transition-colors ${active ? 'bg-brand-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+              <button onClick={() => setSelectedFolder(f.id)} className="flex items-center gap-1.5">
+                <Folder size={14} /> {f.name}
+                <span className="text-xs opacity-70">({count})</span>
+              </button>
+              <button
+                onClick={() => { if (confirm(`Remover pasta "${f.name}"? As mídias voltam para "Sem pasta".`)) deleteFolder.mutate(f.id) }}
+                className={`ml-1 opacity-0 group-hover:opacity-100 transition-opacity ${active ? 'hover:text-red-200' : 'hover:text-red-600'}`}
+                title="Remover pasta">
+                <Trash2 size={12} />
+              </button>
+            </div>
+          )
+        })}
+      </div>
+
+      {/* Modal nova pasta */}
+      {showNewFolder && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-xl">
+            <h3 className="text-lg font-semibold mb-4">Nova Pasta</h3>
+            <input value={newFolderName} onChange={e => setNewFolderName(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && newFolderName.trim() && createFolder.mutate(newFolderName)}
+              placeholder="Nome da pasta" autoFocus
+              className="w-full border rounded-lg px-3 py-2 text-sm mb-4 focus:outline-none focus:ring-2 focus:ring-brand-500" />
+            <div className="flex gap-2">
+              <button onClick={() => setShowNewFolder(false)} className="flex-1 border rounded-lg py-2 text-sm">Cancelar</button>
+              <button onClick={() => createFolder.mutate(newFolderName)} disabled={!newFolderName.trim() || createFolder.isPending}
+                className="flex-1 bg-brand-600 hover:bg-brand-700 text-white rounded-lg py-2 text-sm font-medium disabled:opacity-50">
+                Criar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal */}
       {showAdd && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
+        <div className="fixed inset-0 bg-black/50 z-50 overflow-y-auto">
+          <div className="flex min-h-full items-center justify-center p-4">
           <div className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-xl my-4">
-            <h3 className="text-lg font-semibold mb-4">Nova Mídia</h3>
+            <h3 className="text-lg font-semibold mb-4">{editingId ? 'Editar Mídia' : 'Nova Mídia'}</h3>
             <div className="space-y-4">
-              {/* Tipo */}
+              {/* Tipo (fixo ao editar) */}
               <div>
                 <label className="block text-sm font-medium mb-1">Tipo</label>
                 <div className="grid grid-cols-4 gap-2">
-                  {(['image', 'video', 'html', 'clock', 'weather'] as MediaType[]).map(t => (
-                    <button key={t} onClick={() => setType(t)}
-                      className={`py-2 rounded-lg border text-sm font-medium transition-colors flex flex-col items-center gap-1 ${type === t ? 'bg-brand-600 text-white border-brand-600' : 'border-gray-200 hover:border-brand-300'}`}
+                  {(['image', 'video', 'html', 'clock', 'weather', 'youtube', 'stream'] as MediaType[]).map(t => (
+                    <button key={t} onClick={() => !editingId && setType(t)}
+                      disabled={!!editingId}
+                      className={`py-2 rounded-lg border text-sm font-medium transition-colors flex flex-col items-center gap-1 ${type === t ? 'bg-brand-600 text-white border-brand-600' : 'border-gray-200 hover:border-brand-300'} ${editingId && type !== t ? 'opacity-40' : ''} ${editingId ? 'cursor-not-allowed' : ''}`}
                     >
                       {TYPE_ICONS[t]}
                       {TYPE_LABELS[t]}
                     </button>
                   ))}
                 </div>
+                {editingId && <p className="text-xs text-gray-400 mt-1">O tipo não pode ser alterado.</p>}
               </div>
 
               {/* Nome */}
@@ -561,6 +792,16 @@ export default function MediaPage() {
                 <label className="block text-sm font-medium mb-1">Nome</label>
                 <input value={name} onChange={e => setName(e.target.value)}
                   className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
+              </div>
+
+              {/* Pasta */}
+              <div>
+                <label className="block text-sm font-medium mb-1">Pasta</label>
+                <select value={folderId ?? ''} onChange={e => setFolderId(e.target.value || null)}
+                  className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500">
+                  <option value="">— Sem pasta —</option>
+                  {folders.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+                </select>
               </div>
 
               {/* Arquivo imagem/vídeo */}
@@ -573,8 +814,11 @@ export default function MediaPage() {
                     className="flex items-center gap-2 border-2 border-dashed rounded-lg px-4 py-3 text-sm text-gray-500 hover:border-brand-400 w-full justify-center"
                   >
                     <Upload size={16} />
-                    {file ? file.name : 'Selecionar arquivo'}
+                    {file ? file.name : (editingId ? 'Trocar arquivo (opcional)' : 'Selecionar arquivo')}
                   </button>
+                  {editingId && !file && (
+                    <p className="text-xs text-gray-400 mt-1">Mantém o arquivo atual se nada for selecionado.</p>
+                  )}
                 </div>
               )}
 
@@ -588,6 +832,36 @@ export default function MediaPage() {
                   <textarea value={htmlContent} onChange={e => setHtmlContent(e.target.value)}
                     placeholder="<h1>Olá</h1>" rows={3}
                     className="w-full border rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-brand-500" />
+                </div>
+              )}
+
+              {/* YouTube */}
+              {type === 'youtube' && (
+                <div>
+                  <label className="block text-sm font-medium mb-1">URL do YouTube (vídeo ou live)</label>
+                  <input value={url} onChange={e => setUrl(e.target.value)}
+                    placeholder="https://www.youtube.com/watch?v=... ou /live/..."
+                    className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
+                  {url && (youtubeId(url)
+                    ? <p className="text-xs text-green-600 mt-1">✓ Vídeo reconhecido: {youtubeId(url)}</p>
+                    : <p className="text-xs text-red-500 mt-1">URL do YouTube não reconhecida.</p>
+                  )}
+                  <p className="text-xs text-amber-600 mt-2 bg-amber-50 rounded-lg p-2">
+                    ⚠️ Vídeos/lives monetizados de terceiros exibem anúncios do YouTube (não há como remover de forma legítima). Para signage sem anúncio, use conteúdo próprio sem monetização ou um Stream HLS direto.
+                  </p>
+                </div>
+              )}
+
+              {/* Stream HLS */}
+              {type === 'stream' && (
+                <div>
+                  <label className="block text-sm font-medium mb-1">URL do stream (HLS .m3u8)</label>
+                  <input value={url} onChange={e => setUrl(e.target.value)}
+                    placeholder="https://.../playlist.m3u8"
+                    className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
+                  <p className="text-xs text-gray-500 mt-2 bg-blue-50 rounded-lg p-2">
+                    Toca o stream direto, sem anúncios e desatendido. Ideal para live indoor. Use a URL .m3u8 da sua transmissão (própria ou de um provedor que forneça o feed direto).
+                  </p>
                 </div>
               )}
 
@@ -606,6 +880,31 @@ export default function MediaPage() {
                 />
               )}
 
+              {/* Progresso de Transcodificação */}
+              {transcodeStatus && (
+                <div className="bg-brand-50 border border-brand-100 rounded-xl p-4 space-y-2">
+                  <div className="flex justify-between items-center text-xs font-medium text-brand-800">
+                    <span>
+                      {transcodeStatus === 'loading' && 'Inicializando conversor de vídeo...'}
+                      {transcodeStatus === 'analyzing' && 'Analisando formato do vídeo...'}
+                      {transcodeStatus === 'transcoding' && 'Convertendo vídeo para formato compatível (H.264)...'}
+                      {transcodeStatus === 'done' && 'Conversão concluída! Enviando...'}
+                      {transcodeStatus === 'error' && 'Erro ao converter o vídeo.'}
+                    </span>
+                    <span className="font-mono">{transcodeProgress}%</span>
+                  </div>
+                  <div className="w-full bg-brand-200/50 rounded-full h-1.5 overflow-hidden">
+                    <div
+                      className="bg-brand-600 h-1.5 rounded-full transition-all duration-300 ease-out"
+                      style={{ width: `${transcodeProgress}%` }}
+                    />
+                  </div>
+                  <p className="text-[10px] text-brand-600/80 leading-normal">
+                    Para garantir que o vídeo reproduza sem travar em qualquer TV Box, convertemos automaticamente para H.264 + AAC. Isso pode levar alguns minutos em arquivos grandes.
+                  </p>
+                </div>
+              )}
+
               {/* Duração */}
               <div>
                 <label className="block text-sm font-medium mb-1">Duração (segundos)</label>
@@ -615,20 +914,21 @@ export default function MediaPage() {
 
               <div className="flex gap-2 pt-1">
                 <button onClick={resetForm} className="flex-1 border rounded-lg py-2 text-sm">Cancelar</button>
-                <button onClick={() => addMedia.mutate()} disabled={isSaveDisabled}
+                <button onClick={handleSave} disabled={isSaveDisabled}
                   className="flex-1 bg-brand-600 hover:bg-brand-700 text-white rounded-lg py-2 text-sm font-medium transition-colors disabled:opacity-50"
                 >
-                  {uploading || addMedia.isPending ? 'Salvando...' : 'Salvar'}
+                  {uploading || addMedia.isPending || updateMedia.isPending ? 'Salvando...' : 'Salvar'}
                 </button>
               </div>
             </div>
+          </div>
           </div>
         </div>
       )}
 
       {/* Grid */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-        {mediaList.map(item => (
+        {visibleMedia.map(item => (
           <div key={item.id} className="bg-white border rounded-xl overflow-hidden group">
             <div className="aspect-video bg-gray-100 relative flex items-center justify-center overflow-hidden">
               {item.storage_path && item.type === 'image' && (
@@ -644,12 +944,22 @@ export default function MediaPage() {
                 />
               )}
               {item.type === 'html' && <div className="text-gray-400"><Code size={24} /></div>}
+              {item.type === 'youtube' && item.url && youtubeId(item.url) && (
+                <img src={`https://img.youtube.com/vi/${youtubeId(item.url)}/hqdefault.jpg`} alt={item.name}
+                  className="w-full h-full object-cover" onError={e => (e.currentTarget.style.display = 'none')} />
+              )}
+              {item.type === 'stream' && <div className="text-gray-400"><Radio size={24} /></div>}
               {item.type === 'weather' && item.weather_config && (
                 <WeatherPreviewCard cfg={item.weather_config} live={null} />
               )}
-              <button onClick={() => { if (confirm('Remover mídia?')) deleteMedia.mutate(item) }}
-                className="absolute top-2 right-2 bg-red-600 text-white p-1 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
-              ><Trash2 size={14} /></button>
+              <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                <button onClick={() => openEdit(item)} title="Editar"
+                  className="bg-white/90 text-gray-700 hover:bg-white p-1 rounded-lg shadow"
+                ><Pencil size={14} /></button>
+                <button onClick={() => { if (confirm('Remover mídia?')) deleteMedia.mutate(item) }} title="Remover"
+                  className="bg-red-600 text-white p-1 rounded-lg shadow"
+                ><Trash2 size={14} /></button>
+              </div>
             </div>
             <div className="p-3">
               <p className="text-sm font-medium truncate">{item.name}</p>
@@ -662,8 +972,10 @@ export default function MediaPage() {
             </div>
           </div>
         ))}
-        {mediaList.length === 0 && (
-          <p className="col-span-5 text-center text-gray-400 py-12">Nenhuma mídia cadastrada.</p>
+        {visibleMedia.length === 0 && (
+          <p className="col-span-5 text-center text-gray-400 py-12">
+            {selectedFolder === 'all' ? 'Nenhuma mídia cadastrada.' : 'Nenhuma mídia nesta pasta.'}
+          </p>
         )}
       </div>
     </div>

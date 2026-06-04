@@ -110,21 +110,21 @@ export default function RssNewsPlayer({ feedId, duration, articleCount, onEnd }:
           src={article.image_url}
           alt=""
           style={{
-            position: 'absolute', inset: 0, width: '100%', height: '100%',
+            position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, width: '100%', height: '100%',
             objectFit: 'cover',
           }}
           onError={e => (e.currentTarget.style.display = 'none')}
         />
       ) : (
         <div style={{
-          position: 'absolute', inset: 0,
+          position: 'absolute', top: 0, right: 0, bottom: 0, left: 0,
           background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%)',
         }} />
       )}
 
       {/* Overlay escuro sobre a imagem */}
       <div style={{
-        position: 'absolute', inset: 0,
+        position: 'absolute', top: 0, right: 0, bottom: 0, left: 0,
         background: 'linear-gradient(to bottom, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.2) 40%, rgba(0,0,0,0.8) 100%)',
       }} />
 

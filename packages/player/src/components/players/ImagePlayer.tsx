@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { getPublicUrl } from '../../lib/supabase'
+import { useCachedUrl } from '../../hooks/useCachedUrl'
 
 interface Props {
   storagePath: string
@@ -9,7 +9,7 @@ interface Props {
 
 export default function ImagePlayer({ storagePath, duration, onEnd }: Props) {
   const [progress, setProgress] = useState(0)
-  const url = getPublicUrl(storagePath)
+  const { url } = useCachedUrl(storagePath)
 
   useEffect(() => {
     setProgress(0)
@@ -38,7 +38,7 @@ export default function ImagePlayer({ storagePath, duration, onEnd }: Props) {
         alt=""
         aria-hidden
         style={{
-          position: 'absolute', inset: 0,
+          position: 'absolute', top: 0, right: 0, bottom: 0, left: 0,
           width: '100%', height: '100%',
           objectFit: 'cover',
           filter: 'blur(24px) brightness(0.5)',
@@ -47,14 +47,14 @@ export default function ImagePlayer({ storagePath, duration, onEnd }: Props) {
         draggable={false}
       />
 
-      {/* Imagem principal — preenche toda a área (sem barras), corte mínimo */}
+      {/* Imagem principal — completa, sem corte */}
       <img
         src={url}
         alt=""
         style={{
           position: 'relative', zIndex: 1,
           width: '100%', height: '100%',
-          objectFit: 'cover',
+          objectFit: 'contain',
         }}
         draggable={false}
       />

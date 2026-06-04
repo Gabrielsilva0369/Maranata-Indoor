@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { getPublicUrl } from '../../lib/supabase'
+import { useCachedUrl } from '../../hooks/useCachedUrl'
 
 interface ClockConfig {
   timezone: string
@@ -70,10 +70,12 @@ export default function ClockPlayer({ config, duration, onEnd }: Props) {
     day: '2-digit', month: 'long', year: 'numeric',
   }).format(now)
 
+  const { url: bgUrl } = useCachedUrl(config.bg_type === 'image' ? config.bg_image_path : null)
+
   const bgStyle: React.CSSProperties =
-    config.bg_type === 'image' && config.bg_image_path
+    config.bg_type === 'image' && bgUrl
       ? {
-          backgroundImage: `url(${getPublicUrl(config.bg_image_path)})`,
+          backgroundImage: `url(${bgUrl})`,
           backgroundSize: 'cover',
           backgroundPosition: 'center',
         }
@@ -93,7 +95,7 @@ export default function ClockPlayer({ config, duration, onEnd }: Props) {
       {/* Overlay suave se tiver imagem de fundo */}
       {config.bg_type === 'image' && (
         <div style={{
-          position: 'absolute', inset: 0,
+          position: 'absolute', top: 0, right: 0, bottom: 0, left: 0,
           background: 'rgba(0,0,0,0.35)',
         }} />
       )}

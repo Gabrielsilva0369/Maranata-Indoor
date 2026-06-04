@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect } from 'react'
+import { Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
-import type { Screen, Playlist, RssFeed, FooterConfig } from '../lib/database.types'
+import type { Screen, Playlist, RssFeed, FooterConfig, ScreenOrientation } from '../lib/database.types'
 import { Plus, Trash2, Volume2, VolumeX, Wifi, WifiOff, PanelBottom, X, Upload, ImageOff, Pencil } from 'lucide-react'
 
 function isOnline(lastSeen: string | null) {
@@ -274,6 +275,14 @@ function EditScreenModal({ screen, playlists, onClose, onSave }: {
   const [name, setName] = useState(screen.name)
   const [playlistId, setPlaylistId] = useState(screen.playlist_id ?? '')
   const [soundEnabled, setSoundEnabled] = useState(screen.sound_enabled)
+  const [orientation, setOrientation] = useState<ScreenOrientation>(screen.orientation ?? 'landscape')
+
+  const ORIENTATIONS: { value: ScreenOrientation; label: string; hint: string }[] = [
+    { value: 'landscape', label: 'Horizontal', hint: 'TV deitada (padrão)' },
+    { value: 'landscape-reverse', label: 'Horizontal ⤬', hint: 'TV deitada de cabeça para baixo (180°)' },
+    { value: 'portrait', label: 'Vertical ↻', hint: 'TV em pé, girar 90° horário' },
+    { value: 'portrait-reverse', label: 'Vertical ↺', hint: 'TV em pé, girar 90° anti-horário' },
+  ]
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -306,6 +315,22 @@ function EditScreenModal({ screen, playlists, onClose, onSave }: {
             </select>
           </div>
 
+          <div>
+            <label className="block text-sm font-medium mb-1">Orientação</label>
+            <div className="grid grid-cols-2 gap-2">
+              {ORIENTATIONS.map(o => (
+                <button key={o.value} onClick={() => setOrientation(o.value)}
+                  className={`py-2 px-1 rounded-lg border text-xs font-medium transition-colors ${orientation === o.value ? 'bg-brand-600 text-white border-brand-600' : 'border-gray-200 hover:border-brand-300'}`}
+                  title={o.hint}>
+                  {o.label}
+                </button>
+              ))}
+            </div>
+            <p className="text-xs text-gray-400 mt-1">
+              {ORIENTATIONS.find(o => o.value === orientation)?.hint}
+            </p>
+          </div>
+
           <div className="flex items-center justify-between py-2 px-4 bg-gray-50 rounded-xl">
             <div>
               <p className="text-sm font-medium">Som</p>
@@ -322,7 +347,7 @@ function EditScreenModal({ screen, playlists, onClose, onSave }: {
         <div className="flex gap-2 px-6 py-4 border-t bg-gray-50 rounded-b-2xl justify-end">
           <button onClick={onClose} className="border rounded-lg px-4 py-2 text-sm">Cancelar</button>
           <button
-            onClick={() => onSave({ name: name.trim(), playlist_id: playlistId || null, sound_enabled: soundEnabled })}
+            onClick={() => onSave({ name: name.trim(), playlist_id: playlistId || null, sound_enabled: soundEnabled, orientation })}
             disabled={!name.trim()}
             className="bg-brand-600 hover:bg-brand-700 text-white rounded-lg px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50">
             Salvar
@@ -501,7 +526,11 @@ export default function Screens() {
               const hasFooter = !!screen.footer_config?.enabled
               return (
                 <tr key={screen.id} className="border-b last:border-0 hover:bg-gray-50">
-                  <td className="px-5 py-3 font-medium">{screen.name}</td>
+                  <td className="px-5 py-3 font-medium">
+                    <Link to={`/screens/${screen.id}`} className="text-brand-600 hover:underline">
+                      {screen.name}
+                    </Link>
+                  </td>
                   <td className="px-5 py-3 font-mono text-gray-500">{screen.token.slice(0, 6).toUpperCase()}</td>
                   <td className="px-5 py-3">
                     <select value={screen.playlist_id ?? ''} onChange={e => updateScreen.mutate({ id: screen.id, playlist_id: e.target.value || null })}

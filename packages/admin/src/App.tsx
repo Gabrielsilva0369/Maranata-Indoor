@@ -6,10 +6,12 @@ import Login from './pages/Login'
 import Layout from './components/Layout'
 import Dashboard from './pages/Dashboard'
 import Screens from './pages/Screens'
+import ScreenDetail from './pages/ScreenDetail'
 import Media from './pages/Media'
 import RssFeeds from './pages/RssFeeds'
 import Playlists from './pages/Playlists'
 import PlaylistEditor from './pages/PlaylistEditor'
+import AppUpdates from './pages/AppUpdates'
 
 export default function App() {
   const [session, setSession] = useState<Session | null | undefined>(undefined)
@@ -36,10 +38,12 @@ export default function App() {
           <Route element={<Layout />}>
             <Route index element={<Dashboard />} />
             <Route path="screens" element={<Screens />} />
+            <Route path="screens/:id" element={<ScreenDetail />} />
             <Route path="media" element={<Media />} />
             <Route path="rss" element={<RssFeeds />} />
             <Route path="playlists" element={<Playlists />} />
             <Route path="playlists/:id" element={<PlaylistEditor />} />
+            <Route path="updates" element={<AppUpdates />} />
           </Route>
         ) : (
           <Route path="*" element={<Navigate to="/login" replace />} />

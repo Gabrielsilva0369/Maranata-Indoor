@@ -103,8 +103,12 @@ function FooterClock({ timezone, color, fontSize, height }: {
 }
 
 // ── Footer principal ──────────────────────────────────────────────────────────
-export default function Footer({ config }: { config: FooterConfig }) {
+export default function Footer({ config, scale = 1 }: { config: FooterConfig; scale?: number }) {
   const [tickerText, setTickerText] = useState('')
+
+  // Dimensões escaladas à tela real
+  const fontSize = config.font_size * scale
+  const height = config.height * scale
 
   const fetchArticles = () => {
     if (!config.rss_feed_id) return
@@ -138,13 +142,11 @@ export default function Footer({ config }: { config: FooterConfig }) {
 
   return (
     <div style={{
-      position: 'fixed',
-      bottom: 0, left: 0, right: 0,
-      height: config.height,
+      width: '100%',
+      height: '100%',
       backgroundColor: config.bg_color,
       display: 'flex',
       alignItems: 'center',
-      zIndex: 9999,
       overflow: 'hidden',
       boxShadow: '0 -2px 16px rgba(0,0,0,0.35)',
     }}>
@@ -152,13 +154,13 @@ export default function Footer({ config }: { config: FooterConfig }) {
       {logoUrl && (
         <div style={{
           height: '100%', display: 'flex', alignItems: 'center',
-          paddingLeft: 12, paddingRight: 12, flexShrink: 0,
+          paddingLeft: 12 * scale, paddingRight: 12 * scale, flexShrink: 0,
           borderRight: `1px solid ${config.text_color}25`,
         }}>
           <img
             src={logoUrl}
             alt="logo"
-            style={{ height: '72%', width: 'auto', maxWidth: config.height * 3, objectFit: 'contain' }}
+            style={{ height: '72%', width: 'auto', maxWidth: height * 3, objectFit: 'contain' }}
             onError={e => (e.currentTarget.style.display = 'none')}
           />
         </div>
@@ -168,9 +170,9 @@ export default function Footer({ config }: { config: FooterConfig }) {
       {tickerText ? (
         <Ticker
           text={tickerText}
-          speed={config.scroll_speed}
+          speed={config.scroll_speed * scale}
           color={config.text_color}
-          fontSize={config.font_size}
+          fontSize={fontSize}
         />
       ) : (
         <div style={{ flex: 1 }} />
@@ -180,8 +182,8 @@ export default function Footer({ config }: { config: FooterConfig }) {
       <FooterClock
         timezone={config.timezone ?? 'America/Sao_Paulo'}
         color={config.text_color}
-        fontSize={config.font_size}
-        height={config.height}
+        fontSize={fontSize}
+        height={height}
       />
     </div>
   )

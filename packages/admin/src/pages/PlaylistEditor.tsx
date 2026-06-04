@@ -2,10 +2,10 @@ import { useState, useCallback, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
-  DndContext, DragOverlay, closestCenter,
+  DndContext, DragOverlay, closestCorners, rectIntersection, pointerWithin,
   KeyboardSensor, PointerSensor, useSensor, useSensors,
   useDroppable, useDraggable,
-  type DragEndEvent, type DragStartEvent,
+  type DragEndEvent, type DragStartEvent, type CollisionDetection,
 } from '@dnd-kit/core'
 import {
   SortableContext, sortableKeyboardCoordinates,
@@ -13,8 +13,8 @@ import {
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { supabase } from '../lib/supabase'
-import type { PlaylistItem, Media, RssFeed, PlaylistItemFooter } from '../lib/database.types'
-import { GripVertical, Copy, Trash2, ChevronLeft, Image, Film, Code, Rss, Clock, Newspaper, Volume2, VolumeX, Volume1, PanelBottom, PanelBottomClose, PanelBottomOpen } from 'lucide-react'
+import type { PlaylistItem, Media, RssFeed, PlaylistItemFooter, ItemSchedule, MediaFolder } from '../lib/database.types'
+import { GripVertical, Copy, Trash2, ChevronLeft, Image, Film, Code, Rss, Clock, Newspaper, Volume2, VolumeX, Volume1, PanelBottom, PanelBottomClose, PanelBottomOpen, Folder, ChevronDown, ChevronRight, CalendarClock, X, Plus } from 'lucide-react'
 
 type RichItem = PlaylistItem & { media?: Media | null; rss_feed?: RssFeed | null }
 
@@ -98,34 +98,44 @@ function InlineNumber({ value, onSave, min = 1, max = 9999, suffix = '' }: {
 }
 
 // ── Cards arrastáveis da biblioteca ───────────────────────────────────────────
-function AvailableMediaCard({ media }: { media: Media }) {
+function AvailableMediaCard({ media, onAdd }: { media: Media; onAdd?: () => void }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: `avail::${media.id}`, data: { kind: 'media', media },
   })
   return (
-    <div ref={setNodeRef} {...attributes} {...listeners}
+    <div ref={setNodeRef}
       style={{ opacity: isDragging ? 0.4 : 1 }}
-      className="flex items-center gap-2 bg-white border rounded-lg px-3 py-2.5 cursor-grab active:cursor-grabbing select-none hover:border-brand-400 hover:shadow-sm transition-all"
+      className="flex items-center gap-2 bg-white border rounded-lg px-3 py-2.5 select-none hover:border-brand-400 hover:shadow-sm transition-all group/card"
     >
-      <span className="text-gray-400 shrink-0">{MEDIA_ICONS[media.type]}</span>
-      <span className="text-sm font-medium truncate flex-1">{media.name}</span>
+      <span {...attributes} {...listeners} className="text-gray-400 shrink-0 cursor-grab active:cursor-grabbing">{MEDIA_ICONS[media.type]}</span>
+      <span {...attributes} {...listeners} className="text-sm font-medium truncate flex-1 cursor-grab active:cursor-grabbing">{media.name}</span>
       <span className="text-xs text-gray-400 shrink-0">{media.duration}s</span>
+      {onAdd && (
+        <button onClick={onAdd} title="Adicionar à playlist"
+          className="p-1 rounded text-gray-300 hover:text-brand-600 hover:bg-brand-50 transition-colors opacity-0 group-hover/card:opacity-100 shrink-0"
+        ><Plus size={14} /></button>
+      )}
     </div>
   )
 }
 
-function AvailableRssCard({ feed }: { feed: RssFeed }) {
+function AvailableRssCard({ feed, onAdd }: { feed: RssFeed; onAdd?: () => void }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: `rss::${feed.id}`, data: { kind: 'rss', feed },
   })
   return (
-    <div ref={setNodeRef} {...attributes} {...listeners}
+    <div ref={setNodeRef}
       style={{ opacity: isDragging ? 0.4 : 1 }}
-      className="flex items-center gap-2 bg-white border rounded-lg px-3 py-2.5 cursor-grab active:cursor-grabbing select-none hover:border-orange-400 hover:shadow-sm transition-all"
+      className="flex items-center gap-2 bg-white border rounded-lg px-3 py-2.5 select-none hover:border-orange-400 hover:shadow-sm transition-all group/card"
     >
-      <Rss size={12} className="text-orange-400 shrink-0" />
-      <span className="text-sm font-medium truncate flex-1">{feed.name}</span>
+      <span {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing shrink-0"><Rss size={12} className="text-orange-400" /></span>
+      <span {...attributes} {...listeners} className="text-sm font-medium truncate flex-1 cursor-grab active:cursor-grabbing">{feed.name}</span>
       <span className="text-xs text-gray-400 shrink-0">RSS</span>
+      {onAdd && (
+        <button onClick={onAdd} title="Adicionar à playlist"
+          className="p-1 rounded text-gray-300 hover:text-orange-500 hover:bg-orange-50 transition-colors opacity-0 group-hover/card:opacity-100 shrink-0"
+        ><Plus size={14} /></button>
+      )}
     </div>
   )
 }
@@ -159,8 +169,140 @@ function AudioToggle({ value, onChange }: {
   )
 }
 
+// ── Modal de agendamento ──────────────────────────────────────────────────────
+const WEEKDAYS = [
+  { v: 0, l: 'Dom' }, { v: 1, l: 'Seg' }, { v: 2, l: 'Ter' }, { v: 3, l: 'Qua' },
+  { v: 4, l: 'Qui' }, { v: 5, l: 'Sex' }, { v: 6, l: 'Sáb' },
+]
+
+function ScheduleModal({ item, onClose, onSave }: {
+  item: RichItem
+  onClose: () => void
+  onSave: (s: ItemSchedule | null) => void
+}) {
+  const init = item.schedule ?? { enabled: true, start: '08:00', end: '18:00', days: [], date_start: null, date_end: null }
+  const [enabled, setEnabled] = useState(init.enabled)
+  const [start, setStart] = useState(init.start)
+  const [end, setEnd] = useState(init.end)
+  const [days, setDays] = useState<number[]>(init.days ?? [])
+  const [dateStart, setDateStart] = useState(init.date_start ?? '')
+  const [dateEnd, setDateEnd] = useState(init.date_end ?? '')
+
+  const toggleDay = (d: number) =>
+    setDays(prev => prev.includes(d) ? prev.filter(x => x !== d) : [...prev, d].sort())
+
+  const label = item.rss_feed?.name ?? item.media?.name ?? 'Item'
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md">
+        <div className="flex items-center justify-between p-6 border-b">
+          <div>
+            <h3 className="text-lg font-semibold">Agendamento</h3>
+            <p className="text-xs text-gray-400 mt-0.5 truncate max-w-xs">{label}</p>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
+        </div>
+
+        <div className="p-6 space-y-5">
+          <div className="flex items-center justify-between py-2 px-4 bg-gray-50 rounded-xl">
+            <div>
+              <p className="text-sm font-medium">Agendar exibição</p>
+              <p className="text-xs text-gray-400">Só aparece no horário definido</p>
+            </div>
+            <button onClick={() => setEnabled(v => !v)}
+              className={`relative w-11 h-6 rounded-full transition-colors ${enabled ? 'bg-brand-600' : 'bg-gray-200'}`}>
+              <span style={{ transform: enabled ? 'translateX(22px)' : 'translateX(2px)' }}
+                className="absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform" />
+            </button>
+          </div>
+
+          <div className={enabled ? '' : 'opacity-40 pointer-events-none'}>
+            <div className="grid grid-cols-2 gap-3 mb-4">
+              <div>
+                <label className="block text-sm font-medium mb-1">Início</label>
+                <input type="time" value={start} onChange={e => setStart(e.target.value)}
+                  className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Fim</label>
+                <input type="time" value={end} onChange={e => setEnd(e.target.value)}
+                  className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-2">Dias da semana</label>
+              <div className="flex gap-1.5">
+                {WEEKDAYS.map(d => (
+                  <button key={d.v} onClick={() => toggleDay(d.v)}
+                    className={`flex-1 py-2 rounded-lg border text-xs font-medium transition-colors ${days.includes(d.v) ? 'bg-brand-600 text-white border-brand-600' : 'border-gray-200 hover:border-brand-300'}`}>
+                    {d.l}
+                  </button>
+                ))}
+              </div>
+              <p className="text-xs text-gray-400 mt-1">
+                {days.length === 0 ? 'Nenhum selecionado = todos os dias' : `${days.length} dia(s) selecionado(s)`}
+              </p>
+            </div>
+
+            {/* Intervalo de datas */}
+            <div className="mt-4">
+              <label className="block text-sm font-medium mb-2">Período <span className="text-gray-400 font-normal">(opcional)</span></label>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">De</label>
+                  <input type="date" value={dateStart} onChange={e => setDateStart(e.target.value)}
+                    className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Até</label>
+                  <input type="date" value={dateEnd} onChange={e => setDateEnd(e.target.value)}
+                    className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
+                </div>
+              </div>
+              <div className="flex gap-2 mt-2">
+                <button onClick={() => { const t = new Date().toISOString().slice(0,10); setDateStart(t); setDateEnd(t) }}
+                  className="text-xs text-brand-600 hover:underline">Só hoje</button>
+                {(dateStart || dateEnd) && (
+                  <button onClick={() => { setDateStart(''); setDateEnd('') }}
+                    className="text-xs text-gray-400 hover:underline">Limpar período</button>
+                )}
+              </div>
+              <p className="text-xs text-gray-400 mt-1">Vazio = sem limite de data (vale sempre).</p>
+            </div>
+
+            <p className="text-xs text-gray-500 mt-4 bg-blue-50 rounded-lg p-3">
+              {start > end
+                ? `Exibe das ${start} até ${end} do dia seguinte (cruza a meia-noite).`
+                : `Exibe diariamente das ${start} às ${end}.`}
+              {dateStart && dateEnd && dateStart === dateEnd && ` Apenas em ${new Date(dateStart + 'T00:00').toLocaleDateString('pt-BR')}.`}
+              {dateStart && dateEnd && dateStart !== dateEnd && ` De ${new Date(dateStart + 'T00:00').toLocaleDateString('pt-BR')} a ${new Date(dateEnd + 'T00:00').toLocaleDateString('pt-BR')}.`}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex gap-2 px-6 py-4 border-t bg-gray-50 rounded-b-2xl">
+          {item.schedule && (
+            <button onClick={() => onSave(null)}
+              className="border border-red-200 text-red-600 hover:bg-red-50 rounded-lg px-4 py-2 text-sm transition-colors">
+              Remover
+            </button>
+          )}
+          <div className="flex-1" />
+          <button onClick={onClose} className="border rounded-lg px-4 py-2 text-sm">Cancelar</button>
+          <button onClick={() => onSave({ enabled, start, end, days, date_start: dateStart || null, date_end: dateEnd || null })}
+            className="bg-brand-600 hover:bg-brand-700 text-white rounded-lg px-4 py-2 text-sm font-medium transition-colors">
+            Salvar
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Item sortável da playlist ─────────────────────────────────────────────────
-function PlaylistCard({ item, index, onDelete, onDuplicate, onUpdateDuration, onUpdateArticleCount, onUpdateAudio, onUpdateFooter }: {
+function PlaylistCard({ item, index, onDelete, onDuplicate, onUpdateDuration, onUpdateArticleCount, onUpdateAudio, onUpdateFooter, onOpenSchedule }: {
   item: RichItem
   index: number
   onDelete: () => void
@@ -169,6 +311,7 @@ function PlaylistCard({ item, index, onDelete, onDuplicate, onUpdateDuration, on
   onUpdateArticleCount: (count: number) => void
   onUpdateAudio: (value: boolean | null) => void
   onUpdateFooter: (value: PlaylistItemFooter | null) => void
+  onOpenSchedule: () => void
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: item.id })
   const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.4 : 1 }
@@ -231,6 +374,13 @@ function PlaylistCard({ item, index, onDelete, onDuplicate, onUpdateDuration, on
       {/* toggle rodapé */}
       <FooterItemControl value={item.footer_override ?? null} onChange={onUpdateFooter} />
 
+      {/* agendamento */}
+      <button onClick={onOpenSchedule}
+        title={item.schedule?.enabled ? 'Agendado (clique para editar)' : 'Agendar exibição'}
+        className={`p-1 rounded transition-colors shrink-0 ${item.schedule?.enabled ? 'text-purple-600 bg-purple-50 hover:bg-purple-100' : 'text-gray-300 hover:text-gray-500 hover:bg-gray-100'}`}>
+        <CalendarClock size={13} />
+      </button>
+
       {/* ações */}
       <button onClick={onDuplicate} title="Duplicar"
         className="text-gray-300 hover:text-brand-500 transition-colors shrink-0 opacity-0 group-hover:opacity-100"
@@ -250,6 +400,24 @@ function PlaylistCard({ item, index, onDelete, onDuplicate, onUpdateDuration, on
           placeholder="Texto personalizado do rodapé..."
           className="flex-1 text-xs border rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-400"
         />
+      </div>
+    )}
+
+    {/* Indicador de agendamento */}
+    {item.schedule?.enabled && (
+      <div className="flex items-center gap-1.5 px-3 pb-2 -mt-1 ml-12 text-xs text-purple-600 flex-wrap">
+        <CalendarClock size={11} />
+        {item.schedule.start}–{item.schedule.end}
+        {item.schedule.days && item.schedule.days.length > 0 && (
+          <span className="text-gray-400">· {item.schedule.days.map(d => WEEKDAYS[d].l).join(', ')}</span>
+        )}
+        {(item.schedule.date_start || item.schedule.date_end) && (
+          <span className="text-gray-400">
+            · {item.schedule.date_start === item.schedule.date_end && item.schedule.date_start
+              ? new Date(item.schedule.date_start + 'T00:00').toLocaleDateString('pt-BR')
+              : `${item.schedule.date_start ? new Date(item.schedule.date_start + 'T00:00').toLocaleDateString('pt-BR') : '...'} → ${item.schedule.date_end ? new Date(item.schedule.date_end + 'T00:00').toLocaleDateString('pt-BR') : '...'}`}
+          </span>
+        )}
       </div>
     )}
     </>
@@ -274,11 +442,38 @@ export default function PlaylistEditor() {
   const [tab, setTab] = useState<'media' | 'rss'>('media')
   const [activeInfo, setActiveInfo] = useState<{ label: string; type: 'media' | 'rss' } | null>(null)
   const [localItems, setLocalItems] = useState<RichItem[]>([])
+  const [scheduleItem, setScheduleItem] = useState<RichItem | null>(null)
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   )
+
+  // Estratégia de colisão customizada: usa pointerWithin para detectar
+  // droppables de painel (playlist-drop, avail-drop) com prioridade,
+  // e closestCorners para reordenar itens existentes.
+  const customCollision: CollisionDetection = useCallback((args) => {
+    // Primeiro tenta pointerWithin — funciona bem para áreas grandes
+    const pointerCollisions = pointerWithin(args)
+    if (pointerCollisions.length > 0) {
+      // Se o pointer está sobre um droppable de painel, prioriza
+      const panelHit = pointerCollisions.find(
+        c => c.id === 'playlist-drop' || c.id === 'avail-drop'
+      )
+      // Se o pointer está sobre um item da playlist, usa closestCorners para precisão
+      const itemHit = pointerCollisions.find(
+        c => localItems.some(i => i.id === c.id)
+      )
+      if (itemHit) return [itemHit]
+      if (panelHit) return [panelHit]
+      return pointerCollisions
+    }
+    // Fallback: rectIntersection para áreas que pointerWithin não pegou
+    const rectCollisions = rectIntersection(args)
+    if (rectCollisions.length > 0) return rectCollisions
+    // Último fallback: closestCorners
+    return closestCorners(args)
+  }, [localItems])
 
   const { data: playlist } = useQuery({
     queryKey: ['playlist', id],
@@ -316,6 +511,18 @@ export default function PlaylistEditor() {
       if (error) throw error; return data
     },
   })
+
+  const { data: folders = [] } = useQuery<MediaFolder[]>({
+    queryKey: ['media-folders'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('media_folders').select('*').order('name')
+      if (error) throw error; return data
+    },
+  })
+
+  // Pastas abertas/fechadas no painel
+  const [openFolders, setOpenFolders] = useState<Record<string, boolean>>({})
+  const toggleFolder = (id: string) => setOpenFolders(p => ({ ...p, [id]: !p[id] }))
 
   useEffect(() => { setLocalItems(serverItems) }, [serverItems])
 
@@ -367,6 +574,7 @@ export default function PlaylistEditor() {
       rss_article_count: feedId ? 5 : null,
       audio_enabled: null,
       footer_override: null,
+      schedule: null,
       media: media ?? null, rss_feed: feed ?? null,
     }
     setLocalItems(prev => {
@@ -411,6 +619,14 @@ export default function PlaylistEditor() {
     if (!item.id.startsWith('temp::')) {
       updateItem.mutate({ itemId: item.id, patch: { footer_override: value } })
     }
+  }
+
+  const handleUpdateSchedule = (item: RichItem, value: ItemSchedule | null) => {
+    setLocalItems(prev => prev.map(i => i.id === item.id ? { ...i, schedule: value } : i))
+    if (!item.id.startsWith('temp::')) {
+      updateItem.mutate({ itemId: item.id, patch: { schedule: value } })
+    }
+    setScheduleItem(null)
   }
 
   // ── DnD ───────────────────────────────────────────────────────────────────
@@ -467,7 +683,7 @@ export default function PlaylistEditor() {
       </button>
       <h2 className="text-xl font-bold mb-4">{playlist?.name ?? 'Playlist'}</h2>
 
-      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+      <DndContext sensors={sensors} collisionDetection={customCollision} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
         <div className="flex gap-5 flex-1 min-h-0">
 
           {/* Esquerda: Biblioteca */}
@@ -486,13 +702,57 @@ export default function PlaylistEditor() {
             >
               {tab === 'media' && (
                 <>
-                  {allMedia.map(m => <AvailableMediaCard key={m.id} media={m} />)}
+                  {/* Pastas colapsáveis */}
+                  {folders.map(folder => {
+                    const items = allMedia.filter(m => m.folder_id === folder.id)
+                    if (items.length === 0) return null
+                    const open = openFolders[folder.id] ?? false
+                    return (
+                      <div key={folder.id}>
+                        <button onClick={() => toggleFolder(folder.id)}
+                          className="flex items-center gap-1.5 w-full px-2 py-1.5 rounded-lg text-xs font-semibold text-gray-600 hover:bg-gray-100 transition-colors">
+                          {open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                          <Folder size={13} className="text-amber-500" />
+                          <span className="flex-1 text-left">{folder.name}</span>
+                          <span className="text-gray-400 font-normal">{items.length}</span>
+                        </button>
+                        {open && (
+                          <div className="pl-3 mt-1 space-y-2">
+                            {items.map(m => <AvailableMediaCard key={m.id} media={m} onAdd={() => optimisticAdd(m.id, undefined, localItems.length)} />)}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+
+                  {/* Sem pasta */}
+                  {(() => {
+                    const items = allMedia.filter(m => !m.folder_id)
+                    if (items.length === 0) return null
+                    const open = openFolders['__none__'] ?? true
+                    return (
+                      <div>
+                        <button onClick={() => toggleFolder('__none__')}
+                          className="flex items-center gap-1.5 w-full px-2 py-1.5 rounded-lg text-xs font-semibold text-gray-600 hover:bg-gray-100 transition-colors">
+                          {open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                          <span className="flex-1 text-left">Sem pasta</span>
+                          <span className="text-gray-400 font-normal">{items.length}</span>
+                        </button>
+                        {open && (
+                          <div className="pl-3 mt-1 space-y-2">
+                            {items.map(m => <AvailableMediaCard key={m.id} media={m} onAdd={() => optimisticAdd(m.id, undefined, localItems.length)} />)}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })()}
+
                   {allMedia.length === 0 && <p className="text-xs text-gray-400 text-center py-8">Sem mídias.</p>}
                 </>
               )}
               {tab === 'rss' && (
                 <>
-                  {allFeeds.map(f => <AvailableRssCard key={f.id} feed={f} />)}
+                  {allFeeds.map(f => <AvailableRssCard key={f.id} feed={f} onAdd={() => optimisticAdd(undefined, f.id, localItems.length)} />)}
                   {allFeeds.length === 0 && (
                     <p className="text-xs text-gray-400 text-center py-8">Sem feeds RSS.<br/>Cadastre em <span className="text-brand-500">RSS</span>.</p>
                   )}
@@ -526,6 +786,7 @@ export default function PlaylistEditor() {
                       onUpdateArticleCount={c => handleUpdateArticleCount(item, c)}
                       onUpdateAudio={v => handleUpdateAudio(item, v)}
                       onUpdateFooter={v => handleUpdateFooter(item, v)}
+                      onOpenSchedule={() => setScheduleItem(item)}
                     />
                   ))}
                 </div>
@@ -543,6 +804,14 @@ export default function PlaylistEditor() {
           {activeInfo && <DragPreview label={activeInfo.label} type={activeInfo.type} />}
         </DragOverlay>
       </DndContext>
+
+      {scheduleItem && (
+        <ScheduleModal
+          item={scheduleItem}
+          onClose={() => setScheduleItem(null)}
+          onSave={s => handleUpdateSchedule(scheduleItem, s)}
+        />
+      )}
     </div>
   )
 }

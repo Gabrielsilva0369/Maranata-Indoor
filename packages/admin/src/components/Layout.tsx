@@ -1,5 +1,5 @@
 import { Outlet, NavLink, useNavigate } from 'react-router-dom'
-import { Monitor, Image, ListVideo, LayoutDashboard, LogOut, Rss } from 'lucide-react'
+import { Monitor, Image, ListVideo, LayoutDashboard, LogOut, Rss, DownloadCloud } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 
 const nav = [
@@ -8,6 +8,7 @@ const nav = [
   { to: '/media', icon: Image, label: 'Mídias' },
   { to: '/rss', icon: Rss, label: 'RSS' },
   { to: '/playlists', icon: ListVideo, label: 'Playlists' },
+  { to: '/updates', icon: DownloadCloud, label: 'Atualizações' },
 ]
 
 export default function Layout() {
