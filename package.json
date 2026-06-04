@@ -1,0 +1,14 @@
+{
+  "name": "maranata-indoor",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:admin": "npm run dev -w packages/admin",
+    "dev:player": "npm run dev -w packages/player",
+    "build:admin": "npm run build -w packages/admin",
+    "build:player": "npm run build -w packages/player",
+    "build": "npm run build:admin && npm run build:player"
+  }
+}

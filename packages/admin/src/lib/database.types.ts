@@ -1,0 +1,123 @@
+export type MediaType = 'image' | 'video' | 'html' | 'clock' | 'weather'
+
+export interface WeatherConfig {
+  city_name: string
+  country: string
+  latitude: number
+  longitude: number
+  unit: 'C' | 'F'
+  text_color: string
+  bg_type: 'auto' | 'color'
+  bg_color: string
+  show_humidity: boolean
+  show_wind: boolean
+  show_feels_like: boolean
+}
+
+export interface ClockConfig {
+  timezone: string
+  font: string
+  font_color: string
+  bg_type: 'color' | 'image'
+  bg_color: string
+  bg_image_path: string | null
+  show_seconds: boolean
+}
+
+export interface FooterConfig {
+  enabled: boolean
+  type: 'text' | 'rss'
+  text: string | null
+  rss_feed_id: string | null
+  logo_path: string | null     // Supabase Storage path
+  timezone: string             // para o relógio à direita
+  bg_color: string
+  text_color: string
+  font_size: number            // px
+  height: number               // px
+  scroll_speed: number         // px/s
+}
+
+export interface Screen {
+  id: string
+  name: string
+  token: string
+  playlist_id: string | null
+  sound_enabled: boolean
+  footer_config: FooterConfig | null
+  last_seen: string | null
+  created_at: string
+}
+
+export interface Media {
+  id: string
+  name: string
+  type: MediaType
+  storage_path: string | null
+  url: string | null
+  html_content: string | null
+  clock_config: ClockConfig | null
+  weather_config: WeatherConfig | null
+  duration: number
+  created_at: string
+}
+
+export interface Playlist {
+  id: string
+  name: string
+  created_at: string
+}
+
+export interface RssFeed {
+  id: string
+  name: string
+  url: string
+  last_synced_at: string | null
+  created_at: string
+}
+
+export interface RssArticle {
+  id: string
+  feed_id: string
+  title: string
+  description: string | null
+  image_url: string | null
+  source_logo: string | null
+  source_name: string | null
+  link: string | null
+  pub_date: string | null
+  fetched_at: string
+  active: boolean
+}
+
+export interface PlaylistItemFooter {
+  enabled: boolean
+  text?: string | null
+}
+
+export interface PlaylistItem {
+  id: string
+  playlist_id: string
+  media_id: string | null
+  rss_feed_id: string | null
+  order_index: number
+  duration_override: number | null
+  rss_article_count: number | null
+  audio_enabled: boolean | null
+  footer_override: PlaylistItemFooter | null
+  media?: Media | null
+  rss_feed?: RssFeed | null
+}
+
+export type Database = {
+  public: {
+    Tables: {
+      screens:        { Row: Screen;      Insert: Omit<Screen,      'id' | 'created_at'>; Update: Partial<Omit<Screen,      'id'>> }
+      media:          { Row: Media;       Insert: Omit<Media,       'id' | 'created_at'>; Update: Partial<Omit<Media,       'id'>> }
+      playlists:      { Row: Playlist;    Insert: Omit<Playlist,    'id' | 'created_at'>; Update: Partial<Omit<Playlist,    'id'>> }
+      playlist_items: { Row: PlaylistItem; Insert: Omit<PlaylistItem, 'id'>;              Update: Partial<Omit<PlaylistItem, 'id'>> }
+      rss_feeds:      { Row: RssFeed;     Insert: Omit<RssFeed,     'id' | 'created_at' | 'last_synced_at'>; Update: Partial<Omit<RssFeed, 'id'>> }
+      rss_articles:   { Row: RssArticle;  Insert: Omit<RssArticle,  'id'>;               Update: Partial<Omit<RssArticle,  'id'>> }
+    }
+  }
+}
