@@ -113,7 +113,13 @@ export function usePlaylist(token: string) {
         .eq('playlist_id', data.playlist_id)
         .order('order_index')
 
-      setItems((playlistItems as PlaylistItem[]) ?? [])
+      // Supabase tipa joins como array; normalizamos media/rss_feed para objeto único
+      const normalized = (playlistItems ?? []).map((it: any) => ({
+        ...it,
+        media: Array.isArray(it.media) ? (it.media[0] ?? null) : it.media,
+        rss_feed: Array.isArray(it.rss_feed) ? (it.rss_feed[0] ?? null) : it.rss_feed,
+      })) as PlaylistItem[]
+      setItems(normalized)
     } else {
       setItems([])
     }

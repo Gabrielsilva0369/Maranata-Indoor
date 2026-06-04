@@ -43,11 +43,6 @@ function getWeatherInfo(code: number) {
 
 function toF(c: number) { return Math.round(c * 9 / 5 + 32) }
 
-function windDir(deg: number) {
-  const dirs = ['N','NE','L','SE','S','SO','O','NO']
-  return dirs[Math.round(deg / 45) % 8]
-}
-
 // ── Player ────────────────────────────────────────────────────────────────────
 export default function WeatherPlayer({ config, duration, onEnd }: Props) {
   const [weather, setWeather] = useState<WeatherData | null>(null)
