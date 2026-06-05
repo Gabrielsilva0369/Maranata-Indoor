@@ -16,6 +16,9 @@
     "resize-observer-polyfill": "^1.5.1"
   },
   "devDependencies": {
+    "@capacitor/android": "7.6.6",
+    "@capacitor/cli": "7.6.6",
+    "@capacitor/core": "7.6.6",
     "@types/react": "^18.3.21",
     "@types/react-dom": "^18.3.5",
     "@vitejs/plugin-legacy": "^6.0.0",

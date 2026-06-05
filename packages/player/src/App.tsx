@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useScreenToken } from './hooks/useScreenToken'
 import { usePlaylist } from './hooks/usePlaylist'
 import { useScreenSync } from './hooks/useScreenSync'
@@ -7,6 +7,7 @@ import PairingScreen from './components/PairingScreen'
 import PlaylistPlayer from './components/PlaylistPlayer'
 import OrientationWrapper from './components/OrientationWrapper'
 import AudioUnlock from './components/AudioUnlock'
+import LoadingScreen from './components/LoadingScreen'
 
 const RSS_SYNC_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/rss-sync`
 const ANON_KEY     = import.meta.env.VITE_SUPABASE_ANON_KEY as string
@@ -22,9 +23,12 @@ export default function App() {
   const { token, pairCode } = useScreenToken()
   const { screen, items, paired, loading, refetch, syncStatus } = usePlaylist(token)
   const [currentMedia, setCurrentMedia] = useState('')
-  // Pré-carregamento: baixa as mídias antes de começar a tocar (toca do cache,
-  // liso). Não trava pra sempre — após 45s segue mesmo sem terminar.
+  // Pré-carregamento: na tela inicial baixa TODO o conteúdo da playlist (imagens
+  // e vídeos) pro cache local antes de começar a tocar — assim reproduz liso e
+  // funciona offline. YouTube/streaming não são baixados (tocam direto da rede).
   const [preloaded, setPreloaded] = useState(false)
+  // Marca o instante do último avanço de download, p/ detectar travamento.
+  const lastProgressRef = useRef(Date.now())
   useScreenSync({
     screenId: screen?.id,
     currentMedia,
@@ -48,11 +52,28 @@ export default function App() {
       setPreloaded(true)
     }
   }, [syncStatus])
-  // Segurança: nunca fica preso no "Preparando" — após 45s segue de qualquer jeito.
+
+  // Registra cada avanço do download (muda completed/status) para o watchdog.
   useEffect(() => {
-    const t = setTimeout(() => setPreloaded(true), 45000)
-    return () => clearTimeout(t)
+    lastProgressRef.current = Date.now()
+  }, [syncStatus?.completed, syncStatus?.status])
+
+  // Sem internet no boot: não fica esperando download — toca direto do cache local.
+  useEffect(() => {
+    if (!navigator.onLine) setPreloaded(true)
   }, [])
+
+  // Watchdog: nunca trava na tela de carregamento. Playlist grande baixa por
+  // inteiro DESDE QUE o progresso continue avançando; só libera no "estouro" se
+  // o download EMPACAR (sem avançar) por 60s — aí o item sem cache toca por
+  // streaming enquanto termina de baixar em background.
+  useEffect(() => {
+    if (preloaded) return
+    const id = setInterval(() => {
+      if (Date.now() - lastProgressRef.current > 60000) setPreloaded(true)
+    }, 5000)
+    return () => clearInterval(id)
+  }, [preloaded])
 
   // Request fullscreen on first interaction (required by browsers)
   // Na WebView do Capacitor (Android TV), essa API pode não existir
@@ -94,31 +115,11 @@ export default function App() {
     return <PairingScreen pairCode={pairCode} onRetry={refetch} />
   }
 
-  // Tela "Preparando mídias": baixa tudo antes de tocar, pra reproduzir do cache
-  // sem travamento. Aparece só no início (e quando você muda muita coisa no admin).
-  if (!preloaded && syncStatus?.status === 'syncing') {
-    const pct = syncStatus.total ? Math.round((syncStatus.completed / syncStatus.total) * 100) : 0
-    return (
-      <div style={{
-        width: '100vw', height: '100vh', background: '#111827', color: '#e5e7eb',
-        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-        gap: 18, fontFamily: 'system-ui, -apple-system, sans-serif',
-      }}>
-        <div style={{
-          width: 44, height: 44, borderRadius: '50%',
-          border: '4px solid #374151', borderTopColor: '#60a5fa',
-          animation: 'spin 0.8s linear infinite',
-        }} />
-        <div style={{ fontSize: 18, fontWeight: 600 }}>Preparando mídias…</div>
-        <div style={{ fontSize: 14, color: '#9ca3af' }}>
-          {syncStatus.completed} / {syncStatus.total} ({pct}%)
-        </div>
-        <div style={{ width: 260, height: 6, background: '#374151', borderRadius: 999, overflow: 'hidden' }}>
-          <div style={{ height: '100%', width: `${pct}%`, background: '#60a5fa', transition: 'width 200ms linear' }} />
-        </div>
-        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-      </div>
-    )
+  // Tela inicial de carregamento: emparelhada mas ainda baixando o conteúdo.
+  // Segura a reprodução até o download terminar (ou o watchdog liberar), pra
+  // tocar do cache sem travamento. Aparece no boot e quando a playlist muda.
+  if (!preloaded) {
+    return <LoadingScreen sync={syncStatus} />
   }
 
   return (
