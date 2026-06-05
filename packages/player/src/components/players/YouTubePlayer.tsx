@@ -1,5 +1,6 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { onAudioUnlock } from '../../lib/audioUnlock'
+import { hasInternet } from '../../lib/network'
 
 interface Props {
   url: string
@@ -32,11 +33,29 @@ export default function YouTubePlayer({ url, duration, muted, onEnd }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const playerRef = useRef<any>(null)
   const endedRef = useRef(false)
+  // null = checando internet; true = pode tocar; false não chega a renderizar (pulou)
+  const [online, setOnline] = useState<boolean | null>(null)
 
   const id = extractId(url)
   const wantSound = !muted
 
+  // YouTube precisa de internet. Verifica ANTES de tocar (toda vez que o item
+  // aparece): se não tiver, pula para o próximo em vez de ficar carregando.
   useEffect(() => {
+    let cancelled = false
+    let skipTimer: ReturnType<typeof setTimeout> | undefined
+    hasInternet().then(ok => {
+      if (cancelled) return
+      if (ok) setOnline(true)
+      // sem internet → pula, com um respiro p/ não virar loop apertado se a
+      // playlist inteira for YouTube/stream offline.
+      else skipTimer = setTimeout(onEnd, 1500)
+    })
+    return () => { cancelled = true; if (skipTimer) clearTimeout(skipTimer) }
+  }, [url, onEnd])
+
+  useEffect(() => {
+    if (online !== true) return // só carrega o player após confirmar internet
     if (!id) { onEnd(); return }
     endedRef.current = false
     let fallbackTimer: ReturnType<typeof setTimeout> | undefined
@@ -131,7 +150,7 @@ export default function YouTubePlayer({ url, duration, muted, onEnd }: Props) {
       if (startGuard) clearTimeout(startGuard)
       try { playerRef.current?.destroy() } catch { /* ignore */ }
     }
-  }, [url, id, duration, muted, onEnd])
+  }, [online, url, id, duration, muted, onEnd])
 
   if (!id) return null
 

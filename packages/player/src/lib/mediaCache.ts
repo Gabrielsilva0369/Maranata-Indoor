@@ -135,6 +135,15 @@ async function fetchWithTimeout(url: string, ms: number): Promise<Response> {
  * pra ser cacheada e exibida via <img>.
  */
 async function warmCache(url: string): Promise<void> {
+  // Se já está no cache do Service Worker, não baixa de novo.
+  try {
+    if (typeof caches !== 'undefined') {
+      const hit = await caches.match(url)
+      if (hit) return
+    }
+  } catch {
+    /* Cache Storage indisponível — segue e tenta baixar */
+  }
   try {
     if (typeof AbortController !== 'undefined') {
       const ctrl = new AbortController()

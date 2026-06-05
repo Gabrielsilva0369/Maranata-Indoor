@@ -1,6 +1,7 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Hls from 'hls.js'
 import { onAudioUnlock } from '../../lib/audioUnlock'
+import { hasInternet } from '../../lib/network'
 
 interface Props {
   url: string
@@ -11,8 +12,26 @@ interface Props {
 
 export default function StreamPlayer({ url, duration, muted, onEnd }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null)
+  // null = checando internet; true = pode tocar
+  const [online, setOnline] = useState<boolean | null>(null)
+
+  // Streaming/live precisa de internet. Verifica ANTES de tocar: sem internet,
+  // pula para o próximo item em vez de ficar carregando/preto.
+  useEffect(() => {
+    let cancelled = false
+    let skipTimer: ReturnType<typeof setTimeout> | undefined
+    hasInternet().then(ok => {
+      if (cancelled) return
+      if (ok) setOnline(true)
+      // sem internet → pula, com um respiro p/ não virar loop apertado se a
+      // playlist inteira for YouTube/stream offline.
+      else skipTimer = setTimeout(onEnd, 1500)
+    })
+    return () => { cancelled = true; if (skipTimer) clearTimeout(skipTimer) }
+  }, [url, onEnd])
 
   useEffect(() => {
+    if (online !== true) return // só carrega o stream após confirmar internet
     const video = videoRef.current
     if (!video) return
     const wantSound = !muted
@@ -82,7 +101,7 @@ export default function StreamPlayer({ url, duration, muted, onEnd }: Props) {
       if (hls) hls.destroy()
       video.removeAttribute('src')
     }
-  }, [url, duration, muted, onEnd])
+  }, [online, url, duration, muted, onEnd])
 
   return (
     <div style={{ width: '100%', height: '100%', background: '#000', overflow: 'hidden' }}>
