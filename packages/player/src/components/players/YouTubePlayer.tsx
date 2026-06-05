@@ -40,10 +40,15 @@ export default function YouTubePlayer({ url, duration, muted, onEnd }: Props) {
     if (!id) { onEnd(); return }
     endedRef.current = false
     let fallbackTimer: ReturnType<typeof setTimeout> | undefined
-    let unmuteTimer: ReturnType<typeof setTimeout> | undefined
-    let triedUnmute = false   // só tenta desmutar UMA vez
-    let gaveUpSound = false    // desmutar pausou → desiste do som, toca mudo
-    let unmutedAt = 0
+    let startGuard: ReturnType<typeof setTimeout> | undefined
+    let gaveUpSound = false   // contexto bloqueou o som → toca mudo (sem loop)
+
+    // Cai para mudo (uma vez) e mantém tocando.
+    const fallbackToMuted = (t: any) => {
+      if (gaveUpSound) return
+      gaveUpSound = true
+      try { t.mute(); t.playVideo() } catch { /* ignore */ }
+    }
 
     // Interação real do usuário → libera o som de vez.
     const offUnlock = onAudioUnlock(() => {
@@ -61,7 +66,9 @@ export default function YouTubePlayer({ url, duration, muted, onEnd }: Props) {
         width: '100%',
         playerVars: {
           autoplay: 1,
-          mute: 1,            // SEMPRE inicia mudo → autoplay garantido
+          // Inicia JÁ com som quando a tela quer som (o kiosk permite autoplay
+          // com áudio). Se algum contexto bloquear, cai pra mudo automaticamente.
+          mute: wantSound ? 0 : 1,
           controls: 0,
           disablekb: 1,
           fs: 0,
@@ -72,29 +79,28 @@ export default function YouTubePlayer({ url, duration, muted, onEnd }: Props) {
         },
         events: {
           onReady: (e: any) => {
-            try { e.target.mute(); e.target.playVideo() } catch { /* ignore */ }
+            const t = e.target
+            try {
+              if (wantSound) { t.unMute(); t.setVolume(100) } else { t.mute() }
+              t.playVideo()
+            } catch { /* ignore */ }
+            // Rede de segurança: se em ~3s não estiver tocando (contexto que bloqueia
+            // som), cai pra mudo e toca.
+            startGuard = setTimeout(() => {
+              try { if (playerRef.current?.getPlayerState?.() !== 1) fallbackToMuted(playerRef.current) } catch { /* ignore */ }
+            }, 3000)
           },
           onStateChange: (e: any) => {
             const t = e.target
-            if (e.data === 1) {
-              // PLAYING: tenta ligar o som UMA vez, já tocando.
-              if (wantSound && !gaveUpSound && !triedUnmute) {
-                triedUnmute = true
-                unmuteTimer = setTimeout(() => {
-                  if (gaveUpSound) return
-                  unmutedAt = Date.now()
-                  try { t.unMute(); t.setVolume(100) } catch { /* ignore */ }
-                }, 700)
-              }
-            } else if (e.data === 2) {
-              // PAUSED inesperado. Se foi logo após desmutar, o navegador bloqueou
-              // o som → desiste do som e segue tocando MUDO (sem loop liga/pausa).
+            if (e.data === 2) {
+              // PAUSED inesperado: se está com som, o navegador pode ter bloqueado
+              // → cai pra mudo (uma vez); senão só retoma. Nunca fica em loop.
               if (endedRef.current) return
-              if (!gaveUpSound && unmutedAt && Date.now() - unmutedAt < 2500) {
-                gaveUpSound = true
-                try { t.mute() } catch { /* ignore */ }
+              if (wantSound && !gaveUpSound) {
+                fallbackToMuted(t)
+              } else {
+                try { t.playVideo() } catch { /* ignore */ }
               }
-              try { t.playVideo() } catch { /* ignore */ }
             } else if (e.data === 0) {
               // ENDED (vídeo normal) → avança
               if (!endedRef.current) { endedRef.current = true; onEnd() }
@@ -113,7 +119,7 @@ export default function YouTubePlayer({ url, duration, muted, onEnd }: Props) {
     return () => {
       offUnlock()
       if (fallbackTimer) clearTimeout(fallbackTimer)
-      if (unmuteTimer) clearTimeout(unmuteTimer)
+      if (startGuard) clearTimeout(startGuard)
       try { playerRef.current?.destroy() } catch { /* ignore */ }
     }
   }, [url, id, duration, muted, onEnd])

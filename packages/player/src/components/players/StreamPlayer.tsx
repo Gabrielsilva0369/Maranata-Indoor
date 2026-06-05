@@ -18,12 +18,10 @@ export default function StreamPlayer({ url, duration, muted, onEnd }: Props) {
     const wantSound = !muted
     let hls: Hls | null = null
     let durTimer: ReturnType<typeof setTimeout> | undefined
-    let unmuteTimer: ReturnType<typeof setTimeout> | undefined
     let gaveUpSound = false
 
     // Recuperação de pausa: se pausar sozinho (não terminou), retoma. Se a pausa
-    // veio de desmutar (o navegador bloqueia som sem gesto), desiste do som e segue
-    // tocando MUDO — assim nunca fica naquele liga/pausa em loop.
+    // veio do som bloqueado, cai pra mudo (uma vez) e segue tocando — sem loop.
     const onPause = () => {
       if (video.ended) return
       if (wantSound && !video.muted && !gaveUpSound) {
@@ -41,16 +39,17 @@ export default function StreamPlayer({ url, duration, muted, onEnd }: Props) {
       video.play().catch(() => { /* ignore */ })
     })
 
-    // SEMPRE inicia MUDO (autoplay garantido). Depois tenta o som UMA vez.
+    // Inicia JÁ com som quando a tela quer som (o kiosk permite autoplay com áudio).
+    // Se algum contexto bloquear o play com som, cai pra mudo automaticamente.
     const safePlay = () => {
-      video.muted = true
-      video.play()
-        .then(() => {
-          if (wantSound) {
-            unmuteTimer = setTimeout(() => { if (!gaveUpSound) video.muted = false }, 700)
-          }
-        })
-        .catch(() => { /* nem mudo tocou: onError/onEnded cuidam */ })
+      video.muted = !wantSound
+      video.play().catch(() => {
+        if (wantSound && !gaveUpSound) {
+          gaveUpSound = true
+          video.muted = true
+          video.play().catch(() => { /* nem mudo tocou: onError/onEnded cuidam */ })
+        }
+      })
     }
 
     if (video.canPlayType('application/vnd.apple.mpegurl')) {
@@ -80,7 +79,6 @@ export default function StreamPlayer({ url, duration, muted, onEnd }: Props) {
       video.removeEventListener('pause', onPause)
       offUnlock()
       if (durTimer) clearTimeout(durTimer)
-      if (unmuteTimer) clearTimeout(unmuteTimer)
       if (hls) hls.destroy()
       video.removeAttribute('src')
     }
