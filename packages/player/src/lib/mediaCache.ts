@@ -110,6 +110,23 @@ export interface SyncProgress {
 }
 
 /**
+ * fetch com tempo-limite por arquivo: se um download EMPACAR (conexão aberta mas
+ * sem terminar), abortamos e seguimos — assim a sincronização nunca trava pra
+ * sempre e a tela de carregamento sempre chega ao fim.
+ */
+async function fetchWithTimeout(url: string, ms: number): Promise<Response> {
+  // AbortController pode não existir em WebView muito antiga → fallback p/ fetch normal.
+  if (typeof AbortController === 'undefined') return fetch(url)
+  const ctrl = new AbortController()
+  const t = setTimeout(() => ctrl.abort(), ms)
+  try {
+    return await fetch(url, { signal: ctrl.signal })
+  } finally {
+    clearTimeout(t)
+  }
+}
+
+/**
  * Varre a playlist, baixa todas as mídias em background e limpa as antigas.
  */
 export async function syncMediaCache(
@@ -160,7 +177,7 @@ export async function syncMediaCache(
       // Só baixa se ainda não estiver no cache local (evita re-download)
       const cachedBlob = await getCache(path)
       if (!cachedBlob) {
-        const res = await fetch(getPublicUrl(path))
+        const res = await fetchWithTimeout(getPublicUrl(path), 90000)
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
         const blob = await res.blob()
         await setCache(path, blob)

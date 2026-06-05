@@ -101,6 +101,32 @@ export interface ScreenConfig {
   orientation: ScreenOrientation
 }
 
+// Assinatura do conteúdo que afeta a reprodução (ignora campos voláteis como o
+// timestamp de sync do RSS). Detecta quando a playlist MUDOU de fato — e só
+// então reinicia a reprodução / dispara o download / mostra o preload.
+function computeSig(data: any, items: PlaylistItem[]): string {
+  return JSON.stringify({
+    s: {
+      sound_enabled: data.sound_enabled,
+      video_quality: data.video_quality,
+      playlist_id: data.playlist_id,
+      orientation: data.orientation,
+      footer_config: data.footer_config,
+    },
+    items: items.map(it => ({
+      id: it.id, o: it.order_index, d: it.duration_override, a: it.audio_enabled,
+      rc: it.rss_article_count, fo: it.footer_override, sc: it.schedule,
+      mid: it.media_id, rid: it.rss_feed_id,
+      m: it.media ? {
+        t: it.media.type, sp: it.media.storage_path, u: it.media.url,
+        h: it.media.html_content, c: it.media.clock_config, w: it.media.weather_config,
+        dur: it.media.duration,
+      } : null,
+      rf: it.rss_feed ? { id: it.rss_feed.id, u: it.rss_feed.url, n: it.rss_feed.name } : null,
+    })),
+  })
+}
+
 export function usePlaylist(token: string) {
   const [screen, setScreen] = useState<ScreenConfig | null>(null)
   const [items, setItems] = useState<PlaylistItem[]>([])
@@ -111,26 +137,54 @@ export function usePlaylist(token: string) {
   // quando nada mudou (senão a cada 1 min ela voltava pro item 0).
   const lastSigRef = useRef('')
 
-  // Carrega cache offline na inicialização
+  // Aplica o conteúdo (do cache ou da rede) APENAS se mudou de fato, e dispara o
+  // download de TODAS as mídias (que aciona a tela de carregamento). Centralizar
+  // aqui garante: boot offline baixa/valida do cache; mudança de playlist reaciona
+  // o preload; e conteúdo idêntico (poll) não reinicia nada.
+  const applyContent = useCallback((screenData: ScreenConfig, fetchedItems: PlaylistItem[], persist: boolean) => {
+    const sig = computeSig(screenData, fetchedItems)
+    if (sig === lastSigRef.current) return
+    lastSigRef.current = sig
+
+    setScreen(screenData)
+    setItems(fetchedItems)
+    setPaired(true)
+
+    if (persist) {
+      try {
+        localStorage.setItem(`maranata_player_cache_${token}`, JSON.stringify({
+          cachedScreen: screenData,
+          cachedItems: fetchedItems,
+        }))
+      } catch (e) {
+        console.error('Erro ao gravar cache local da playlist:', e)
+      }
+    }
+
+    // Baixa/valida o cache local de mídias (rendition da qualidade da tela).
+    // O App segura a tela de carregamento até isto reportar 'done'/'error'.
+    setSyncStatus({ status: 'syncing', completed: 0, total: 0 })
+    syncMediaCache(fetchedItems, screenData.video_quality, setSyncStatus).catch(e => {
+      console.error('Erro na sincronização de cache de mídias:', e)
+      setSyncStatus({ status: 'error', completed: 0, total: 0 })
+    })
+  }, [token])
+
+  // Carrega o cache offline na inicialização (e já dispara o preload com ele).
   useEffect(() => {
     if (!token) return
-    const cacheKey = `maranata_player_cache_${token}`
     try {
-      const cached = localStorage.getItem(cacheKey)
+      const cached = localStorage.getItem(`maranata_player_cache_${token}`)
       if (cached) {
         const { cachedScreen, cachedItems } = JSON.parse(cached)
         if (cachedScreen) {
-          setScreen(cachedScreen)
-          setPaired(true)
-        }
-        if (cachedItems) {
-          setItems(cachedItems)
+          applyContent(cachedScreen, cachedItems ?? [], false)
         }
       }
     } catch (e) {
       console.error('Erro ao ler cache local da playlist:', e)
     }
-  }, [token])
+  }, [token, applyContent])
 
   const fetchScreen = useCallback(async () => {
     if (!token) return
@@ -150,8 +204,6 @@ export function usePlaylist(token: string) {
         return
       }
 
-      setPaired(true)
-
       let fetchedItems: PlaylistItem[] = []
       if (data.playlist_id) {
         const { data: playlistItems, error: itemsError } = await supabase
@@ -170,55 +222,16 @@ export function usePlaylist(token: string) {
         })) as PlaylistItem[]
       }
 
-      // Só aplica (e reinicia a reprodução) se o conteúdo/config MUDOU de fato.
-      // Sem isto, o poll de 1 min trocava a referência de `items` toda vez e o
-      // PlaylistPlayer voltava pro item 0 — nunca chegando ao fim da playlist.
-      // A assinatura usa só os campos que afetam a reprodução (ignora timestamps
-      // voláteis como rss_feed.last_synced_at, que mudam sozinhos).
-      const sig = JSON.stringify({
-        s: {
-          sound_enabled: data.sound_enabled,
-          video_quality: data.video_quality,
-          playlist_id: data.playlist_id,
-          orientation: data.orientation,
-          footer_config: data.footer_config,
-        },
-        items: fetchedItems.map(it => ({
-          id: it.id, o: it.order_index, d: it.duration_override, a: it.audio_enabled,
-          rc: it.rss_article_count, fo: it.footer_override, sc: it.schedule,
-          mid: it.media_id, rid: it.rss_feed_id,
-          m: it.media ? {
-            t: it.media.type, sp: it.media.storage_path, u: it.media.url,
-            h: it.media.html_content, c: it.media.clock_config, w: it.media.weather_config,
-            dur: it.media.duration,
-          } : null,
-          rf: it.rss_feed ? { id: it.rss_feed.id, u: it.rss_feed.url, n: it.rss_feed.name } : null,
-        })),
-      })
-      if (sig !== lastSigRef.current) {
-        lastSigRef.current = sig
-        setScreen(data)
-        setItems(fetchedItems)
-
-        // Atualiza o cache offline
-        const cacheKey = `maranata_player_cache_${token}`
-        localStorage.setItem(cacheKey, JSON.stringify({
-          cachedScreen: data,
-          cachedItems: fetchedItems,
-        }))
-
-        // Sincroniza o cache local de mídias em background (rendition da qualidade da tela)
-        syncMediaCache(fetchedItems, data.video_quality, setSyncStatus).catch(e => {
-          console.error('Erro na sincronização de cache de mídias:', e)
-          setSyncStatus({ status: 'error', completed: 0, total: 0 })
-        })
-      }
+      // Aplica só se mudou de fato (dedupe por assinatura) — no poll de 1 min com
+      // conteúdo igual, NÃO reinicia a playlist nem mostra o preload. Se mudou,
+      // applyContent redispara o download e a tela de carregamento reaparece.
+      applyContent(data as ScreenConfig, fetchedItems, true)
     } catch (e) {
       console.error('Erro ao sincronizar com o Supabase (rodando no modo offline cache):', e)
     } finally {
       setLoading(false)
     }
-  }, [token])
+  }, [token, applyContent])
 
   useEffect(() => { fetchScreen() }, [fetchScreen])
 

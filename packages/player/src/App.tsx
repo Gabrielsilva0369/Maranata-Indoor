@@ -23,18 +23,34 @@ export default function App() {
   const { token, pairCode } = useScreenToken()
   const { screen, items, paired, loading, refetch, syncStatus } = usePlaylist(token)
   const [currentMedia, setCurrentMedia] = useState('')
-  // Pré-carregamento: na tela inicial baixa TODO o conteúdo da playlist (imagens
-  // e vídeos) pro cache local antes de começar a tocar — assim reproduz liso e
-  // funciona offline. YouTube/streaming não são baixados (tocam direto da rede).
-  const [preloaded, setPreloaded] = useState(false)
-  // Marca o instante do último avanço de download, p/ detectar travamento.
-  const lastProgressRef = useRef(Date.now())
   useScreenSync({
     screenId: screen?.id,
     currentMedia,
     orientation: screen?.orientation ?? 'landscape',
     onRefresh: refetch,   // comando "Atualizar Tela": re-busca conteúdo sem recarregar o navegador
   })
+
+  // O download terminou (ou deu erro) → conteúdo pronto pra tocar do cache.
+  // O preload é dirigido DIRETO por isto: enquanto não está 'done'/'error', a
+  // tela de carregamento fica. Como o usePlaylist redispara o download quando a
+  // playlist muda, a tela de carregamento reaparece sozinha nesse caso.
+  const ready = syncStatus?.status === 'done' || syncStatus?.status === 'error'
+
+  // Tempo mínimo de exibição: se tudo já está em cache o download termina em
+  // milissegundos; sem isto a tela "piscaria" e pareceria que nem apareceu.
+  const [minElapsed, setMinElapsed] = useState(false)
+  const gateStartRef = useRef(Date.now())
+  useEffect(() => {
+    if (!ready) {
+      // Novo ciclo de carregamento (boot ou playlist mudou): reinicia o mínimo.
+      gateStartRef.current = Date.now()
+      setMinElapsed(false)
+      return
+    }
+    const remaining = Math.max(0, 1500 - (Date.now() - gateStartRef.current))
+    const t = setTimeout(() => setMinElapsed(true), remaining)
+    return () => clearTimeout(t)
+  }, [ready])
 
   // Sincroniza feeds RSS a cada 10 minutos
   useEffect(() => {
@@ -45,35 +61,6 @@ export default function App() {
 
   // Desbloqueia áudio na primeira interação (política de autoplay do navegador)
   useEffect(() => { initAudioUnlock() }, [])
-
-  // Libera a reprodução quando o download das mídias termina (ou dá erro).
-  useEffect(() => {
-    if (syncStatus && (syncStatus.status === 'done' || syncStatus.status === 'error')) {
-      setPreloaded(true)
-    }
-  }, [syncStatus])
-
-  // Registra cada avanço do download (muda completed/status) para o watchdog.
-  useEffect(() => {
-    lastProgressRef.current = Date.now()
-  }, [syncStatus?.completed, syncStatus?.status])
-
-  // Sem internet no boot: não fica esperando download — toca direto do cache local.
-  useEffect(() => {
-    if (!navigator.onLine) setPreloaded(true)
-  }, [])
-
-  // Watchdog: nunca trava na tela de carregamento. Playlist grande baixa por
-  // inteiro DESDE QUE o progresso continue avançando; só libera no "estouro" se
-  // o download EMPACAR (sem avançar) por 60s — aí o item sem cache toca por
-  // streaming enquanto termina de baixar em background.
-  useEffect(() => {
-    if (preloaded) return
-    const id = setInterval(() => {
-      if (Date.now() - lastProgressRef.current > 60000) setPreloaded(true)
-    }, 5000)
-    return () => clearInterval(id)
-  }, [preloaded])
 
   // Request fullscreen on first interaction (required by browsers)
   // Na WebView do Capacitor (Android TV), essa API pode não existir
@@ -95,30 +82,19 @@ export default function App() {
     }
   }, [])
 
-  if (loading) {
-    return (
-      <div style={{
-        width: '100vw', height: '100vh', background: '#111827',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-      }}>
-        <div style={{
-          width: 40, height: 40, borderRadius: '50%',
-          border: '4px solid #374151', borderTopColor: '#60a5fa',
-          animation: 'spin 0.8s linear infinite',
-        }} />
-        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-      </div>
-    )
+  // Ainda descobrindo se a tela está emparelhada (primeira busca, sem cache).
+  if (loading && !paired) {
+    return <LoadingScreen sync={null} />
   }
 
   if (!paired) {
     return <PairingScreen pairCode={pairCode} onRetry={refetch} />
   }
 
-  // Tela inicial de carregamento: emparelhada mas ainda baixando o conteúdo.
-  // Segura a reprodução até o download terminar (ou o watchdog liberar), pra
-  // tocar do cache sem travamento. Aparece no boot e quando a playlist muda.
-  if (!preloaded) {
+  // Tela de carregamento: PERSISTE até TODAS as mídias terminarem de baixar
+  // (status 'done'/'error') e o tempo mínimo de exibição passar. Reaparece
+  // sozinha quando a playlist muda, pois aí o usePlaylist redispara o download.
+  if (!ready || !minElapsed) {
     return <LoadingScreen sync={syncStatus} />
   }
 

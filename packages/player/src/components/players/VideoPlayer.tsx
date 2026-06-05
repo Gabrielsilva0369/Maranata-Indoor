@@ -24,8 +24,9 @@ export default function VideoPlayer({ storagePath, muted, quality = 'fhd', onEnd
     setPoster(null)
     let captured = false
 
+    // NÃO forçar currentTime=0: o elemento recém-criado (src novo) já começa do 0,
+    // e reposicionar durante o decode causa o "frame verde quebrado" em box fraco.
     v.muted = muted
-    try { v.currentTime = 0 } catch { /* ignore */ }
     v.play().catch(() => {
       v.muted = true
       v.play().catch(() => onEnd())
@@ -82,6 +83,10 @@ export default function VideoPlayer({ storagePath, muted, quality = 'fhd', onEnd
         onEnded={onEnd}
         onError={() => onEnd()}   // formato não suportado / falha → pula para o próximo
         playsInline
+        autoPlay
+        muted={muted}
+        controls={false}
+        disablePictureInPicture
         preload="auto"
         style={{
           position: 'relative', zIndex: 1,
