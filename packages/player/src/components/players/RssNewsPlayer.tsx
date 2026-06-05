@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { supabase } from '../../lib/supabase'
+import { getCachedArticles } from '../../lib/newsCache'
 
 interface Article {
   id: string
@@ -9,6 +10,15 @@ interface Article {
   source_logo: string | null
   source_name: string | null
   pub_date: string | null
+}
+
+function shuffle<T>(arr: T[]): T[] {
+  const pool = [...arr]
+  for (let i = pool.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[pool[i], pool[j]] = [pool[j], pool[i]]
+  }
+  return pool
 }
 
 interface Props {
@@ -28,6 +38,17 @@ export default function RssNewsPlayer({ feedId, duration, articleCount, onEnd }:
   useEffect(() => {
     setLoading(true)
     setIndex(0)
+
+    // 1º: usa os artigos já pré-carregados (preload) — instantâneo e offline,
+    // e com as imagens já aquecidas no cache. Sorteia entre eles.
+    const cached = getCachedArticles(feedId)
+    if (cached.length > 0) {
+      setArticles(shuffle(cached).slice(0, articleCount))
+      setLoading(false)
+      return
+    }
+
+    // Fallback (feed novo / preload não rodou): busca direto da rede.
     supabase
       .from('rss_articles')
       .select('id, title, description, image_url, source_logo, source_name, pub_date')
@@ -36,13 +57,7 @@ export default function RssNewsPlayer({ feedId, duration, articleCount, onEnd }:
       .order('pub_date', { ascending: false })
       .limit(100)
       .then(({ data }) => {
-        // Embaralha (Fisher-Yates) e pega articleCount aleatórios
-        const pool = [...(data ?? [])]
-        for (let i = pool.length - 1; i > 0; i--) {
-          const j = Math.floor(Math.random() * (i + 1))
-          ;[pool[i], pool[j]] = [pool[j], pool[i]]
-        }
-        setArticles(pool.slice(0, articleCount))
+        setArticles(shuffle(data ?? []).slice(0, articleCount))
         setLoading(false)
       })
   }, [feedId, articleCount])

@@ -164,7 +164,7 @@ export function usePlaylist(token: string) {
     // Baixa/valida o cache local de mídias (rendition da qualidade da tela).
     // O App segura a tela de carregamento até isto reportar 'done'/'error'.
     setSyncStatus({ status: 'syncing', completed: 0, total: 0 })
-    syncMediaCache(fetchedItems, screenData.video_quality, setSyncStatus).catch(e => {
+    syncMediaCache(fetchedItems, screenData.video_quality, screenData.footer_config, setSyncStatus).catch(e => {
       console.error('Erro na sincronização de cache de mídias:', e)
       setSyncStatus({ status: 'error', completed: 0, total: 0 })
     })

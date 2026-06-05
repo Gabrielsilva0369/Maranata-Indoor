@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase, getPublicUrl } from '../lib/supabase'
+import { getCachedArticles } from '../lib/newsCache'
 
 interface FooterConfig {
   enabled: boolean
@@ -112,6 +113,15 @@ export default function Footer({ config, scale = 1 }: { config: FooterConfig; sc
 
   const fetchArticles = () => {
     if (!config.rss_feed_id) return
+
+    // Usa os títulos já pré-carregados (preload) — funciona offline.
+    const cached = getCachedArticles(config.rss_feed_id)
+    if (cached.length > 0) {
+      setTickerText(cached.map(a => a.title).filter(Boolean).join('     ·     '))
+      return
+    }
+
+    // Fallback: busca direto da rede.
     supabase
       .from('rss_articles')
       .select('title')

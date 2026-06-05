@@ -57,6 +57,19 @@ export default defineConfig({
               cacheableResponse: { statuses: [0, 200] },
             },
           },
+          // Imagens externas das notícias (capa + logo da fonte). São aquecidas
+          // no preload (mediaCache.warmCache) e servidas daqui — aparecem na hora
+          // e seguem disponíveis offline. Vem DEPOIS da regra do Storage acima,
+          // então as imagens do Supabase continuam no cache 'supabase-media'.
+          {
+            urlPattern: ({ request }) => request.destination === 'image',
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'external-images',
+              expiration: { maxEntries: 300, maxAgeSeconds: 60 * 60 * 24 * 7 },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
         ],
       },
       manifest: {
