@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { syncMediaCache } from '../lib/mediaCache'
 import type { SyncProgress } from '../lib/mediaCache'
@@ -104,6 +104,9 @@ export function usePlaylist(token: string) {
   const [paired, setPaired] = useState(false)
   const [loading, setLoading] = useState(true)
   const [syncStatus, setSyncStatus] = useState<SyncProgress | null>(null)
+  // Assinatura do último conteúdo aplicado — evita reiniciar a playlist no poll
+  // quando nada mudou (senão a cada 1 min ela voltava pro item 0).
+  const lastSigRef = useRef('')
 
   // Carrega cache offline na inicialização
   useEffect(() => {
@@ -144,7 +147,6 @@ export function usePlaylist(token: string) {
         return
       }
 
-      setScreen(data)
       setPaired(true)
 
       let fetchedItems: PlaylistItem[] = []
@@ -163,23 +165,50 @@ export function usePlaylist(token: string) {
           media: Array.isArray(it.media) ? (it.media[0] ?? null) : it.media,
           rss_feed: Array.isArray(it.rss_feed) ? (it.rss_feed[0] ?? null) : it.rss_feed,
         })) as PlaylistItem[]
-        setItems(fetchedItems)
-      } else {
-        setItems([])
       }
 
-      // Atualiza o cache offline
-      const cacheKey = `maranata_player_cache_${token}`
-      localStorage.setItem(cacheKey, JSON.stringify({
-        cachedScreen: data,
-        cachedItems: fetchedItems
-      }))
-
-      // Sincroniza o cache local de mídias em background
-      syncMediaCache(fetchedItems, setSyncStatus).catch(e => {
-        console.error('Erro na sincronização de cache de mídias:', e)
-        setSyncStatus({ status: 'error', completed: 0, total: 0 })
+      // Só aplica (e reinicia a reprodução) se o conteúdo/config MUDOU de fato.
+      // Sem isto, o poll de 1 min trocava a referência de `items` toda vez e o
+      // PlaylistPlayer voltava pro item 0 — nunca chegando ao fim da playlist.
+      // A assinatura usa só os campos que afetam a reprodução (ignora timestamps
+      // voláteis como rss_feed.last_synced_at, que mudam sozinhos).
+      const sig = JSON.stringify({
+        s: {
+          sound_enabled: data.sound_enabled,
+          playlist_id: data.playlist_id,
+          orientation: data.orientation,
+          footer_config: data.footer_config,
+        },
+        items: fetchedItems.map(it => ({
+          id: it.id, o: it.order_index, d: it.duration_override, a: it.audio_enabled,
+          rc: it.rss_article_count, fo: it.footer_override, sc: it.schedule,
+          mid: it.media_id, rid: it.rss_feed_id,
+          m: it.media ? {
+            t: it.media.type, sp: it.media.storage_path, u: it.media.url,
+            h: it.media.html_content, c: it.media.clock_config, w: it.media.weather_config,
+            dur: it.media.duration,
+          } : null,
+          rf: it.rss_feed ? { id: it.rss_feed.id, u: it.rss_feed.url, n: it.rss_feed.name } : null,
+        })),
       })
+      if (sig !== lastSigRef.current) {
+        lastSigRef.current = sig
+        setScreen(data)
+        setItems(fetchedItems)
+
+        // Atualiza o cache offline
+        const cacheKey = `maranata_player_cache_${token}`
+        localStorage.setItem(cacheKey, JSON.stringify({
+          cachedScreen: data,
+          cachedItems: fetchedItems,
+        }))
+
+        // Sincroniza o cache local de mídias em background
+        syncMediaCache(fetchedItems, setSyncStatus).catch(e => {
+          console.error('Erro na sincronização de cache de mídias:', e)
+          setSyncStatus({ status: 'error', completed: 0, total: 0 })
+        })
+      }
     } catch (e) {
       console.error('Erro ao sincronizar com o Supabase (rodando no modo offline cache):', e)
     } finally {
