@@ -92,7 +92,14 @@ export default function YouTubePlayer({ url, duration, muted, onEnd }: Props) {
           },
           onStateChange: (e: any) => {
             const t = e.target
-            if (e.data === 2) {
+            if (e.data === 1) {
+              // PLAYING: o YouTube AUTO-MUTA o autoplay mesmo com mute:0. Forçamos
+              // o som aqui (uma vez). No kiosk com autoplay liberado, sai som; em
+              // contexto que bloqueia, o evento PAUSED abaixo cai pra mudo sem loop.
+              if (wantSound && !gaveUpSound) {
+                try { t.unMute(); t.setVolume(100) } catch { /* ignore */ }
+              }
+            } else if (e.data === 2) {
               // PAUSED inesperado: se está com som, o navegador pode ter bloqueado
               // → cai pra mudo (uma vez); senão só retoma. Nunca fica em loop.
               if (endedRef.current) return

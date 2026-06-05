@@ -80,5 +80,10 @@ export default defineConfig({
   build: {
     target: ['es2015', 'chrome60']
   },
+  // Marca cada build com a data/hora — vai pra telemetria pra sabermos qual
+  // versão cada tela está rodando (e confirmar se carregou o build novo).
+  define: {
+    __BUILD_TIME__: JSON.stringify(new Date().toISOString()),
+  },
   server: { port: 5174 },
 })

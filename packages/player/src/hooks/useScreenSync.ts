@@ -54,6 +54,7 @@ async function buildTelemetry(currentMedia: string, orientation: string) {
     storage_estimate: storageStr,
     ua_full: ua,
     diag,
+    build: typeof __BUILD_TIME__ !== 'undefined' ? __BUILD_TIME__ : '',
   }
 }
 
