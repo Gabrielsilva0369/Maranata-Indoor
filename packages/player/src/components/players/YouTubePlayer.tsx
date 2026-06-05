@@ -50,8 +50,10 @@ export default function YouTubePlayer({ url, duration, muted, onEnd }: Props) {
       try { t.mute(); t.playVideo() } catch { /* ignore */ }
     }
 
-    // Interação real do usuário → libera o som de vez.
+    // Pulse de desbloqueio (overlay a cada 2s) / interação real → re-tenta o som.
+    // SÓ desmuta se a tela quer som; com "Som" desativado, nunca tira do mudo.
     const offUnlock = onAudioUnlock(() => {
+      if (!wantSound) return
       gaveUpSound = false
       try { playerRef.current?.unMute(); playerRef.current?.setVolume(100); playerRef.current?.playVideo() } catch { /* ignore */ }
     })
