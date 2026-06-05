@@ -189,9 +189,10 @@ export function usePlaylist(token: string) {
 
   useEffect(() => { fetchScreen() }, [fetchScreen])
 
-  // Polling a cada 10 minutos
+  // Re-busca a playlist/config a cada 1 minuto — assim mudanças no admin
+  // aparecem sozinhas rápido, mesmo sem mandar comando.
   useEffect(() => {
-    const id = setInterval(fetchScreen, 10 * 60 * 1000)
+    const id = setInterval(fetchScreen, 60 * 1000)
     return () => clearInterval(id)
   }, [fetchScreen])
 

@@ -38,16 +38,13 @@ export default defineConfig({
               cacheableResponse: { statuses: [0, 200] },
             },
           },
-          // API Supabase: NetworkFirst com fallback ao cache
+          // API Supabase (playlist/config/telemetria): SEMPRE da rede, NUNCA do
+          // cache do SW — senão o comando "Atualizar Tela" / "Reiniciar" podia
+          // pegar a playlist velha em cache e não refletir a mudança. O offline
+          // da playlist é garantido pelo cache em localStorage (usePlaylist).
           {
             urlPattern: /supabase\.co\/rest\/v1\//,
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'supabase-api',
-              networkTimeoutSeconds: 5,
-              expiration: { maxEntries: 50, maxAgeSeconds: 60 * 60 * 24 },
-              cacheableResponse: { statuses: [0, 200] },
-            },
+            handler: 'NetworkOnly',
           },
           // Edge Functions (rss-proxy)
           {

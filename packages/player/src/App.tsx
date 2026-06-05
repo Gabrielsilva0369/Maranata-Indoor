@@ -6,6 +6,7 @@ import { initAudioUnlock } from './lib/audioUnlock'
 import PairingScreen from './components/PairingScreen'
 import PlaylistPlayer from './components/PlaylistPlayer'
 import OrientationWrapper from './components/OrientationWrapper'
+import AudioUnlock from './components/AudioUnlock'
 
 const RSS_SYNC_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/rss-sync`
 const ANON_KEY     = import.meta.env.VITE_SUPABASE_ANON_KEY as string
@@ -79,7 +80,10 @@ export default function App() {
   }
 
   return (
-    <OrientationWrapper orientation={screen!.orientation ?? 'landscape'}>
+    <>
+      {/* Overlay "tap to start" que libera o áudio do autoplay (auto-clique no load) */}
+      <AudioUnlock />
+      <OrientationWrapper orientation={screen!.orientation ?? 'landscape'}>
       <PlaylistPlayer items={items} screen={screen!} onMediaChange={setCurrentMedia} />
 
       {/* Indicador de sincronização local de mídias em background */}
@@ -104,6 +108,7 @@ export default function App() {
           <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
         </div>
       )}
-    </OrientationWrapper>
+      </OrientationWrapper>
+    </>
   )
 }
