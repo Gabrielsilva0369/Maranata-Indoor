@@ -5,6 +5,70 @@ const DB_NAME = 'MaranataMediaCache'
 const DB_VERSION = 1
 const STORE_NAME = 'media'
 
+// Validade do cache do player: 24h. Passado isso, apaga TUDO e baixa de novo.
+const CACHE_TTL_MS = 24 * 60 * 60 * 1000
+const BUILT_AT_KEY = 'maranata_cache_built_at'
+// Caches do Service Worker que guardam conteúdo (NÃO inclui o precache do app).
+const RUNTIME_CACHES = ['external-images', 'supabase-media', 'rss-feeds']
+
+/** Verdadeiro se o cache nunca foi construído ou já passou de 24h. */
+export function isCacheExpired(): boolean {
+  try {
+    const v = localStorage.getItem(BUILT_AT_KEY)
+    if (!v) return true
+    return Date.now() - Number(v) > CACHE_TTL_MS
+  } catch {
+    return false
+  }
+}
+
+/** Marca o momento em que o cache foi (re)construído por completo. */
+function markCacheBuilt(): void {
+  try {
+    localStorage.setItem(BUILT_AT_KEY, String(Date.now()))
+  } catch {
+    /* cota — ignora */
+  }
+}
+
+/**
+ * Apaga TODO o cache de conteúdo: mídias (IndexedDB), imagens/feeds do Service
+ * Worker e notícias (localStorage). Não toca no precache do app (a casca offline).
+ */
+export async function clearAllCache(): Promise<void> {
+  // IndexedDB (imagens/vídeos)
+  try {
+    const db = await openDB()
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, 'readwrite')
+      tx.objectStore(STORE_NAME).clear()
+      tx.oncomplete = () => resolve()
+      tx.onerror = () => reject(tx.error)
+    })
+  } catch (e) {
+    console.error('[Cache] erro ao limpar IndexedDB:', e)
+  }
+
+  // Caches do Service Worker (imagens de notícia, mídia do Storage, feeds)
+  try {
+    if (typeof caches !== 'undefined') {
+      await Promise.all(RUNTIME_CACHES.map(n => caches.delete(n)))
+    }
+  } catch (e) {
+    console.error('[Cache] erro ao limpar Cache Storage:', e)
+  }
+
+  // Notícias em localStorage
+  try {
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const k = localStorage.key(i)
+      if (k && k.startsWith('maranata_news_')) localStorage.removeItem(k)
+    }
+  } catch {
+    /* ignora */
+  }
+}
+
 /**
  * Abre a conexão com o banco de dados IndexedDB.
  */
@@ -181,6 +245,13 @@ export async function syncMediaCache(
   footer: FooterCacheInfo | null,
   onProgress?: (progress: SyncProgress) => void
 ): Promise<void> {
+  // ── 0. Validade de 24h: se o cache venceu (ou nunca existiu), apaga tudo e
+  //       remarca — assim o loop abaixo rebaixa todo o conteúdo do zero. ──
+  if (isCacheExpired()) {
+    await clearAllCache()
+    markCacheBuilt()
+  }
+
   // ── 1. Mídias do Storage (imagens, vídeos, fundo do relógio) → IndexedDB ──
   const activePaths: string[] = []
   for (const item of items) {

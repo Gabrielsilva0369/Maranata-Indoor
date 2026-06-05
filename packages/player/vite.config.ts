@@ -34,7 +34,8 @@ export default defineConfig({
             handler: 'CacheFirst',
             options: {
               cacheName: 'supabase-media',
-              expiration: { maxEntries: 200, maxAgeSeconds: 60 * 60 * 24 * 7 },
+              // 1 dia: alinhado ao TTL de 24h do cache do player.
+              expiration: { maxEntries: 200, maxAgeSeconds: 60 * 60 * 24 },
               cacheableResponse: { statuses: [0, 200] },
             },
           },
@@ -66,7 +67,8 @@ export default defineConfig({
             handler: 'CacheFirst',
             options: {
               cacheName: 'external-images',
-              expiration: { maxEntries: 300, maxAgeSeconds: 60 * 60 * 24 * 7 },
+              // 1 dia: alinhado ao TTL de 24h do cache do player.
+              expiration: { maxEntries: 300, maxAgeSeconds: 60 * 60 * 24 },
               cacheableResponse: { statuses: [0, 200] },
             },
           },

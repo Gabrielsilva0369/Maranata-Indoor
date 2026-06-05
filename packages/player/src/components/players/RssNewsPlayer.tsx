@@ -55,7 +55,7 @@ export default function RssNewsPlayer({ feedId, duration, articleCount, onEnd }:
       .eq('feed_id', feedId)
       .eq('active', true)
       .order('pub_date', { ascending: false })
-      .limit(100)
+      .limit(20)
       .then(({ data }) => {
         setArticles(shuffle(data ?? []).slice(0, articleCount))
         setLoading(false)

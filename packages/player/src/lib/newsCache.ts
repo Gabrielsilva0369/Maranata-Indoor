@@ -30,7 +30,7 @@ export function getCachedArticles(feedId: string): CachedArticle[] {
  * (capa + logo da fonte) para serem aquecidas no cache do Service Worker.
  * Offline / erro: mantém o cache anterior e devolve [].
  */
-export async function refreshFeedArticles(feedId: string, cap = 40): Promise<string[]> {
+export async function refreshFeedArticles(feedId: string, cap = 20): Promise<string[]> {
   const { data, error } = await supabase
     .from('rss_articles')
     .select('id, title, description, image_url, source_logo, source_name, pub_date')

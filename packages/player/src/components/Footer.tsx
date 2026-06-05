@@ -128,7 +128,7 @@ export default function Footer({ config, scale = 1 }: { config: FooterConfig; sc
       .eq('feed_id', config.rss_feed_id)
       .eq('active', true)
       .order('pub_date', { ascending: false })
-      .limit(30)
+      .limit(20)
       .then(({ data }) => {
         setTickerText(data?.map(a => a.title).filter(Boolean).join('     ·     ') ?? '')
       })

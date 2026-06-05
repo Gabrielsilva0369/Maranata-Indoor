@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabase'
-import { syncMediaCache } from '../lib/mediaCache'
+import { syncMediaCache, isCacheExpired } from '../lib/mediaCache'
 import type { SyncProgress } from '../lib/mediaCache'
 
 export interface ClockConfig {
@@ -239,6 +239,19 @@ export function usePlaylist(token: string) {
   // aparecem sozinhas rápido, mesmo sem mandar comando.
   useEffect(() => {
     const id = setInterval(fetchScreen, 60 * 1000)
+    return () => clearInterval(id)
+  }, [fetchScreen])
+
+  // Validade de 24h do cache: a cada 30 min checa se venceu. Se sim, força um
+  // re-sync (resetando a assinatura) — o syncMediaCache então apaga TODO o cache
+  // e rebaixa do zero. Cobre a tela que fica dias na mesma playlist sem mudar.
+  useEffect(() => {
+    const id = setInterval(() => {
+      if (isCacheExpired()) {
+        lastSigRef.current = ''
+        fetchScreen()
+      }
+    }, 30 * 60 * 1000)
     return () => clearInterval(id)
   }, [fetchScreen])
 

@@ -45,12 +45,19 @@ export default function RssFeedsPage() {
   const syncNow = async () => {
     setSyncing(true)
     try {
-      await fetch(RSS_SYNC_URL, {
+      const key = import.meta.env.VITE_SUPABASE_ANON_KEY
+      // A Edge Function exige Authorization (verify_jwt). Só 'apikey' dá 401 e o
+      // sync falhava em silêncio. Mandamos os dois headers.
+      const res = await fetch(RSS_SYNC_URL, {
         method: 'POST',
-        headers: { 'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY },
+        headers: { apikey: key, Authorization: `Bearer ${key}` },
       })
+      if (!res.ok) throw new Error(`Falha no sync RSS: HTTP ${res.status}`)
       qc.invalidateQueries({ queryKey: ['rss-feeds'] })
       qc.invalidateQueries({ queryKey: ['rss-articles'] })
+    } catch (e) {
+      console.error(e)
+      alert('Não foi possível sincronizar as notícias agora. Tente novamente.')
     } finally {
       setSyncing(false)
     }

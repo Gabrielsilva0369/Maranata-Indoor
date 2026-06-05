@@ -13,9 +13,10 @@ const RSS_SYNC_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/rss-sync
 const ANON_KEY     = import.meta.env.VITE_SUPABASE_ANON_KEY as string
 
 function triggerRssSync() {
+  // A Edge Function exige Authorization (verify_jwt). Só 'apikey' retorna 401.
   fetch(RSS_SYNC_URL, {
     method: 'POST',
-    headers: { apikey: ANON_KEY },
+    headers: { apikey: ANON_KEY, Authorization: `Bearer ${ANON_KEY}` },
   }).catch(() => {})
 }
 
