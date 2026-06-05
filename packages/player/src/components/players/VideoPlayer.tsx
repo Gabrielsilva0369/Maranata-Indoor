@@ -4,15 +4,19 @@ import { useCachedUrl } from '../../hooks/useCachedUrl'
 interface Props {
   storagePath: string
   muted: boolean
+  quality?: 'sd' | 'hd' | 'fhd'
   onEnd: () => void
 }
 
-export default function VideoPlayer({ storagePath, muted, onEnd }: Props) {
+export default function VideoPlayer({ storagePath, muted, quality = 'fhd', onEnd }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const [poster, setPoster] = useState<string | null>(null)
+  // Vídeos novos têm 3 versões (storage_path = ..._fhd.mp4); a tela escolhe SD/HD/FHD.
+  // Trocamos o sufixo para a qualidade da tela. Vídeo antigo (sem _fhd) fica como está.
+  const path = quality !== 'fhd' ? storagePath.replace(/_fhd\.mp4$/, `_${quality}.mp4`) : storagePath
   // Cache-first: se o vídeo já foi baixado localmente, toca do IndexedDB
   // (sem internet e sem travar). Senão, faz streaming da rede.
-  const { url } = useCachedUrl(storagePath)
+  const { url } = useCachedUrl(path)
 
   useEffect(() => {
     const v = videoRef.current

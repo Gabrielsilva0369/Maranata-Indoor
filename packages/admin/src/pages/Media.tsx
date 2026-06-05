@@ -3,7 +3,34 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import type { Media, MediaType, ClockConfig, WeatherConfig, MediaFolder } from '../lib/database.types'
 import { Upload, Trash2, Plus, Image, Film, Code, Clock, Cloud, Search, MapPin, Pencil, Folder, FolderPlus, Layers, Youtube, Radio } from 'lucide-react'
-import { transcodeVideo } from '../lib/videoTranscode'
+import { transcodeVideoRenditions } from '../lib/videoTranscode'
+
+// Sobe as 3 qualidades do vídeo (SD/HD/FullHD) e devolve o storage_path base
+// (o arquivo _fhd; o player deriva _hd/_sd trocando o sufixo).
+async function uploadVideoRenditions(
+  file: File,
+  onProgress: (n: number) => void,
+  onStatus: (s: 'loading' | 'analyzing' | 'transcoding' | 'done' | 'error' | null) => void,
+): Promise<string> {
+  const r = await transcodeVideoRenditions({ file, onProgress, onStatusChange: onStatus })
+  const base = `videos/${Date.now()}-${Math.random().toString(36).slice(2)}`
+  for (const q of ['sd', 'hd', 'fhd'] as const) {
+    const { error } = await supabase.storage.from('media').upload(`${base}_${q}.mp4`, r[q])
+    if (error) throw error
+  }
+  return `${base}_fhd.mp4`
+}
+
+// Remove do storage. Vídeo novo tem 3 renditions (_sd/_hd/_fhd) → remove as 3.
+async function removeMediaStorage(storagePath: string | null | undefined) {
+  if (!storagePath) return
+  if (/_fhd\.mp4$/.test(storagePath)) {
+    const base = storagePath.replace(/_fhd\.mp4$/, '')
+    await supabase.storage.from('media').remove([`${base}_sd.mp4`, `${base}_hd.mp4`, `${base}_fhd.mp4`])
+  } else {
+    await supabase.storage.from('media').remove([storagePath])
+  }
+}
 
 const TYPE_LABELS: Record<MediaType, string> = {
   image: 'Imagem', video: 'Vídeo', html: 'HTML', clock: 'Relógio', weather: 'Clima', youtube: 'YouTube', stream: 'Stream',
@@ -530,19 +557,15 @@ export default function MediaPage() {
 
       // Upload arquivo (imagem/vídeo)
       if ((type === 'image' || type === 'video') && file) {
-        let fileToUpload = file
         if (type === 'video') {
-          fileToUpload = await transcodeVideo({
-            file,
-            onProgress: setTranscodeProgress,
-            onStatusChange: setTranscodeStatus,
-          })
+          storagePath = await uploadVideoRenditions(file, setTranscodeProgress, setTranscodeStatus)
+        } else {
+          const ext = file.name.split('.').pop()
+          const path = `images/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
+          const { error: err } = await supabase.storage.from('media').upload(path, file)
+          if (err) throw err
+          storagePath = path
         }
-        const ext = fileToUpload.name.split('.').pop()
-        const path = `${type}s/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
-        const { error: err } = await supabase.storage.from('media').upload(path, fileToUpload)
-        if (err) throw err
-        storagePath = path
       }
 
       // Upload fundo do relógio
@@ -592,20 +615,17 @@ export default function MediaPage() {
       if ((type === 'image' || type === 'video') && file) {
         setTranscodeStatus(null)
         setTranscodeProgress(0)
-        let fileToUpload = file
+        let newPath: string
         if (type === 'video') {
-          fileToUpload = await transcodeVideo({
-            file,
-            onProgress: setTranscodeProgress,
-            onStatusChange: setTranscodeStatus,
-          })
+          newPath = await uploadVideoRenditions(file, setTranscodeProgress, setTranscodeStatus)
+        } else {
+          const ext = file.name.split('.').pop()
+          newPath = `images/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
+          const { error: err } = await supabase.storage.from('media').upload(newPath, file)
+          if (err) throw err
         }
-        const ext = fileToUpload.name.split('.').pop()
-        const path = `${type}s/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
-        const { error: err } = await supabase.storage.from('media').upload(path, fileToUpload)
-        if (err) throw err
-        if (existing?.storage_path) await supabase.storage.from('media').remove([existing.storage_path])
-        patch.storage_path = path
+        await removeMediaStorage(existing?.storage_path)
+        patch.storage_path = newPath
       }
 
       // Relógio: substituir fundo (se novo) ou manter o existente
@@ -634,7 +654,7 @@ export default function MediaPage() {
 
   const deleteMedia = useMutation({
     mutationFn: async (item: Media) => {
-      if (item.storage_path) await supabase.storage.from('media').remove([item.storage_path])
+      await removeMediaStorage(item.storage_path)
       if (item.clock_config?.bg_image_path) await supabase.storage.from('media').remove([item.clock_config.bg_image_path])
       const { error } = await supabase.from('media').delete().eq('id', item.id)
       if (error) throw error

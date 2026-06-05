@@ -140,7 +140,7 @@ export default function PlaylistPlayer({ items, screen, onMediaChange }: Props) 
       if (media.type === 'image' && media.storage_path)
         return <ImagePlayer key={current.id} storagePath={media.storage_path} duration={duration} onEnd={advance} />
       if (media.type === 'video' && media.storage_path)
-        return <VideoPlayer key={current.id} storagePath={media.storage_path} muted={muted} onEnd={advance} />
+        return <VideoPlayer key={current.id} storagePath={media.storage_path} muted={muted} quality={screen.video_quality} onEnd={advance} />
       if (media.type === 'html')
         return <HtmlPlayer key={current.id} url={media.url} htmlContent={media.html_content} duration={duration} onEnd={advance} />
       if (media.type === 'clock' && media.clock_config)

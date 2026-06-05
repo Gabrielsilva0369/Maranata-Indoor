@@ -89,10 +89,13 @@ export interface FooterConfig {
 
 export type ScreenOrientation = 'landscape' | 'landscape-reverse' | 'portrait' | 'portrait-reverse'
 
+export type VideoQuality = 'sd' | 'hd' | 'fhd'
+
 export interface ScreenConfig {
   id: string
   name: string
   sound_enabled: boolean
+  video_quality: VideoQuality
   playlist_id: string | null
   footer_config: FooterConfig | null
   orientation: ScreenOrientation
@@ -135,7 +138,7 @@ export function usePlaylist(token: string) {
       const code = token.replace(/-/g, '').slice(0, 6).toUpperCase()
       const { data, error } = await supabase
         .from('screens')
-        .select('id, name, sound_enabled, playlist_id, footer_config, orientation')
+        .select('id, name, sound_enabled, video_quality, playlist_id, footer_config, orientation')
         .eq('token', code)
         .maybeSingle()
 
@@ -175,6 +178,7 @@ export function usePlaylist(token: string) {
       const sig = JSON.stringify({
         s: {
           sound_enabled: data.sound_enabled,
+          video_quality: data.video_quality,
           playlist_id: data.playlist_id,
           orientation: data.orientation,
           footer_config: data.footer_config,
@@ -203,8 +207,8 @@ export function usePlaylist(token: string) {
           cachedItems: fetchedItems,
         }))
 
-        // Sincroniza o cache local de mídias em background
-        syncMediaCache(fetchedItems, setSyncStatus).catch(e => {
+        // Sincroniza o cache local de mídias em background (rendition da qualidade da tela)
+        syncMediaCache(fetchedItems, data.video_quality, setSyncStatus).catch(e => {
           console.error('Erro na sincronização de cache de mídias:', e)
           setSyncStatus({ status: 'error', completed: 0, total: 0 })
         })

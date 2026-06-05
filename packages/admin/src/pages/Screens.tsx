@@ -275,6 +275,7 @@ function EditScreenModal({ screen, playlists, onClose, onSave }: {
   const [name, setName] = useState(screen.name)
   const [playlistId, setPlaylistId] = useState(screen.playlist_id ?? '')
   const [soundEnabled, setSoundEnabled] = useState(screen.sound_enabled)
+  const [videoQuality, setVideoQuality] = useState<'sd' | 'hd' | 'fhd'>(screen.video_quality ?? 'hd')
   const [orientation, setOrientation] = useState<ScreenOrientation>(screen.orientation ?? 'landscape')
 
   const ORIENTATIONS: { value: ScreenOrientation; label: string; hint: string }[] = [
@@ -331,6 +332,26 @@ function EditScreenModal({ screen, playlists, onClose, onSave }: {
             </p>
           </div>
 
+          <div>
+            <label className="block text-sm font-medium mb-1">Qualidade de vídeo</label>
+            <div className="grid grid-cols-3 gap-2">
+              {([
+                { value: 'sd', label: 'SD', hint: '480p — box fraco' },
+                { value: 'hd', label: 'HD', hint: '720p — equilíbrio' },
+                { value: 'fhd', label: 'Full HD', hint: '1080p — TV boa' },
+              ] as const).map(q => (
+                <button key={q.value} onClick={() => setVideoQuality(q.value)}
+                  className={`py-2 px-1 rounded-lg border text-xs font-medium transition-colors ${videoQuality === q.value ? 'bg-brand-600 text-white border-brand-600' : 'border-gray-200 hover:border-brand-300'}`}
+                  title={q.hint}>
+                  {q.label}
+                </button>
+              ))}
+            </div>
+            <p className="text-xs text-gray-400 mt-1">
+              Use SD em box fraco (roda liso) e Full HD em TV boa (mais qualidade).
+            </p>
+          </div>
+
           <div className="flex items-center justify-between py-2 px-4 bg-gray-50 rounded-xl">
             <div>
               <p className="text-sm font-medium">Som</p>
@@ -347,7 +368,7 @@ function EditScreenModal({ screen, playlists, onClose, onSave }: {
         <div className="flex gap-2 px-6 py-4 border-t bg-gray-50 rounded-b-2xl justify-end">
           <button onClick={onClose} className="border rounded-lg px-4 py-2 text-sm">Cancelar</button>
           <button
-            onClick={() => onSave({ name: name.trim(), playlist_id: playlistId || null, sound_enabled: soundEnabled, orientation })}
+            onClick={() => onSave({ name: name.trim(), playlist_id: playlistId || null, sound_enabled: soundEnabled, video_quality: videoQuality, orientation })}
             disabled={!name.trim()}
             className="bg-brand-600 hover:bg-brand-700 text-white rounded-lg px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50">
             Salvar

@@ -114,17 +114,23 @@ export interface SyncProgress {
  */
 export async function syncMediaCache(
   items: any[],
+  quality: 'sd' | 'hd' | 'fhd',
   onProgress?: (progress: SyncProgress) => void
 ): Promise<void> {
   // Extrai todos os caminhos de arquivos que devem ser mantidos
   const activePaths: string[] = []
   for (const item of items) {
     if (item.media) {
+      const sp = item.media.storage_path
       // Imagens E vídeos são cacheados localmente para funcionar OFFLINE
       // (queda de internet / boot sem rede). O download é SEQUENCIAL (um de
       // cada vez, abaixo) — nunca em paralelo — para não saturar a banda.
-      if (item.media.storage_path && (item.media.type === 'image' || item.media.type === 'video')) {
-        activePaths.push(item.media.storage_path)
+      if (sp && item.media.type === 'image') {
+        activePaths.push(sp)
+      }
+      if (sp && item.media.type === 'video') {
+        // Cacheia a rendition da qualidade da tela (a mesma que o player toca).
+        activePaths.push(quality !== 'fhd' ? sp.replace(/_fhd\.mp4$/, `_${quality}.mp4`) : sp)
       }
       if (item.media.type === 'clock' && item.media.clock_config?.bg_image_path) {
         activePaths.push(item.media.clock_config.bg_image_path)
