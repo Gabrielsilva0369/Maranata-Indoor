@@ -22,6 +22,9 @@ export default function App() {
   const { token, pairCode } = useScreenToken()
   const { screen, items, paired, loading, refetch, syncStatus } = usePlaylist(token)
   const [currentMedia, setCurrentMedia] = useState('')
+  // Pré-carregamento: baixa as mídias antes de começar a tocar (toca do cache,
+  // liso). Não trava pra sempre — após 45s segue mesmo sem terminar.
+  const [preloaded, setPreloaded] = useState(false)
   useScreenSync({
     screenId: screen?.id,
     currentMedia,
@@ -38,6 +41,18 @@ export default function App() {
 
   // Desbloqueia áudio na primeira interação (política de autoplay do navegador)
   useEffect(() => { initAudioUnlock() }, [])
+
+  // Libera a reprodução quando o download das mídias termina (ou dá erro).
+  useEffect(() => {
+    if (syncStatus && (syncStatus.status === 'done' || syncStatus.status === 'error')) {
+      setPreloaded(true)
+    }
+  }, [syncStatus])
+  // Segurança: nunca fica preso no "Preparando" — após 45s segue de qualquer jeito.
+  useEffect(() => {
+    const t = setTimeout(() => setPreloaded(true), 45000)
+    return () => clearTimeout(t)
+  }, [])
 
   // Request fullscreen on first interaction (required by browsers)
   // Na WebView do Capacitor (Android TV), essa API pode não existir
@@ -77,6 +92,33 @@ export default function App() {
 
   if (!paired) {
     return <PairingScreen pairCode={pairCode} onRetry={refetch} />
+  }
+
+  // Tela "Preparando mídias": baixa tudo antes de tocar, pra reproduzir do cache
+  // sem travamento. Aparece só no início (e quando você muda muita coisa no admin).
+  if (!preloaded && syncStatus?.status === 'syncing') {
+    const pct = syncStatus.total ? Math.round((syncStatus.completed / syncStatus.total) * 100) : 0
+    return (
+      <div style={{
+        width: '100vw', height: '100vh', background: '#111827', color: '#e5e7eb',
+        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+        gap: 18, fontFamily: 'system-ui, -apple-system, sans-serif',
+      }}>
+        <div style={{
+          width: 44, height: 44, borderRadius: '50%',
+          border: '4px solid #374151', borderTopColor: '#60a5fa',
+          animation: 'spin 0.8s linear infinite',
+        }} />
+        <div style={{ fontSize: 18, fontWeight: 600 }}>Preparando mídias…</div>
+        <div style={{ fontSize: 14, color: '#9ca3af' }}>
+          {syncStatus.completed} / {syncStatus.total} ({pct}%)
+        </div>
+        <div style={{ width: 260, height: 6, background: '#374151', borderRadius: 999, overflow: 'hidden' }}>
+          <div style={{ height: '100%', width: `${pct}%`, background: '#60a5fa', transition: 'width 200ms linear' }} />
+        </div>
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      </div>
+    )
   }
 
   return (
