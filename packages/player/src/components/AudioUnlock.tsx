@@ -17,12 +17,12 @@ export default function AudioUnlock() {
     const el = ref.current
     if (!el) return
     const tap = () => { try { el.click() } catch { /* ignore */ } }
-    // Auto-clica no load e repete por alguns segundos (os players podem montar
-    // depois — cada notify tenta desmutar de novo).
+    // Auto-clica no load e CONTINUA re-clicando a cada 2s — assim toda vez que a
+    // live/YouTube reentra no ciclo (minutos depois) há um desbloqueio recente
+    // para desmutar de novo. Sem isto, só a 1ª exibição (logo após o load) tinha som.
     tap()
-    const id = setInterval(tap, 1500)
-    const stop = setTimeout(() => clearInterval(id), 15000)
-    return () => { clearInterval(id); clearTimeout(stop) }
+    const id = setInterval(tap, 2000)
+    return () => { clearInterval(id) }
   }, [])
 
   return (
@@ -40,6 +40,7 @@ export default function AudioUnlock() {
         border: 'none',
         padding: 0,
         zIndex: 2147483647,   // por cima de tudo, mas invisível
+        pointerEvents: 'none', // não bloqueia nada; o .click() sintético funciona
         cursor: 'default',
       }}
     >
