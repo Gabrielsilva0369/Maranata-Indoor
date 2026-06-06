@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useScreenToken } from './hooks/useScreenToken'
 import { usePlaylist } from './hooks/usePlaylist'
 import { useScreenSync } from './hooks/useScreenSync'
+import { supabase } from './lib/supabase'
 import { initAudioUnlock } from './lib/audioUnlock'
 import PairingScreen from './components/PairingScreen'
 import PlaylistPlayer from './components/PlaylistPlayer'
@@ -27,6 +28,14 @@ export default function App() {
   const { screen, items, paired, loading, refetch, syncStatus } = usePlaylist(token)
   const [currentMedia, setCurrentMedia] = useState('')
   const [updating, setUpdating] = useState(false)
+
+  // Registra cada exibição (para os relatórios). No preview, NÃO grava.
+  const handleMediaChange = (name: string, type?: string) => {
+    setCurrentMedia(name)
+    if (preview || !screen?.id || !name || name === '—') return
+    supabase.from('exhibition_logs').insert({ screen_id: screen.id, name, type: type ?? null })
+      .then(undefined, () => { /* falha de log não pode quebrar a reprodução */ })
+  }
   useScreenSync({
     screenId: screen?.id,
     currentMedia,
@@ -119,7 +128,7 @@ export default function App() {
       {/* Overlay "tap to start" que libera o áudio do autoplay (auto-clique no load) */}
       <AudioUnlock />
       <OrientationWrapper orientation={screen!.orientation ?? 'landscape'}>
-      <PlaylistPlayer items={items} screen={screen!} onMediaChange={setCurrentMedia} forceMuted={preview} />
+      <PlaylistPlayer items={items} screen={screen!} onMediaChange={handleMediaChange} forceMuted={preview} />
 
       {/* Indicador de sincronização local de mídias em background */}
       {syncStatus && syncStatus.status === 'syncing' && (

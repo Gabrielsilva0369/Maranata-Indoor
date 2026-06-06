@@ -12,6 +12,7 @@ import RssFeeds from './pages/RssFeeds'
 import Playlists from './pages/Playlists'
 import PlaylistEditor from './pages/PlaylistEditor'
 import AppUpdates from './pages/AppUpdates'
+import Reports from './pages/Reports'
 
 export default function App() {
   const [session, setSession] = useState<Session | null | undefined>(undefined)
@@ -43,6 +44,7 @@ export default function App() {
             <Route path="rss" element={<RssFeeds />} />
             <Route path="playlists" element={<Playlists />} />
             <Route path="playlists/:id" element={<PlaylistEditor />} />
+            <Route path="reports" element={<Reports />} />
             <Route path="updates" element={<AppUpdates />} />
           </Route>
         ) : (
