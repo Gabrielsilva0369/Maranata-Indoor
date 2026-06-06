@@ -1176,6 +1176,12 @@ export default function MediaPage() {
               {item.type === 'weather' && item.weather_config && (
                 <WeatherPreviewCard cfg={item.weather_config} live={null} />
               )}
+              {item.type === 'quotes' && item.quotes_config && (
+                <QuotesPreview
+                  cfg={item.quotes_config}
+                  bgUrl={item.quotes_config.bg_image_path ? getPublicUrl(item.quotes_config.bg_image_path) : undefined}
+                />
+              )}
               <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                 <button onClick={() => openEdit(item)} title="Editar"
                   className="bg-white/90 text-gray-700 hover:bg-white p-1 rounded-lg shadow"
