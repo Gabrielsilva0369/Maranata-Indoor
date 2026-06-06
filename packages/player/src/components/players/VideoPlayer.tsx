@@ -59,18 +59,25 @@ export default function VideoPlayer({ storagePath, muted, quality = 'fhd', onEnd
     // só DEPOIS do 1º segundo (esconde o comecinho, conforme pedido).
     const grabFrame = () => {
       if (v.currentTime >= 1) setStarted(true)
-      if (captured || !v.videoWidth || v.currentTime < 0.3) return
-      captured = true
-      try {
-        const c = document.createElement('canvas')
-        c.width = 320
-        c.height = Math.max(1, Math.round(320 * (v.videoHeight / v.videoWidth)))
-        const ctx = c.getContext('2d')
-        if (ctx) {
-          ctx.drawImage(v, 0, 0, c.width, c.height)
-          setPoster(c.toDataURL('image/jpeg', 0.5))
-        }
-      } catch { /* canvas tainted (vídeo de rede) → sem poster */ }
+      if (!captured && v.videoWidth && v.currentTime >= 0.3) {
+        captured = true
+        try {
+          const c = document.createElement('canvas')
+          c.width = 320
+          c.height = Math.max(1, Math.round(320 * (v.videoHeight / v.videoWidth)))
+          const ctx = c.getContext('2d')
+          if (ctx) {
+            // Blur ASSADO no canvas (uma vez só). Assim o fundo é uma imagem
+            // estática barata — sem filtro CSS recalculado a cada frame pela GPU,
+            // que era o que causava as micro-travadas no box fraco.
+            try { ctx.filter = 'blur(7px) brightness(0.5)' } catch { /* WebView sem canvas filter */ }
+            ctx.drawImage(v, 0, 0, c.width, c.height)
+            setPoster(c.toDataURL('image/jpeg', 0.6))
+          }
+        } catch { /* canvas tainted (vídeo de rede) → sem poster */ }
+      }
+      // Já capturou e passou do 1º segundo → não precisa mais ouvir.
+      if (captured && v.currentTime >= 1) v.removeEventListener('timeupdate', grabFrame)
     }
     v.addEventListener('timeupdate', grabFrame)
 
@@ -94,7 +101,8 @@ export default function VideoPlayer({ storagePath, muted, quality = 'fhd', onEnd
             position: 'absolute', top: 0, right: 0, bottom: 0, left: 0,
             width: '100%', height: '100%',
             objectFit: 'cover',
-            filter: 'blur(24px) brightness(0.5)',
+            // Sem filtro CSS aqui: o blur já está assado na imagem (grabFrame).
+            // Imagem estática = composição barata, não trava o vídeo por cima.
             transform: 'scale(1.1)',
           }}
           draggable={false}
