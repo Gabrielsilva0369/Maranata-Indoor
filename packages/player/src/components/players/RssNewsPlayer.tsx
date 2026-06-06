@@ -118,8 +118,21 @@ export default function RssNewsPlayer({ feedId, duration, articleCount, onEnd }:
   return (
     <div style={{ ...FULL, overflow: 'hidden', position: 'relative', fontFamily: 'system-ui, sans-serif' }}>
 
-      {/* Imagem de fundo */}
-      {article.image_url ? (
+      {/* Camada base: imagem de fallback da marca — sempre presente. Aparece
+          quando a notícia não tem imagem OU quando a imagem falha ao carregar
+          (assim a tela nunca fica só texto). */}
+      <img
+        src="/news-fallback.jpg"
+        alt=""
+        aria-hidden
+        style={{
+          position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, width: '100%', height: '100%',
+          objectFit: 'cover',
+        }}
+      />
+
+      {/* Imagem real da notícia por cima; some no erro e revela o fallback */}
+      {article.image_url && (
         <img
           key={article.image_url}
           src={article.image_url}
@@ -130,11 +143,6 @@ export default function RssNewsPlayer({ feedId, duration, articleCount, onEnd }:
           }}
           onError={e => (e.currentTarget.style.display = 'none')}
         />
-      ) : (
-        <div style={{
-          position: 'absolute', top: 0, right: 0, bottom: 0, left: 0,
-          background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%)',
-        }} />
       )}
 
       {/* Overlay escuro sobre a imagem */}

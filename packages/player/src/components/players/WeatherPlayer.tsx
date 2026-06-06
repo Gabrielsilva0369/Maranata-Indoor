@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { hasInternet } from '../../lib/network'
 
 interface WeatherConfig {
   city_name: string
@@ -47,6 +48,21 @@ function toF(c: number) { return Math.round(c * 9 / 5 + 32) }
 export default function WeatherPlayer({ config, duration, onEnd }: Props) {
   const [weather, setWeather] = useState<WeatherData | null>(null)
   const [progress, setProgress] = useState(0)
+  // null = checando internet; true = pode exibir o clima
+  const [online, setOnline] = useState<boolean | null>(null)
+
+  // Clima precisa de internet (busca dados ao vivo). Verifica ANTES de exibir:
+  // sem internet, pula para o próximo item em vez de mostrar "--".
+  useEffect(() => {
+    let cancelled = false
+    let skipTimer: ReturnType<typeof setTimeout> | undefined
+    hasInternet().then(ok => {
+      if (cancelled) return
+      if (ok) setOnline(true)
+      else skipTimer = setTimeout(onEnd, 1500) // respiro p/ não virar loop apertado
+    })
+    return () => { cancelled = true; if (skipTimer) clearTimeout(skipTimer) }
+  }, [onEnd])
 
   const fetchWeather = () => {
     fetch(
@@ -61,12 +77,14 @@ export default function WeatherPlayer({ config, duration, onEnd }: Props) {
   }
 
   useEffect(() => {
+    if (online !== true) return
     fetchWeather()
     const id = setInterval(fetchWeather, 10 * 60 * 1000)
     return () => clearInterval(id)
-  }, [config.latitude, config.longitude])
+  }, [online, config.latitude, config.longitude])
 
   useEffect(() => {
+    if (online !== true) return // só conta a duração depois de confirmar internet
     setProgress(0)
     const start = Date.now()
     const total = duration * 1000
@@ -76,7 +94,12 @@ export default function WeatherPlayer({ config, duration, onEnd }: Props) {
       if (pct >= 1) { clearInterval(tick); onEnd() }
     }, 100)
     return () => clearInterval(tick)
-  }, [duration, onEnd])
+  }, [online, duration, onEnd])
+
+  // Enquanto checa internet (ou se vai pular por estar offline): tela preta breve.
+  if (online !== true) {
+    return <div style={{ width: '100%', height: '100%', background: '#000' }} />
+  }
 
   const info = getWeatherInfo(weather?.weather_code ?? 0)
   const [g1, g2] = config.bg_type === 'auto' ? info.gradient : [config.bg_color, config.bg_color]

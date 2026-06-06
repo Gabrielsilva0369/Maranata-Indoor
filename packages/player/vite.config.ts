@@ -26,7 +26,7 @@ export default defineConfig({
       // o offline (cacheia o app + mídias) e o autoUpdate publica versões novas
       // automaticamente quando o site é redeployado.
       workbox: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
+        globPatterns: ['**/*.{js,css,html,ico,png,jpg,jpeg,svg,woff2}'],
         runtimeCaching: [
           // Cache de mídias do Supabase Storage (CacheFirst, 7 dias)
           {
