@@ -6,6 +6,8 @@ import android.content.Intent;
 
 // Reabre o player automaticamente quando o aparelho liga — signage fica sozinho,
 // se houver queda de energia ele volta a tocar sem ninguém precisar tocar nele.
+// Pedido: ao ligar o box, AGUARDAR 2 minutos antes de abrir o app (dá tempo da
+// rede/sistema subirem). Por isso só agendamos o alarme aqui, não abrimos já.
 public class BootReceiver extends BroadcastReceiver {
     @Override
     public void onReceive(Context context, Intent intent) {
@@ -13,9 +15,7 @@ public class BootReceiver extends BroadcastReceiver {
         if (action == null) return;
         if (action.equals(Intent.ACTION_BOOT_COMPLETED)
                 || action.equals("android.intent.action.QUICKBOOT_POWERON")) {
-            Intent launch = new Intent(context, MainActivity.class);
-            launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            context.startActivity(launch);
+            RestartReceiver.schedule(context); // abre daqui a 2 minutos
         }
     }
 }

@@ -6,6 +6,9 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!-- Ajuda a reabrir o app a partir do background (restrição de Android 10+).
+         No box, conceder "Sobrepor a outros apps" uma vez deixa 100% confiável. -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
 
     <!-- Roda em TV box (sem touch) e em celular/tablet. required=false p/ não
          excluir aparelhos que não tenham um desses recursos. -->
@@ -51,6 +54,12 @@
                 <action android:name="android.intent.action.QUICKBOOT_POWERON" />
             </intent-filter>
         </receiver>
+
+        <!-- Reabre o app: alarme agendado (boot +2min, ou +2min após o app sair). -->
+        <receiver
+            android:name=".RestartReceiver"
+            android:enabled="true"
+            android:exported="false" />
 
         <provider
             android:name="androidx.core.content.FileProvider"

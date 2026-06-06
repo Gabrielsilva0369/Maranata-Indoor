@@ -46,6 +46,17 @@ public class MainActivity extends BridgeActivity {
     public void onResume() {
         super.onResume();
         hideSystemBars();
+        // App está em foco → cancela qualquer reabertura agendada.
+        RestartReceiver.cancel(this);
+    }
+
+    @Override
+    public void onPause() {
+        super.onPause();
+        // App saiu de foco (fechado/minimizado/morto): agenda reabertura em 2 min.
+        // Se voltar antes disso, o onResume cancela. Assim, se ficar fechado 2 min,
+        // ele reabre sozinho.
+        RestartReceiver.schedule(this);
     }
 
     // Modo imersivo: esconde barra de status e de navegação (tela cheia total).
