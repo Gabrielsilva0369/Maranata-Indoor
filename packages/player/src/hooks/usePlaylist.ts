@@ -12,6 +12,7 @@ export interface ClockConfig {
   bg_color: string
   bg_image_path: string | null
   show_seconds: boolean
+  font_scale?: number
 }
 
 export interface WeatherConfig {
@@ -26,17 +27,28 @@ export interface WeatherConfig {
   show_humidity: boolean
   show_wind: boolean
   show_feels_like: boolean
+  font_scale?: number
+}
+
+export interface QuotesConfig {
+  quotes: string[]
+  bg_type: 'color' | 'image'
+  bg_image_path: string | null
+  bg_color: string
+  font_color: string
+  font_size: number
 }
 
 export interface MediaItem {
   id: string
   name: string
-  type: 'image' | 'video' | 'html' | 'clock' | 'weather' | 'youtube' | 'stream'
+  type: 'image' | 'video' | 'html' | 'clock' | 'weather' | 'youtube' | 'stream' | 'quotes'
   storage_path: string | null
   url: string | null
   html_content: string | null
   clock_config: ClockConfig | null
   weather_config: WeatherConfig | null
+  quotes_config: QuotesConfig | null
   duration: number
 }
 
@@ -123,7 +135,7 @@ function computeSig(data: any, items: PlaylistItem[]): string {
       m: it.media ? {
         t: it.media.type, sp: it.media.storage_path, u: it.media.url,
         h: it.media.html_content, c: it.media.clock_config, w: it.media.weather_config,
-        dur: it.media.duration,
+        q: it.media.quotes_config, dur: it.media.duration,
       } : null,
       rf: it.rss_feed ? { id: it.rss_feed.id, u: it.rss_feed.url, n: it.rss_feed.name } : null,
     })),

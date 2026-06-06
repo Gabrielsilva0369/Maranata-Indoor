@@ -9,6 +9,7 @@ interface ClockConfig {
   bg_color: string
   bg_image_path: string | null
   show_seconds: boolean
+  font_scale?: number
 }
 
 interface Props {
@@ -110,7 +111,7 @@ export default function ClockPlayer({ config, duration, showProgress = true, onE
       }}>
         {/* Hora */}
         <div style={{
-          fontSize: 'clamp(64px, 14vw, 180px)',
+          fontSize: `calc(clamp(64px, 14vw, 180px) * ${config.font_scale ?? 1})`,
           fontWeight: 700,
           letterSpacing: '0.05em',
           lineHeight: 1,
@@ -129,7 +130,7 @@ export default function ClockPlayer({ config, duration, showProgress = true, onE
 
         {/* Dia da semana */}
         <div style={{
-          fontSize: 'clamp(18px, 3vw, 42px)',
+          fontSize: `calc(clamp(18px, 3vw, 42px) * ${config.font_scale ?? 1})`,
           fontWeight: 400,
           textTransform: 'capitalize',
           opacity: 0.9,
@@ -141,7 +142,7 @@ export default function ClockPlayer({ config, duration, showProgress = true, onE
 
         {/* Data */}
         <div style={{
-          fontSize: 'clamp(14px, 2.2vw, 32px)',
+          fontSize: `calc(clamp(14px, 2.2vw, 32px) * ${config.font_scale ?? 1})`,
           fontWeight: 400,
           opacity: 0.75,
           textShadow: '0 2px 8px rgba(0,0,0,0.3)',

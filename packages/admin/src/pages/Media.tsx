@@ -1,8 +1,8 @@
 import { useState, useRef, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
-import type { Media, MediaType, ClockConfig, WeatherConfig, MediaFolder } from '../lib/database.types'
-import { Upload, Trash2, Plus, Image, Film, Code, Clock, Cloud, Search, MapPin, Pencil, Folder, FolderPlus, Layers, Youtube, Radio } from 'lucide-react'
+import type { Media, MediaType, ClockConfig, WeatherConfig, QuotesConfig, MediaFolder } from '../lib/database.types'
+import { Upload, Trash2, Plus, Image, Film, Code, Clock, Cloud, Search, MapPin, Pencil, Folder, FolderPlus, Layers, Youtube, Radio, Quote, X } from 'lucide-react'
 import { transcodeVideoRenditions } from '../lib/videoTranscode'
 import { uploadToSpaces, deleteFromSpaces, mediaUrl } from '../lib/spaces'
 
@@ -38,12 +38,12 @@ async function removeMediaStorage(storagePath: string | null | undefined) {
 }
 
 const TYPE_LABELS: Record<MediaType, string> = {
-  image: 'Imagem', video: 'Vídeo', html: 'HTML', clock: 'Relógio', weather: 'Clima', youtube: 'YouTube', stream: 'Stream',
+  image: 'Imagem', video: 'Vídeo', html: 'HTML', clock: 'Relógio', weather: 'Clima', youtube: 'YouTube', stream: 'Stream', quotes: 'Frases',
 }
 const TYPE_ICONS: Record<MediaType, React.ReactNode> = {
   image: <Image size={14} />, video: <Film size={14} />, html: <Code size={14} />,
   clock: <Clock size={14} />, weather: <Cloud size={14} />,
-  youtube: <Youtube size={14} />, stream: <Radio size={14} />,
+  youtube: <Youtube size={14} />, stream: <Radio size={14} />, quotes: <Quote size={14} />,
 }
 
 // Extrai o ID de vídeo do YouTube de várias formas de URL
@@ -105,6 +105,137 @@ const DEFAULT_CLOCK: ClockConfig = {
   bg_color: '#0f172a',
   bg_image_path: null,
   show_seconds: true,
+  font_scale: 1,
+}
+
+const DEFAULT_QUOTES: QuotesConfig = {
+  quotes: [''],
+  bg_type: 'color',
+  bg_image_path: null,
+  bg_color: '#0f172a',
+  font_color: '#ffffff',
+  font_size: 60,
+}
+
+// ── Frases motivacionais: preview + formulário ────────────────────────────────
+function QuotesPreview({ cfg, bgUrl }: { cfg: QuotesConfig; bgUrl?: string }) {
+  const first = cfg.quotes.find(q => q.trim()) || 'Sua frase aqui…'
+  const bg = cfg.bg_type === 'image' && bgUrl
+    ? { backgroundImage: `url(${bgUrl})`, backgroundSize: 'cover', backgroundPosition: 'center' }
+    : { backgroundColor: cfg.bg_color }
+  return (
+    <div style={{ ...bg, borderRadius: 12, overflow: 'hidden', aspectRatio: '16/9',
+      display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, position: 'relative' }}>
+      <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.35)' }} />
+      <p style={{
+        position: 'relative', color: cfg.font_color, textAlign: 'center', fontWeight: 700,
+        lineHeight: 1.25, textShadow: '0 2px 8px rgba(0,0,0,0.5)',
+        fontSize: Math.max(12, cfg.font_size * 0.3), margin: 0,
+      }}>"{first}"</p>
+    </div>
+  )
+}
+
+function QuotesForm({ cfg, onChange, bgUrl, onBgFileChange }: {
+  cfg: QuotesConfig
+  onChange: (c: QuotesConfig) => void
+  bgUrl?: string
+  onBgFileChange: (f: File | null) => void
+}) {
+  const bgFileRef = useRef<HTMLInputElement>(null)
+  const set = (patch: Partial<QuotesConfig>) => onChange({ ...cfg, ...patch })
+  const quotes = cfg.quotes.length ? cfg.quotes : ['']
+
+  const setQuote = (i: number, v: string) => {
+    const next = [...quotes]; next[i] = v; set({ quotes: next })
+  }
+  const addQuote = () => { if (quotes.length < 8) set({ quotes: [...quotes, ''] }) }
+  const removeQuote = (i: number) => set({ quotes: quotes.filter((_, idx) => idx !== i) })
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <label className="block text-sm font-medium mb-2">Preview</label>
+        <QuotesPreview cfg={cfg} bgUrl={bgUrl} />
+      </div>
+
+      {/* Frases */}
+      <div>
+        <label className="block text-sm font-medium mb-2">Frases <span className="text-gray-400 font-normal">({quotes.length}/8)</span></label>
+        <div className="space-y-2">
+          {quotes.map((q, i) => (
+            <div key={i} className="flex gap-2 items-start">
+              <span className="text-xs text-gray-400 pt-2 w-4 text-right">{i + 1}</span>
+              <textarea value={q} onChange={e => setQuote(i, e.target.value)} rows={2}
+                placeholder="Digite a frase..."
+                className="flex-1 border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 resize-none" />
+              {quotes.length > 1 && (
+                <button onClick={() => removeQuote(i)} className="text-gray-300 hover:text-red-500 p-1.5" title="Remover frase">
+                  <X size={16} />
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+        {quotes.length < 8 && (
+          <button onClick={addQuote} className="mt-2 flex items-center gap-1.5 text-sm text-brand-600 hover:text-brand-700">
+            <Plus size={15} /> Adicionar frase
+          </button>
+        )}
+      </div>
+
+      {/* Cor + tamanho da fonte */}
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="block text-sm font-medium mb-1">Cor da fonte</label>
+          <div className="flex gap-2">
+            <input type="color" value={cfg.font_color} onChange={e => set({ font_color: e.target.value })}
+              className="w-10 h-9 rounded border cursor-pointer" />
+            <input value={cfg.font_color} onChange={e => set({ font_color: e.target.value })}
+              className="flex-1 border rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-brand-500" />
+          </div>
+        </div>
+        <div>
+          <label className="block text-sm font-medium mb-1">Tamanho: <span className="text-brand-600">{cfg.font_size}px</span></label>
+          <input type="range" min={24} max={140} step={2} value={cfg.font_size}
+            onChange={e => set({ font_size: parseInt(e.target.value, 10) })}
+            className="w-full accent-brand-600 mt-2" />
+        </div>
+      </div>
+
+      {/* Fundo */}
+      <div>
+        <label className="block text-sm font-medium mb-2">Fundo (vale para todas as frases)</label>
+        <div className="flex gap-2 mb-3">
+          {(['color', 'image'] as const).map(bt => (
+            <button key={bt} onClick={() => set({ bg_type: bt })}
+              className={`flex-1 py-1.5 rounded-lg border text-sm font-medium transition-colors ${cfg.bg_type === bt ? 'bg-brand-600 text-white border-brand-600' : 'border-gray-200 hover:border-brand-300'}`}>
+              {bt === 'color' ? 'Cor sólida' : 'Imagem'}
+            </button>
+          ))}
+        </div>
+        {cfg.bg_type === 'color' && (
+          <div className="flex gap-2">
+            <input type="color" value={cfg.bg_color} onChange={e => set({ bg_color: e.target.value })}
+              className="w-10 h-9 rounded border cursor-pointer" />
+            <input value={cfg.bg_color} onChange={e => set({ bg_color: e.target.value })}
+              className="flex-1 border rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-brand-500" />
+          </div>
+        )}
+        {cfg.bg_type === 'image' && (
+          <>
+            <input ref={bgFileRef} type="file" accept="image/*"
+              onChange={e => onBgFileChange(e.target.files?.[0] ?? null)} className="hidden" />
+            <button onClick={() => bgFileRef.current?.click()}
+              className="flex items-center gap-2 border-2 border-dashed rounded-lg px-4 py-3 text-sm text-gray-500 hover:border-brand-400 w-full justify-center">
+              <Upload size={16} />
+              {bgUrl ? 'Trocar imagem de fundo' : 'Selecionar imagem de fundo'}
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  )
 }
 
 // ── Preview miniatura do relógio ──────────────────────────────────────────────
@@ -146,10 +277,10 @@ function ClockPreview({ cfg, bgUrl }: { cfg: ClockConfig; bgUrl?: string }) {
       display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
       fontFamily: cfg.font, color: cfg.font_color, gap: 8, padding: 16,
     }}>
-      <div style={{ fontSize: 'clamp(24px, 5vw, 48px)', fontWeight: 700, letterSpacing: 2, lineHeight: 1 }}>
+      <div style={{ fontSize: `calc(clamp(24px, 5vw, 48px) * ${cfg.font_scale ?? 1})`, fontWeight: 700, letterSpacing: 2, lineHeight: 1 }}>
         {time}
       </div>
-      <div style={{ fontSize: 'clamp(10px, 1.5vw, 16px)', opacity: 0.8, textTransform: 'capitalize', textAlign: 'center' }}>
+      <div style={{ fontSize: `calc(clamp(10px, 1.5vw, 16px) * ${cfg.font_scale ?? 1})`, opacity: 0.8, textTransform: 'capitalize', textAlign: 'center' }}>
         {date}
       </div>
     </div>
@@ -162,6 +293,7 @@ const DEFAULT_WEATHER: WeatherConfig = {
   unit: 'C', text_color: '#ffffff',
   bg_type: 'auto', bg_color: '#1e40af',
   show_humidity: true, show_wind: true, show_feels_like: true,
+  font_scale: 1,
 }
 
 function weatherGradient(code: number): [string, string] {
@@ -215,21 +347,22 @@ function WeatherPreviewCard({ cfg, live }: { cfg: WeatherConfig; live: LiveWeath
   const temp = live ? (cfg.unit === 'F' ? toF(live.temperature_2m) : Math.round(live.temperature_2m)) : '--'
   const feels = live ? (cfg.unit === 'F' ? toF(live.apparent_temperature) : Math.round(live.apparent_temperature)) : '--'
   const unit = cfg.unit === 'F' ? '°F' : '°C'
+  const fs = cfg.font_scale ?? 1
   return (
     <div style={{ background: `linear-gradient(135deg, ${g1}, ${g2})`, borderRadius: 12,
       aspectRatio: '16/9', display: 'flex', flexDirection: 'column',
       alignItems: 'center', justifyContent: 'center', color: cfg.text_color,
       fontFamily: 'system-ui', gap: 6, position: 'relative', overflow: 'hidden' }}>
       {cfg.city_name && (
-        <p style={{ fontSize: 14, opacity: 0.85, fontWeight: 300, letterSpacing: 2, textTransform: 'uppercase' }}>
+        <p style={{ fontSize: 14 * fs, opacity: 0.85, fontWeight: 300, letterSpacing: 2, textTransform: 'uppercase' }}>
           {cfg.city_name}{cfg.country ? `, ${cfg.country}` : ''}
         </p>
       )}
-      <div style={{ fontSize: 48, lineHeight: 1 }}>{weatherEmoji(code)}</div>
-      <div style={{ fontSize: 42, fontWeight: 200, lineHeight: 1 }}>{temp}{unit}</div>
-      <div style={{ fontSize: 14, opacity: 0.8 }}>{weatherDesc(code)}</div>
+      <div style={{ fontSize: 48 * fs, lineHeight: 1 }}>{weatherEmoji(code)}</div>
+      <div style={{ fontSize: 42 * fs, fontWeight: 200, lineHeight: 1 }}>{temp}{unit}</div>
+      <div style={{ fontSize: 14 * fs, opacity: 0.8 }}>{weatherDesc(code)}</div>
       {live && (
-        <div style={{ display: 'flex', gap: 16, fontSize: 12, opacity: 0.75, marginTop: 4 }}>
+        <div style={{ display: 'flex', gap: 16, fontSize: 12 * fs, opacity: 0.75, marginTop: 4 }}>
           {cfg.show_feels_like && <span>Sensação {feels}{unit}</span>}
           {cfg.show_humidity && <span>💧 {live.relative_humidity_2m}%</span>}
           {cfg.show_wind && <span>💨 {Math.round(live.wind_speed_10m)} km/h</span>}
@@ -358,6 +491,16 @@ function WeatherForm({ cfg, onChange }: { cfg: WeatherConfig; onChange: (c: Weat
         </div>
       </div>
 
+      {/* Tamanho da fonte */}
+      <div>
+        <label className="block text-sm font-medium mb-1">
+          Tamanho da fonte: <span className="text-brand-600">{Math.round((cfg.font_scale ?? 1) * 100)}%</span>
+        </label>
+        <input type="range" min={0.5} max={2.5} step={0.05} value={cfg.font_scale ?? 1}
+          onChange={e => set({ font_scale: parseFloat(e.target.value) })}
+          className="w-full accent-brand-600" />
+      </div>
+
       {/* Exibir */}
       <div>
         <label className="block text-sm font-medium mb-2">Exibir</label>
@@ -426,6 +569,16 @@ function ClockForm({ cfg, onChange, bgUrl, onBgFileChange }: {
         </div>
       </div>
 
+      {/* Tamanho da fonte */}
+      <div>
+        <label className="block text-sm font-medium mb-1">
+          Tamanho da fonte: <span className="text-brand-600">{Math.round((cfg.font_scale ?? 1) * 100)}%</span>
+        </label>
+        <input type="range" min={0.5} max={2.5} step={0.05} value={cfg.font_scale ?? 1}
+          onChange={e => set({ font_scale: parseFloat(e.target.value) })}
+          className="w-full accent-brand-600" />
+      </div>
+
       {/* Fundo */}
       <div>
         <label className="block text-sm font-medium mb-2">Fundo</label>
@@ -484,6 +637,7 @@ export default function MediaPage() {
   const [file, setFile] = useState<File | null>(null)
   const [clockCfg, setClockCfg] = useState<ClockConfig>({ ...DEFAULT_CLOCK })
   const [weatherCfg, setWeatherCfg] = useState<WeatherConfig>({ ...DEFAULT_WEATHER })
+  const [quotesCfg, setQuotesCfg] = useState<QuotesConfig>({ ...DEFAULT_QUOTES })
   const [bgFile, setBgFile] = useState<File | null>(null)
   const [bgPreviewUrl, setBgPreviewUrl] = useState<string>()
   const [uploading, setUploading] = useState(false)
@@ -580,6 +734,15 @@ export default function MediaPage() {
         finalClock = { ...clockCfg, bg_image_path: path }
       }
 
+      // Frases: upload do fundo + limpa frases vazias
+      let finalQuotes = { ...quotesCfg, quotes: quotesCfg.quotes.map(q => q.trim()).filter(Boolean) }
+      if (type === 'quotes' && quotesCfg.bg_type === 'image' && bgFile) {
+        const ext = bgFile.name.split('.').pop()
+        const path = `quotes-bg/${Date.now()}.${ext}`
+        await uploadToSpaces(path, bgFile, bgFile.type || 'image/jpeg')
+        finalQuotes = { ...finalQuotes, bg_image_path: path }
+      }
+
       const { error } = await supabase.from('media').insert({
         name: name.trim(),
         type,
@@ -588,6 +751,7 @@ export default function MediaPage() {
         html_content: htmlContent.trim() || null,
         clock_config: type === 'clock' ? finalClock : null,
         weather_config: type === 'weather' ? weatherCfg : null,
+        quotes_config: type === 'quotes' ? finalQuotes : null,
         folder_id: folderId,
         duration,
       })
@@ -643,6 +807,19 @@ export default function MediaPage() {
         patch.clock_config = finalClock
       }
 
+      // Frases: substituir fundo (se novo) + limpa frases vazias
+      if (type === 'quotes') {
+        let finalQuotes = { ...quotesCfg, quotes: quotesCfg.quotes.map(q => q.trim()).filter(Boolean) }
+        if (quotesCfg.bg_type === 'image' && bgFile) {
+          const ext = bgFile.name.split('.').pop()
+          const path = `quotes-bg/${Date.now()}.${ext}`
+          await uploadToSpaces(path, bgFile, bgFile.type || 'image/jpeg')
+          if (existing?.quotes_config?.bg_image_path) await deleteFromSpaces(existing.quotes_config.bg_image_path)
+          finalQuotes = { ...finalQuotes, bg_image_path: path }
+        }
+        patch.quotes_config = finalQuotes
+      }
+
       const { error } = await supabase.from('media').update(patch).eq('id', editingId)
       if (error) throw error
     },
@@ -657,6 +834,7 @@ export default function MediaPage() {
     mutationFn: async (item: Media) => {
       await removeMediaStorage(item.storage_path)
       if (item.clock_config?.bg_image_path) await deleteFromSpaces(item.clock_config.bg_image_path)
+      if (item.quotes_config?.bg_image_path) await deleteFromSpaces(item.quotes_config.bg_image_path)
       const { error } = await supabase.from('media').delete().eq('id', item.id)
       if (error) throw error
     },
@@ -668,6 +846,7 @@ export default function MediaPage() {
   const resetForm = () => {
     setName(''); setUrl(''); setHtmlContent(''); setDuration(30)
     setFile(null); setType('image'); setClockCfg({ ...DEFAULT_CLOCK }); setWeatherCfg({ ...DEFAULT_WEATHER })
+    setQuotesCfg({ ...DEFAULT_QUOTES })
     setBgFile(null); setBgPreviewUrl(undefined); setUploading(false)
     setTranscodeStatus(null); setTranscodeProgress(0)
     setEditingId(null); setFolderId(null); setShowAdd(false)
@@ -692,12 +871,10 @@ export default function MediaPage() {
     setBgFile(null)
     setClockCfg(item.clock_config ?? { ...DEFAULT_CLOCK })
     setWeatherCfg(item.weather_config ?? { ...DEFAULT_WEATHER })
-    // Preview do fundo do relógio existente
-    setBgPreviewUrl(
-      item.clock_config?.bg_image_path
-        ? supabase.storage.from('media').getPublicUrl(item.clock_config.bg_image_path).data.publicUrl
-        : undefined
-    )
+    setQuotesCfg(item.quotes_config ?? { ...DEFAULT_QUOTES })
+    // Preview do fundo existente (relógio ou frases)
+    const bgPath = item.clock_config?.bg_image_path ?? item.quotes_config?.bg_image_path
+    setBgPreviewUrl(bgPath ? mediaUrl(bgPath) : undefined)
     setShowAdd(true)
   }
 
@@ -711,7 +888,8 @@ export default function MediaPage() {
     ((type === 'image' || type === 'video') && !file && !editingId) ||
     (type === 'weather' && weatherCfg.latitude === 0) ||
     (type === 'youtube' && !youtubeId(url)) ||
-    (type === 'stream' && !url.trim())
+    (type === 'stream' && !url.trim()) ||
+    (type === 'quotes' && !quotesCfg.quotes.some(q => q.trim()))
 
   return (
     <div className="p-8">
@@ -794,7 +972,7 @@ export default function MediaPage() {
               <div>
                 <label className="block text-sm font-medium mb-1">Tipo</label>
                 <div className="grid grid-cols-4 gap-2">
-                  {(['image', 'video', 'html', 'clock', 'weather', 'youtube', 'stream'] as MediaType[]).map(t => (
+                  {(['image', 'video', 'html', 'clock', 'weather', 'youtube', 'stream', 'quotes'] as MediaType[]).map(t => (
                     <button key={t} onClick={() => !editingId && setType(t)}
                       disabled={!!editingId}
                       className={`py-2 rounded-lg border text-sm font-medium transition-colors flex flex-col items-center gap-1 ${type === t ? 'bg-brand-600 text-white border-brand-600' : 'border-gray-200 hover:border-brand-300'} ${editingId && type !== t ? 'opacity-40' : ''} ${editingId ? 'cursor-not-allowed' : ''}`}
@@ -900,6 +1078,16 @@ export default function MediaPage() {
                 />
               )}
 
+              {/* Frases motivacionais */}
+              {type === 'quotes' && (
+                <QuotesForm
+                  cfg={quotesCfg}
+                  onChange={setQuotesCfg}
+                  bgUrl={bgPreviewUrl}
+                  onBgFileChange={f => { setBgFile(f) }}
+                />
+              )}
+
               {/* Progresso de Transcodificação */}
               {transcodeStatus && (
                 <div className="bg-brand-50 border border-brand-100 rounded-xl p-4 space-y-2">
@@ -927,9 +1115,14 @@ export default function MediaPage() {
 
               {/* Duração */}
               <div>
-                <label className="block text-sm font-medium mb-1">Duração (segundos)</label>
+                <label className="block text-sm font-medium mb-1">
+                  Duração (segundos){type === 'quotes' ? ' — por frase' : ''}
+                </label>
                 <input type="number" min={1} value={duration} onChange={e => setDuration(Number(e.target.value))}
                   className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
+                {type === 'quotes' && (
+                  <p className="text-xs text-gray-400 mt-1">Cada frase fica esse tempo na tela; ao terminar todas, passa para a próxima mídia.</p>
+                )}
               </div>
 
               <div className="flex gap-2 pt-1">

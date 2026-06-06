@@ -8,6 +8,7 @@ import ClockPlayer from './players/ClockPlayer'
 import WeatherPlayer from './players/WeatherPlayer'
 import YouTubePlayer from './players/YouTubePlayer'
 import StreamPlayer from './players/StreamPlayer'
+import QuotesPlayer from './players/QuotesPlayer'
 import Footer from './Footer'
 
 interface Props {
@@ -159,6 +160,8 @@ export default function PlaylistPlayer({ items, screen, onMediaChange, forceMute
         return <ClockPlayer key={current.id} config={media.clock_config} duration={duration} showProgress={showProgress} onEnd={advance} />
       if (media.type === 'weather' && media.weather_config)
         return <WeatherPlayer key={current.id} config={media.weather_config} duration={duration} showProgress={showProgress} onEnd={advance} />
+      if (media.type === 'quotes' && media.quotes_config)
+        return <QuotesPlayer key={current.id} config={media.quotes_config} duration={duration} showProgress={showProgress} onEnd={advance} />
       if (media.type === 'youtube' && media.url)
         return <YouTubePlayer key={current.id} url={media.url} duration={duration_override ?? media?.duration ?? 0} muted={muted} onEnd={advance} />
       if (media.type === 'stream' && media.url)

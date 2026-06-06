@@ -1,4 +1,4 @@
-export type MediaType = 'image' | 'video' | 'html' | 'clock' | 'weather' | 'youtube' | 'stream'
+export type MediaType = 'image' | 'video' | 'html' | 'clock' | 'weather' | 'youtube' | 'stream' | 'quotes'
 
 export interface WeatherConfig {
   city_name: string
@@ -12,6 +12,7 @@ export interface WeatherConfig {
   show_humidity: boolean
   show_wind: boolean
   show_feels_like: boolean
+  font_scale?: number   // multiplicador do tamanho da fonte (1 = padrão)
 }
 
 export interface ClockConfig {
@@ -22,6 +23,16 @@ export interface ClockConfig {
   bg_color: string
   bg_image_path: string | null
   show_seconds: boolean
+  font_scale?: number   // multiplicador do tamanho da fonte (1 = padrão)
+}
+
+export interface QuotesConfig {
+  quotes: string[]            // até 8 frases
+  bg_type: 'color' | 'image'
+  bg_image_path: string | null
+  bg_color: string            // usado se não houver imagem de fundo
+  font_color: string
+  font_size: number           // px (na base 1080 de altura)
 }
 
 export interface FooterConfig {
@@ -87,6 +98,7 @@ export interface Media {
   html_content: string | null
   clock_config: ClockConfig | null
   weather_config: WeatherConfig | null
+  quotes_config: QuotesConfig | null
   folder_id: string | null
   duration: number
   created_at: string

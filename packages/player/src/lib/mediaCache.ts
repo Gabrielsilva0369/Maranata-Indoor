@@ -274,6 +274,9 @@ export async function syncMediaCache(
       if (item.media.type === 'clock' && item.media.clock_config?.bg_image_path) {
         activePaths.push(item.media.clock_config.bg_image_path)
       }
+      if (item.media.type === 'quotes' && item.media.quotes_config?.bg_image_path) {
+        activePaths.push(item.media.quotes_config.bg_image_path)
+      }
     }
   }
 

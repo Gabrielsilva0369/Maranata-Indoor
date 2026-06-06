@@ -13,6 +13,7 @@ interface WeatherConfig {
   show_humidity: boolean
   show_wind: boolean
   show_feels_like: boolean
+  font_scale?: number
 }
 
 interface Props {
@@ -113,6 +114,8 @@ export default function WeatherPlayer({ config, duration, showProgress = true, o
     : null
   const unit = config.unit === 'F' ? '°F' : '°C'
   const color = config.text_color
+  const fs = config.font_scale ?? 1
+  const fsz = (clamp: string) => `calc(${clamp} * ${fs})`
 
   return (
     <div style={{
@@ -147,7 +150,7 @@ export default function WeatherPlayer({ config, duration, showProgress = true, o
 
         {/* Cidade */}
         <p style={{
-          fontSize: 'clamp(14px, 2.5vw, 28px)',
+          fontSize: fsz('clamp(14px, 2.5vw, 28px)'),
           fontWeight: 300,
           letterSpacing: '0.2em',
           textTransform: 'uppercase',
@@ -159,7 +162,7 @@ export default function WeatherPlayer({ config, duration, showProgress = true, o
 
         {/* Emoji do clima */}
         <div style={{
-          fontSize: 'clamp(64px, 14vmin, 140px)',
+          fontSize: fsz('clamp(64px, 14vmin, 140px)'),
           lineHeight: 1,
           marginBottom: '1vmin',
           filter: 'drop-shadow(0 4px 12px rgba(0,0,0,0.2))',
@@ -169,7 +172,7 @@ export default function WeatherPlayer({ config, duration, showProgress = true, o
 
         {/* Temperatura */}
         <div style={{
-          fontSize: 'clamp(72px, 16vw, 180px)',
+          fontSize: fsz('clamp(72px, 16vw, 180px)'),
           fontWeight: 100,
           lineHeight: 1,
           letterSpacing: '-0.02em',
@@ -180,7 +183,7 @@ export default function WeatherPlayer({ config, duration, showProgress = true, o
 
         {/* Condição */}
         <p style={{
-          fontSize: 'clamp(16px, 3vw, 36px)',
+          fontSize: fsz('clamp(16px, 3vw, 36px)'),
           fontWeight: 300,
           opacity: 0.85,
           marginTop: '1vmin',
@@ -192,7 +195,7 @@ export default function WeatherPlayer({ config, duration, showProgress = true, o
         {/* Sensação */}
         {config.show_feels_like && feels !== null && (
           <p style={{
-            fontSize: 'clamp(12px, 1.8vw, 24px)',
+            fontSize: fsz('clamp(12px, 1.8vw, 24px)'),
             opacity: 0.65,
             marginTop: '0.5vmin',
           }}>
@@ -214,7 +217,7 @@ export default function WeatherPlayer({ config, duration, showProgress = true, o
             display: 'flex',
             justifyContent: 'center',
             gap: 'clamp(24px, 5vw, 60px)',
-            fontSize: 'clamp(14px, 2.2vw, 28px)',
+            fontSize: fsz('clamp(14px, 2.2vw, 28px)'),
             opacity: 0.8,
           }}>
             {config.show_humidity && (
