@@ -30,11 +30,13 @@ export default function App() {
   const [updating, setUpdating] = useState(false)
 
   // Registra cada exibição (para os relatórios). No preview, NÃO grava.
-  const handleMediaChange = (name: string, type?: string) => {
+  const handleMediaChange = (name: string, type?: string, durationSec?: number) => {
     setCurrentMedia(name)
     if (preview || !screen?.id || !name || name === '—') return
-    supabase.from('exhibition_logs').insert({ screen_id: screen.id, name, type: type ?? null })
-      .then(undefined, () => { /* falha de log não pode quebrar a reprodução */ })
+    supabase.from('exhibition_logs').insert({
+      screen_id: screen.id, name, type: type ?? null,
+      duration: durationSec ? Math.round(durationSec) : null,
+    }).then(undefined, () => { /* falha de log não pode quebrar a reprodução */ })
   }
   useScreenSync({
     screenId: screen?.id,

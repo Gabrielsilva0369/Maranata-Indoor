@@ -13,7 +13,7 @@ import Footer from './Footer'
 interface Props {
   items: PlaylistItem[]
   screen: ScreenConfig
-  onMediaChange?: (name: string, type?: string) => void
+  onMediaChange?: (name: string, type?: string, durationSec?: number) => void
   /** Preview no admin: força tudo mudo (não sai som no painel). */
   forceMuted?: boolean
 }
@@ -90,14 +90,18 @@ export default function PlaylistPlayer({ items, screen, onMediaChange, forceMute
     }
     let name = ''
     let type = ''
+    let durationSec = 0
     if (it.rss_feed) {
       name = it.rss_feed.name || 'Notícias RSS'
       type = 'rss'
+      // Bloco de notícias = (segundos por artigo) × (qtd de artigos)
+      durationSec = (it.duration_override ?? 10) * (it.rss_article_count ?? 5)
     } else if (it.media) {
       name = it.media.name || TYPE_LABEL[it.media.type] || 'Mídia'
       type = it.media.type
+      durationSec = it.duration_override ?? it.media.duration ?? 10
     }
-    if (name) onMediaChange(name, type)
+    if (name) onMediaChange(name, type, durationSec)
   }, [activeItems, index, onMediaChange])
 
   if (items.length === 0) {

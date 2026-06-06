@@ -10,10 +10,12 @@ interface LogRow {
   name: string
   type: string | null
   shown_at: string
+  duration: number | null
 }
 interface MediaLogRow {
   screen_id: string
   shown_at: string
+  duration: number | null
 }
 
 const PERIODS = [
@@ -45,6 +47,18 @@ function periodStart(days: number): Date {
 }
 
 const pct = (n: number, total: number) => (total ? `${Math.round((n / total) * 100)}%` : '0%')
+
+// Soma de segundos → "2h 15min" / "15min 30s" / "30s"
+function fmtDur(totalSec: number): string {
+  const s = Math.round(totalSec || 0)
+  const h = Math.floor(s / 3600)
+  const m = Math.floor((s % 3600) / 60)
+  const sec = s % 60
+  if (h) return `${h}h ${m}min`
+  if (m) return `${m}min ${sec}s`
+  return `${sec}s`
+}
+const sumDur = (rows: { duration: number | null }[]) => rows.reduce((a, r) => a + (r.duration ?? 0), 0)
 
 export default function Reports() {
   const [mode, setMode] = useState<'screen' | 'media'>('screen')
@@ -129,7 +143,7 @@ export default function Reports() {
     const screen = screens.find(s => s.id === screenId)
     const since = periodStart(periodInfo.days)
     const rows = await fetchPaged<LogRow>((from, to) => supabase
-      .from('exhibition_logs').select('name, type, shown_at')
+      .from('exhibition_logs').select('name, type, shown_at, duration')
       .eq('screen_id', screenId).gte('shown_at', since.toISOString())
       .order('shown_at', { ascending: true }).range(from, to))
 
@@ -143,7 +157,8 @@ export default function Reports() {
 
     doc.setFontSize(11); doc.setTextColor(30)
     doc.text(`Total de itens exibidos: ${rows.length}`, 40, 116)
-    doc.text(`Período: ${periodInfo.label} (${periodLabel})`, 40, 132)
+    doc.text(`Tempo total de exibição: ${fmtDur(sumDur(rows))}`, 40, 132)
+    doc.text(`Período: ${periodInfo.label} (${periodLabel})`, 40, 148)
 
     const byCat = new Map<string, number>()
     const byFile = new Map<string, number>()
@@ -155,7 +170,7 @@ export default function Reports() {
     const catRows = [...byCat.entries()].sort((a, b) => b[1] - a[1]).map(([c, n]) => [c, String(n), pct(n, rows.length)])
     const fileRows = [...byFile.entries()].sort((a, b) => b[1] - a[1]).map(([f, n]) => [f, String(n), pct(n, totalFiles)])
 
-    autoTable(doc, { startY: 152, head: [['Categoria', 'Exibições', '%']], body: catRows, styles: { fontSize: 9 }, headStyles: { fillColor: [37, 99, 235] }, margin: { left: 40, right: 40 } })
+    autoTable(doc, { startY: 168, head: [['Categoria', 'Exibições', '%']], body: catRows, styles: { fontSize: 9 }, headStyles: { fillColor: [37, 99, 235] }, margin: { left: 40, right: 40 } })
     if (fileRows.length) {
       autoTable(doc, { startY: (doc as any).lastAutoTable.finalY + 16, head: [['Arquivo', 'Exibições', '%']], body: fileRows, styles: { fontSize: 9 }, headStyles: { fillColor: [13, 148, 136] }, margin: { left: 40, right: 40 } })
     }
@@ -179,7 +194,7 @@ export default function Reports() {
     if (!mediaName) return
     const since = periodStart(periodInfo.days)
     const rows = await fetchPaged<MediaLogRow>((from, to) => supabase
-      .from('exhibition_logs').select('screen_id, shown_at')
+      .from('exhibition_logs').select('screen_id, shown_at, duration')
       .eq('name', mediaName).gte('shown_at', since.toISOString())
       .order('shown_at', { ascending: true }).range(from, to))
 
@@ -193,15 +208,34 @@ export default function Reports() {
 
     doc.setFontSize(11); doc.setTextColor(30)
     doc.text(`Total de exibições: ${rows.length}`, 40, 116)
-    doc.text(`Período: ${periodInfo.label} (${periodLabel})`, 40, 132)
+    doc.text(`Tempo total de exibição: ${fmtDur(sumDur(rows))}`, 40, 132)
+    doc.text(`Período: ${periodInfo.label} (${periodLabel})`, 40, 148)
 
-    // Detalhamento por tela
+    // Detalhamento por tela: contagem + tempo da mídia naquela tela
     const byScreen = new Map<string, number>()
-    for (const r of rows) byScreen.set(r.screen_id, (byScreen.get(r.screen_id) ?? 0) + 1)
-    const screenRows = [...byScreen.entries()].sort((a, b) => b[1] - a[1])
-      .map(([id, n]) => [screenName(id), String(n), pct(n, rows.length)])
+    const timeByScreen = new Map<string, number>()
+    for (const r of rows) {
+      byScreen.set(r.screen_id, (byScreen.get(r.screen_id) ?? 0) + 1)
+      timeByScreen.set(r.screen_id, (timeByScreen.get(r.screen_id) ?? 0) + (r.duration ?? 0))
+    }
 
-    autoTable(doc, { startY: 152, head: [['Tela', 'Exibições', '%']], body: screenRows, styles: { fontSize: 9 }, headStyles: { fillColor: [37, 99, 235] }, margin: { left: 40, right: 40 } })
+    // Total de TODAS as mídias por tela no período → o % é a fatia desta mídia
+    // dentro de tudo que passou naquela tela (share de exibição).
+    const ids = [...byScreen.keys()]
+    const totals = await Promise.all(ids.map(async id => {
+      const { count } = await supabase
+        .from('exhibition_logs')
+        .select('id', { count: 'exact', head: true })
+        .eq('screen_id', id)
+        .gte('shown_at', since.toISOString())
+      return count ?? 0
+    }))
+    const totalMap = new Map(ids.map((id, i) => [id, totals[i]]))
+
+    const screenRows = [...byScreen.entries()].sort((a, b) => b[1] - a[1])
+      .map(([id, n]) => [screenName(id), String(n), fmtDur(timeByScreen.get(id) ?? 0), String(totalMap.get(id) ?? 0), pct(n, totalMap.get(id) ?? 0)])
+
+    autoTable(doc, { startY: 168, head: [['Tela', 'Exibições', 'Tempo', 'Total na tela', '% da tela']], body: screenRows, styles: { fontSize: 9 }, headStyles: { fillColor: [37, 99, 235] }, margin: { left: 40, right: 40 } })
 
     const multiDay = periodInfo.days !== 0
     const listRows = rows.map(r => {
