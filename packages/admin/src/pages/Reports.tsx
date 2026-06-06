@@ -161,18 +161,25 @@ export default function Reports() {
     doc.text(`Período: ${periodInfo.label} (${periodLabel})`, 40, 148)
 
     const byCat = new Map<string, number>()
+    const timeByCat = new Map<string, number>()
     const byFile = new Map<string, number>()
+    const timeByFile = new Map<string, number>()
     for (const r of rows) {
-      byCat.set(category(r), (byCat.get(category(r)) ?? 0) + 1)
-      if (r.type !== 'rss') byFile.set(r.name, (byFile.get(r.name) ?? 0) + 1)
+      const c = category(r)
+      byCat.set(c, (byCat.get(c) ?? 0) + 1)
+      timeByCat.set(c, (timeByCat.get(c) ?? 0) + (r.duration ?? 0))
+      if (r.type !== 'rss') {
+        byFile.set(r.name, (byFile.get(r.name) ?? 0) + 1)
+        timeByFile.set(r.name, (timeByFile.get(r.name) ?? 0) + (r.duration ?? 0))
+      }
     }
     const totalFiles = [...byFile.values()].reduce((a, b) => a + b, 0)
-    const catRows = [...byCat.entries()].sort((a, b) => b[1] - a[1]).map(([c, n]) => [c, String(n), pct(n, rows.length)])
-    const fileRows = [...byFile.entries()].sort((a, b) => b[1] - a[1]).map(([f, n]) => [f, String(n), pct(n, totalFiles)])
+    const catRows = [...byCat.entries()].sort((a, b) => b[1] - a[1]).map(([c, n]) => [c, String(n), fmtDur(timeByCat.get(c) ?? 0), pct(n, rows.length)])
+    const fileRows = [...byFile.entries()].sort((a, b) => b[1] - a[1]).map(([f, n]) => [f, String(n), fmtDur(timeByFile.get(f) ?? 0), pct(n, totalFiles)])
 
-    autoTable(doc, { startY: 168, head: [['Categoria', 'Exibições', '%']], body: catRows, styles: { fontSize: 9 }, headStyles: { fillColor: [37, 99, 235] }, margin: { left: 40, right: 40 } })
+    autoTable(doc, { startY: 168, head: [['Categoria', 'Exibições', 'Tempo', '%']], body: catRows, styles: { fontSize: 9 }, headStyles: { fillColor: [37, 99, 235] }, margin: { left: 40, right: 40 } })
     if (fileRows.length) {
-      autoTable(doc, { startY: (doc as any).lastAutoTable.finalY + 16, head: [['Arquivo', 'Exibições', '%']], body: fileRows, styles: { fontSize: 9 }, headStyles: { fillColor: [13, 148, 136] }, margin: { left: 40, right: 40 } })
+      autoTable(doc, { startY: (doc as any).lastAutoTable.finalY + 16, head: [['Arquivo', 'Exibições', 'Tempo', '%']], body: fileRows, styles: { fontSize: 9 }, headStyles: { fillColor: [13, 148, 136] }, margin: { left: 40, right: 40 } })
     }
 
     const multiDay = periodInfo.days !== 0
