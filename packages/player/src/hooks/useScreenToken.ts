@@ -15,16 +15,26 @@ function generateToken() {
 }
 
 export function useScreenToken() {
+  // Modo preview: o admin embute o player com ?preview=CODIGO para ver ao vivo o
+  // que a tela está passando. Nesse modo NÃO geramos token de device — usamos o
+  // código da tela direto (e o App desliga telemetria/comandos e deixa mudo).
+  const preview = useMemo(() => {
+    if (typeof window === 'undefined') return null
+    const p = new URLSearchParams(window.location.search).get('preview')
+    return p ? p.replace(/-/g, '').slice(0, 6).toUpperCase() : null
+  }, [])
+
   const token = useMemo(() => {
+    if (preview) return preview
     const stored = localStorage.getItem(KEY)
     if (stored) return stored
     const fresh = generateToken()
     localStorage.setItem(KEY, fresh)
     return fresh
-  }, [])
+  }, [preview])
 
   // Pairing code: first 6 chars of UUID, uppercase (no dashes)
   const pairCode = token.replace(/-/g, '').slice(0, 6).toUpperCase()
 
-  return { token, pairCode }
+  return { token, pairCode, preview: !!preview }
 }

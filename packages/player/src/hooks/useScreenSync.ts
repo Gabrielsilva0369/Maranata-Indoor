@@ -13,6 +13,8 @@ interface Args {
   onRefresh?: () => void
   /** Atualizar app: mostra a tela "Atualizando app" e busca a versão nova do site. */
   onUpdate?: () => void
+  /** Preview no admin: NÃO escreve telemetria/last_seen nem executa comandos. */
+  disabled?: boolean
 }
 
 function detectOS(ua: string): string {
@@ -95,7 +97,7 @@ async function buildTelemetry(currentMedia: string, orientation: string) {
   }
 }
 
-export function useScreenSync({ screenId, currentMedia, orientation, onRefresh, onUpdate }: Args) {
+export function useScreenSync({ screenId, currentMedia, orientation, onRefresh, onUpdate, disabled }: Args) {
   const mediaRef = useRef(currentMedia)
   mediaRef.current = currentMedia
   const orientationRef = useRef(orientation)
@@ -108,7 +110,7 @@ export function useScreenSync({ screenId, currentMedia, orientation, onRefresh, 
 
   // Heartbeat + telemetria (online_since uma vez, last_seen + telemetria a cada 60s)
   useEffect(() => {
-    if (!screenId) return
+    if (!screenId || disabled) return
     let onlineSet = false
 
     const beat = async () => {
@@ -129,11 +131,11 @@ export function useScreenSync({ screenId, currentMedia, orientation, onRefresh, 
     beat()
     const id = setInterval(beat, 60_000)
     return () => clearInterval(id)
-  }, [screenId])
+  }, [screenId, disabled])
 
   // Atualiza a telemetria imediatamente sempre que a mídia atual muda
   useEffect(() => {
-    if (!screenId || !currentMedia) return
+    if (!screenId || !currentMedia || disabled) return
     let cancelled = false
     ;(async () => {
       const telemetry = await buildTelemetry(currentMedia, orientationRef.current)
@@ -144,11 +146,11 @@ export function useScreenSync({ screenId, currentMedia, orientation, onRefresh, 
         .eq('id', screenId)
     })()
     return () => { cancelled = true }
-  }, [screenId, currentMedia])
+  }, [screenId, currentMedia, disabled])
 
   // Polling de comandos remotos (a cada 15s)
   useEffect(() => {
-    if (!screenId) return
+    if (!screenId || disabled) return
 
     const checkCommand = async () => {
       const { data } = await supabase.from('screens').select('pending_command').eq('id', screenId).maybeSingle()
@@ -185,5 +187,5 @@ export function useScreenSync({ screenId, currentMedia, orientation, onRefresh, 
 
     const id = setInterval(checkCommand, 15_000)
     return () => clearInterval(id)
-  }, [screenId])
+  }, [screenId, disabled])
 }

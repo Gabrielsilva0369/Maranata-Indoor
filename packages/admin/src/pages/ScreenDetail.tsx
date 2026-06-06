@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
@@ -25,6 +26,11 @@ function uptime(since: string | null, online: boolean) {
   return `${d}d ${h % 24}h`
 }
 
+// URL do player hospedado (Vercel). Usada no preview ao vivo via ?preview=CODIGO.
+const PLAYER_URL =
+  (import.meta.env.VITE_PLAYER_URL as string | undefined) ||
+  'https://maranata-indoor-player.vercel.app'
+
 const ORIENTATION_LABEL: Record<string, string> = {
   'landscape': 'Horizontal',
   'landscape-reverse': 'Horizontal (180°)',
@@ -36,6 +42,7 @@ export default function ScreenDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const qc = useQueryClient()
+  const [previewKey, setPreviewKey] = useState(0)
 
   const { data: screen } = useQuery<Screen>({
     queryKey: ['screen', id],
@@ -170,6 +177,34 @@ export default function ScreenDetail() {
             </div>
           </div>
         </div>
+      </section>
+
+      {/* Preview ao vivo */}
+      <section className="mt-8">
+        <div className="flex items-center justify-between mb-1">
+          <h2 className="flex items-center gap-2 text-xl font-bold text-slate-700">
+            <MonitorPlay size={20} className="text-emerald-600" /> Preview ao vivo
+          </h2>
+          <button onClick={() => setPreviewKey(k => k + 1)}
+            className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800">
+            <RefreshCw size={14} /> Recarregar
+          </button>
+        </div>
+        <hr className="mb-4" />
+        <div className="rounded-xl overflow-hidden border bg-black mx-auto" style={{ maxWidth: 720 }}>
+          <div style={{ position: 'relative', width: '100%', paddingTop: '56.25%' }}>
+            <iframe
+              key={previewKey}
+              src={`${PLAYER_URL}/?preview=${screen.token}`}
+              title="Preview da tela"
+              allow="autoplay; encrypted-media"
+              style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 'none' }}
+            />
+          </div>
+        </div>
+        <p className="text-xs text-gray-400 mt-2 max-w-2xl">
+          Mostra o mesmo conteúdo que está passando nesta tela (mesma playlist e configuração), tocando aqui no admin — <b>mudo</b> e sem afetar o status da tela. O tempo pode não estar idêntico ao do box; para o quadro exato use <b>Tirar Print</b>.
+        </p>
       </section>
 
       {/* Comandos */}

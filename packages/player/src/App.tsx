@@ -23,7 +23,7 @@ function triggerRssSync() {
 }
 
 export default function App() {
-  const { token, pairCode } = useScreenToken()
+  const { token, pairCode, preview } = useScreenToken()
   const { screen, items, paired, loading, refetch, syncStatus } = usePlaylist(token)
   const [currentMedia, setCurrentMedia] = useState('')
   const [updating, setUpdating] = useState(false)
@@ -33,6 +33,7 @@ export default function App() {
     orientation: screen?.orientation ?? 'landscape',
     onRefresh: refetch,            // comando "Atualizar Tela": re-busca conteúdo sem recarregar o navegador
     onUpdate: () => setUpdating(true),  // comando "Atualizar App": mostra a tela e busca versão nova
+    disabled: preview,             // preview no admin não escreve telemetria nem executa comandos
   })
 
   // Quando entra em modo "atualizando", mostra a tela e aplica a atualização.
@@ -118,7 +119,7 @@ export default function App() {
       {/* Overlay "tap to start" que libera o áudio do autoplay (auto-clique no load) */}
       <AudioUnlock />
       <OrientationWrapper orientation={screen!.orientation ?? 'landscape'}>
-      <PlaylistPlayer items={items} screen={screen!} onMediaChange={setCurrentMedia} />
+      <PlaylistPlayer items={items} screen={screen!} onMediaChange={setCurrentMedia} forceMuted={preview} />
 
       {/* Indicador de sincronização local de mídias em background */}
       {syncStatus && syncStatus.status === 'syncing' && (

@@ -14,6 +14,8 @@ interface Props {
   items: PlaylistItem[]
   screen: ScreenConfig
   onMediaChange?: (name: string) => void
+  /** Preview no admin: força tudo mudo (não sai som no painel). */
+  forceMuted?: boolean
 }
 
 // Verifica se um item está no horário/período agendado para exibição
@@ -44,7 +46,7 @@ function isItemActive(schedule: PlaylistItem['schedule'], now: Date): boolean {
   return cur >= startMin || cur < endMin
 }
 
-export default function PlaylistPlayer({ items, screen, onMediaChange }: Props) {
+export default function PlaylistPlayer({ items, screen, onMediaChange, forceMuted }: Props) {
   const [index, setIndex] = useState(0)
 
   // Relógio que reavalia os agendamentos a cada 30s
@@ -129,7 +131,7 @@ export default function PlaylistPlayer({ items, screen, onMediaChange }: Props) 
   // ── Renderiza o player atual ──────────────────────────────────────────────
   const { duration_override, media, rss_feed, rss_feed_id, audio_enabled } = current
   const duration = duration_override ?? media?.duration ?? 10
-  const muted = audio_enabled === null ? !screen.sound_enabled : !audio_enabled
+  const muted = forceMuted ? true : (audio_enabled === null ? !screen.sound_enabled : !audio_enabled)
 
   // Barra de progresso (loading) por tela — pode ser desativada no admin.
   const showProgress = screen.show_progress !== false
