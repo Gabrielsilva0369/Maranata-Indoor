@@ -33,7 +33,13 @@ async function presign(path: string, method: 'PUT' | 'DELETE'): Promise<string> 
 /** Sobe um arquivo para o Spaces (caminho = mesma estrutura de antes, ex: "videos/..."). */
 export async function uploadToSpaces(path: string, file: Blob, contentType: string): Promise<void> {
   const url = await presign(path, 'PUT')
-  const res = await fetch(url, { method: 'PUT', body: file, headers: { 'Content-Type': contentType } })
+  // x-amz-acl precisa bater com o que foi assinado (público) — senão a DO
+  // salva privado e a CDN não serve a imagem/vídeo.
+  const res = await fetch(url, {
+    method: 'PUT',
+    body: file,
+    headers: { 'Content-Type': contentType, 'x-amz-acl': 'public-read' },
+  })
   if (!res.ok) throw new Error(`Upload para a DO falhou (${res.status})`)
 }
 
