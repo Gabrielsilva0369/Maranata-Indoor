@@ -5,6 +5,7 @@ import type { Screen, Playlist } from '../lib/database.types'
 import {
   ChevronLeft, Settings, BarChart3, Wifi, WifiOff,
   RotateCw, RefreshCw, Trash2, Monitor, Cpu, MonitorPlay, HardDrive, Clock,
+  MemoryStick, Database, Server,
 } from 'lucide-react'
 
 function isOnline(lastSeen: string | null) {
@@ -141,11 +142,30 @@ export default function ScreenDetail() {
               <Info label="Sistema Operacional">
                 <span className="inline-flex items-center gap-1.5"><Cpu size={14} className="text-gray-400" />{t?.user_agent || '—'}</span>
               </Info>
+              {t?.device_model && (
+                <Info label="Modelo do aparelho">
+                  <span className="inline-flex items-center gap-1.5"><Server size={14} className="text-gray-400" />{t.device_model}</span>
+                </Info>
+              )}
+              <Info label="Processador">
+                <span className="inline-flex items-center gap-1.5"><Cpu size={14} className="text-gray-400" />{t?.cpu || '—'}</span>
+              </Info>
+              <Info label="Memória RAM">
+                <span className="inline-flex items-center gap-1.5"><MemoryStick size={14} className="text-gray-400" />{t?.ram || '—'}</span>
+              </Info>
               <Info label="Resolução">
                 <span className="inline-flex items-center gap-1.5"><Monitor size={14} className="text-gray-400" />{t?.resolution || '—'}</span>
               </Info>
+              <Info label="Armazenamento disponível">
+                <span className="inline-flex items-center gap-1.5">
+                  <HardDrive size={14} className="text-gray-400" />
+                  {t?.storage_free
+                    ? `${t.storage_free}${t.storage_total ? ` livres de ${t.storage_total}` : ''}`
+                    : (t?.storage_total || '—')}
+                </span>
+              </Info>
               <Info label="Espaço usado (cache)">
-                <span className="inline-flex items-center gap-1.5"><HardDrive size={14} className="text-gray-400" />{t?.storage_estimate || '—'}</span>
+                <span className="inline-flex items-center gap-1.5"><Database size={14} className="text-gray-400" />{t?.storage_estimate || '—'}</span>
               </Info>
             </div>
           </div>

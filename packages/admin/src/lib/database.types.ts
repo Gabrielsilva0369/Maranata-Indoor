@@ -45,7 +45,12 @@ export interface ScreenTelemetry {
   resolution?: string
   user_agent?: string
   app_version?: string
-  storage_estimate?: string
+  storage_estimate?: string  // cache salvo
+  storage_total?: string     // armazenamento disponível para o app
+  storage_free?: string      // livre estimado
+  cpu?: string               // processador (núcleos · arquitetura)
+  ram?: string               // memória RAM aproximada
+  device_model?: string      // modelo do aparelho (quando disponível)
 }
 
 export interface Screen {

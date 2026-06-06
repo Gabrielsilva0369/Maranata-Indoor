@@ -23,18 +23,46 @@ function detectOS(ua: string): string {
   return 'Desconhecido'
 }
 
+function formatBytes(b: number): string {
+  if (!b || b < 0) return ''
+  if (b >= 1024 * 1024 * 1024) return `${(b / 1024 / 1024 / 1024).toFixed(1)} GB`
+  return `${(b / 1024 / 1024).toFixed(1)} MB`
+}
+
 async function buildTelemetry(currentMedia: string, orientation: string) {
   const ua = navigator.userAgent
   const res = `${window.screen.width} x ${window.screen.height} (${orientation === 'landscape' || orientation === 'landscape-reverse' ? 'Horizontal' : 'Vertical'})`
 
-  let storageStr = ''
+  // ── Armazenamento: cache usado + total/livre disponível para o app ──
+  let storageStr = ''   // cache usado (uso da origem: IndexedDB + Cache Storage + localStorage)
+  let storageTotal = '' // total disponível para o app
+  let storageFree = ''  // livre estimado
   try {
     if (navigator.storage?.estimate) {
       const est = await navigator.storage.estimate()
-      const usedMB = ((est.usage ?? 0) / 1024 / 1024).toFixed(1)
-      storageStr = `${usedMB} MB`
+      const usage = est.usage ?? 0
+      const quota = est.quota ?? 0
+      storageStr = formatBytes(usage)
+      storageTotal = formatBytes(quota)
+      storageFree = formatBytes(Math.max(0, quota - usage))
     }
   } catch { /* ignore */ }
+
+  // ── Processador e memória RAM ──
+  const cores = navigator.hardwareConcurrency
+  const ramGb = (navigator as any).deviceMemory as number | undefined
+  let cpuStr = cores ? `${cores} núcleos` : ''
+  let deviceModel = ''
+  try {
+    const uaData = (navigator as any).userAgentData
+    if (uaData?.getHighEntropyValues) {
+      const hv = await uaData.getHighEntropyValues(['architecture', 'bitness', 'model'])
+      const arch = hv.architecture ? `${hv.architecture}${hv.bitness ? '-' + hv.bitness : ''}` : ''
+      deviceModel = hv.model || ''
+      if (arch) cpuStr = cpuStr ? `${cpuStr} · ${arch}` : arch
+    }
+  } catch { /* WebView antiga sem userAgentData */ }
+  const ramStr = ramGb ? `~${ramGb} GB` : ''
 
   // Diagnóstico de renderização: ajuda a entender "app roda mas tela preta".
   // Mostra UA completo (versão do Chrome/WebView), viewport e tamanho do #root.
@@ -51,7 +79,12 @@ async function buildTelemetry(currentMedia: string, orientation: string) {
     resolution: res,
     user_agent: detectOS(ua),
     app_version: APP_VERSION,
-    storage_estimate: storageStr,
+    storage_estimate: storageStr,   // cache salvo
+    storage_total: storageTotal,    // disponível para o app
+    storage_free: storageFree,      // livre estimado
+    cpu: cpuStr,                    // processador (núcleos · arquitetura)
+    ram: ramStr,                   // memória RAM aproximada
+    device_model: deviceModel,     // modelo do aparelho (quando disponível)
     ua_full: ua,
     diag,
     build: typeof __BUILD_TIME__ !== 'undefined' ? __BUILD_TIME__ : '',
