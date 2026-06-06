@@ -10,7 +10,7 @@ const STORE_NAME = 'media'
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000
 const BUILT_AT_KEY = 'maranata_cache_built_at'
 // Caches do Service Worker que guardam conteúdo (NÃO inclui o precache do app).
-const RUNTIME_CACHES = ['external-images', 'supabase-media', 'rss-feeds']
+const RUNTIME_CACHES = ['external-images', 'media-cdn', 'rss-feeds']
 
 /** Verdadeiro se o cache nunca foi construído ou já passou de 24h. */
 export function isCacheExpired(): boolean {

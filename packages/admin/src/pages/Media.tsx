@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase'
 import type { Media, MediaType, ClockConfig, WeatherConfig, MediaFolder } from '../lib/database.types'
 import { Upload, Trash2, Plus, Image, Film, Code, Clock, Cloud, Search, MapPin, Pencil, Folder, FolderPlus, Layers, Youtube, Radio } from 'lucide-react'
 import { transcodeVideoRenditions } from '../lib/videoTranscode'
+import { uploadToSpaces, deleteFromSpaces, mediaUrl } from '../lib/spaces'
 
 // Sobe as 3 qualidades do vídeo (SD/HD/FullHD) e devolve o storage_path base
 // (o arquivo _fhd; o player deriva _hd/_sd trocando o sufixo).
@@ -15,20 +16,24 @@ async function uploadVideoRenditions(
   const r = await transcodeVideoRenditions({ file, onProgress, onStatusChange: onStatus })
   const base = `videos/${Date.now()}-${Math.random().toString(36).slice(2)}`
   for (const q of ['sd', 'qhd', 'hd', 'fhd'] as const) {
-    const { error } = await supabase.storage.from('media').upload(`${base}_${q}.mp4`, r[q])
-    if (error) throw error
+    await uploadToSpaces(`${base}_${q}.mp4`, r[q], 'video/mp4')
   }
   return `${base}_fhd.mp4`
 }
 
-// Remove do storage. Vídeo novo tem 4 renditions (_sd/_qhd/_hd/_fhd) → remove as 4.
+// Remove da DO. Vídeo novo tem 4 renditions (_sd/_qhd/_hd/_fhd) → remove as 4.
 async function removeMediaStorage(storagePath: string | null | undefined) {
   if (!storagePath) return
   if (/_fhd\.mp4$/.test(storagePath)) {
     const base = storagePath.replace(/_fhd\.mp4$/, '')
-    await supabase.storage.from('media').remove([`${base}_sd.mp4`, `${base}_qhd.mp4`, `${base}_hd.mp4`, `${base}_fhd.mp4`])
+    await Promise.all([
+      deleteFromSpaces(`${base}_sd.mp4`),
+      deleteFromSpaces(`${base}_qhd.mp4`),
+      deleteFromSpaces(`${base}_hd.mp4`),
+      deleteFromSpaces(`${base}_fhd.mp4`),
+    ])
   } else {
-    await supabase.storage.from('media').remove([storagePath])
+    await deleteFromSpaces(storagePath)
   }
 }
 
@@ -562,8 +567,7 @@ export default function MediaPage() {
         } else {
           const ext = file.name.split('.').pop()
           const path = `images/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
-          const { error: err } = await supabase.storage.from('media').upload(path, file)
-          if (err) throw err
+          await uploadToSpaces(path, file, file.type || 'image/jpeg')
           storagePath = path
         }
       }
@@ -572,8 +576,7 @@ export default function MediaPage() {
       if (type === 'clock' && clockCfg.bg_type === 'image' && bgFile) {
         const ext = bgFile.name.split('.').pop()
         const path = `clock-bg/${Date.now()}.${ext}`
-        const { error: err } = await supabase.storage.from('media').upload(path, bgFile)
-        if (err) throw err
+        await uploadToSpaces(path, bgFile, bgFile.type || 'image/jpeg')
         finalClock = { ...clockCfg, bg_image_path: path }
       }
 
@@ -621,8 +624,7 @@ export default function MediaPage() {
         } else {
           const ext = file.name.split('.').pop()
           newPath = `images/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
-          const { error: err } = await supabase.storage.from('media').upload(newPath, file)
-          if (err) throw err
+          await uploadToSpaces(newPath, file, file.type || 'image/jpeg')
         }
         await removeMediaStorage(existing?.storage_path)
         patch.storage_path = newPath
@@ -634,9 +636,8 @@ export default function MediaPage() {
         if (clockCfg.bg_type === 'image' && bgFile) {
           const ext = bgFile.name.split('.').pop()
           const path = `clock-bg/${Date.now()}.${ext}`
-          const { error: err } = await supabase.storage.from('media').upload(path, bgFile)
-          if (err) throw err
-          if (existing?.clock_config?.bg_image_path) await supabase.storage.from('media').remove([existing.clock_config.bg_image_path])
+          await uploadToSpaces(path, bgFile, bgFile.type || 'image/jpeg')
+          if (existing?.clock_config?.bg_image_path) await deleteFromSpaces(existing.clock_config.bg_image_path)
           finalClock = { ...clockCfg, bg_image_path: path }
         }
         patch.clock_config = finalClock
@@ -655,15 +656,14 @@ export default function MediaPage() {
   const deleteMedia = useMutation({
     mutationFn: async (item: Media) => {
       await removeMediaStorage(item.storage_path)
-      if (item.clock_config?.bg_image_path) await supabase.storage.from('media').remove([item.clock_config.bg_image_path])
+      if (item.clock_config?.bg_image_path) await deleteFromSpaces(item.clock_config.bg_image_path)
       const { error } = await supabase.from('media').delete().eq('id', item.id)
       if (error) throw error
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['media'] }),
   })
 
-  const getPublicUrl = (path: string) =>
-    supabase.storage.from('media').getPublicUrl(path).data.publicUrl
+  const getPublicUrl = (path: string) => mediaUrl(path)
 
   const resetForm = () => {
     setName(''); setUrl(''); setHtmlContent(''); setDuration(30)

@@ -28,14 +28,13 @@ export default defineConfig({
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,jpg,jpeg,svg,woff2}'],
         runtimeCaching: [
-          // Cache de mídias do Supabase Storage (CacheFirst, 7 dias)
+          // Cache de mídias da CDN da DigitalOcean Spaces (CacheFirst).
           {
-            urlPattern: /supabase\.co\/storage\/v1\/object\/public\//,
+            urlPattern: /digitaloceanspaces\.com\//,
             handler: 'CacheFirst',
             options: {
-              cacheName: 'supabase-media',
-              // 1 dia: alinhado ao TTL de 24h do cache do player.
-              expiration: { maxEntries: 200, maxAgeSeconds: 60 * 60 * 24 },
+              cacheName: 'media-cdn',
+              expiration: { maxEntries: 200, maxAgeSeconds: 60 * 60 * 24 * 7 },
               cacheableResponse: { statuses: [0, 200] },
             },
           },

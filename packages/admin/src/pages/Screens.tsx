@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
+import { uploadToSpaces, deleteFromSpaces, mediaUrl } from '../lib/spaces'
 import type { Screen, Playlist, RssFeed, FooterConfig, ScreenOrientation } from '../lib/database.types'
 import { Plus, Trash2, Volume2, VolumeX, Wifi, WifiOff, PanelBottom, X, Upload, ImageOff, Pencil } from 'lucide-react'
 
@@ -66,7 +67,7 @@ function FooterModal({ screen, feeds, onClose, onSave }: {
   const [logoFile, setLogoFile] = useState<File | null>(null)
   const [logoPreview, setLogoPreview] = useState<string | undefined>(
     screen.footer_config?.logo_path
-      ? supabase.storage.from('media').getPublicUrl(screen.footer_config.logo_path).data.publicUrl
+      ? mediaUrl(screen.footer_config.logo_path)
       : undefined
   )
   const [removeLogo, setRemoveLogo] = useState(false)
@@ -476,15 +477,15 @@ export default function Screens() {
     if (cfg) {
       // Remove logo antiga se pedido
       if (removeLogo && screen.footer_config?.logo_path) {
-        await supabase.storage.from('media').remove([screen.footer_config.logo_path])
+        await deleteFromSpaces(screen.footer_config.logo_path)
         finalCfg = { ...cfg, logo_path: null }
       }
       // Upload nova logo
       if (logoFile) {
         const ext = logoFile.name.split('.').pop()
         const path = `footer-logos/${Date.now()}.${ext}`
-        const { error } = await supabase.storage.from('media').upload(path, logoFile)
-        if (!error) finalCfg = { ...cfg, logo_path: path }
+        await uploadToSpaces(path, logoFile, logoFile.type || 'image/png')
+        finalCfg = { ...cfg, logo_path: path }
       }
     }
     updateScreen.mutate({ id: screen.id, footer_config: finalCfg })
