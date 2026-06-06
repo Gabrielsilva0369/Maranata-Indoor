@@ -1,4 +1,17 @@
 /**
+ * Cria um AbortSignal que dispara depois de `ms`. Usado para dar tempo-limite às
+ * consultas do Supabase — sem isto, num box ligado numa rede SEM internet o
+ * fetch fica pendurado e o player nunca cai pro cache offline (trava no boot).
+ * Retorna undefined em WebView sem AbortController (aí a consulta roda sem limite).
+ */
+export function timeoutSignal(ms: number): AbortSignal | undefined {
+  if (typeof AbortController === 'undefined') return undefined
+  const c = new AbortController()
+  setTimeout(() => c.abort(), ms)
+  return c.signal
+}
+
+/**
  * Checagem REAL de internet (não só navigator.onLine, que mente). Faz um toque
  * leve num endpoint de conectividade do Google (mesma infra do YouTube) com
  * tempo-limite. Usado antes de tocar YouTube/streaming: sem internet, o player

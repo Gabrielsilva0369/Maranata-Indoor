@@ -1,4 +1,5 @@
 import { supabase } from './supabase'
+import { timeoutSignal } from './network'
 
 export interface CachedArticle {
   id: string
@@ -31,15 +32,26 @@ export function getCachedArticles(feedId: string): CachedArticle[] {
  * Offline / erro: mantém o cache anterior e devolve [].
  */
 export async function refreshFeedArticles(feedId: string, cap = 20): Promise<string[]> {
-  const { data, error } = await supabase
+  // Timeout para não pendurar o boot offline.
+  let query = supabase
     .from('rss_articles')
     .select('id, title, description, image_url, source_logo, source_name, pub_date')
     .eq('feed_id', feedId)
     .eq('active', true)
     .order('pub_date', { ascending: false })
     .limit(cap)
+  const sig = timeoutSignal(8000)
+  if (sig) query = query.abortSignal(sig)
 
-  if (error || !data) return []
+  let data: CachedArticle[] | null = null
+  try {
+    const res = await query
+    if (res.error) return []
+    data = res.data as CachedArticle[]
+  } catch {
+    return [] // offline / abortado → mantém o cache anterior
+  }
+  if (!data) return []
 
   try {
     localStorage.setItem(KEY(feedId), JSON.stringify(data))
@@ -48,7 +60,7 @@ export async function refreshFeedArticles(feedId: string, cap = 20): Promise<str
   }
 
   const urls: string[] = []
-  for (const a of data as CachedArticle[]) {
+  for (const a of data) {
     if (a.image_url) urls.push(a.image_url)
     if (a.source_logo) urls.push(a.source_logo)
   }

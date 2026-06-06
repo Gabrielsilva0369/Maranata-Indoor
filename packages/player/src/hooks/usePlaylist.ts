@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { syncMediaCache, isCacheExpired } from '../lib/mediaCache'
+import { timeoutSignal } from '../lib/network'
 import type { SyncProgress } from '../lib/mediaCache'
 
 export interface ClockConfig {
@@ -190,11 +191,15 @@ export function usePlaylist(token: string) {
     if (!token) return
     try {
       const code = token.replace(/-/g, '').slice(0, 6).toUpperCase()
-      const { data, error } = await supabase
+      // Timeout: num box ligado numa rede SEM internet o fetch fica pendurado;
+      // o limite faz falhar rápido e cair pro cache offline em vez de travar.
+      let screenQ = supabase
         .from('screens')
         .select('id, name, sound_enabled, video_quality, playlist_id, footer_config, orientation')
         .eq('token', code)
-        .maybeSingle()
+      const sig1 = timeoutSignal(10000)
+      if (sig1) screenQ = screenQ.abortSignal(sig1)
+      const { data, error } = await screenQ.maybeSingle()
 
       if (error) throw error
 
@@ -206,11 +211,14 @@ export function usePlaylist(token: string) {
 
       let fetchedItems: PlaylistItem[] = []
       if (data.playlist_id) {
-        const { data: playlistItems, error: itemsError } = await supabase
+        let itemsQ = supabase
           .from('playlist_items')
           .select('id, order_index, duration_override, rss_article_count, audio_enabled, footer_override, schedule, media_id, rss_feed_id, media(*), rss_feed:rss_feeds(*)')
           .eq('playlist_id', data.playlist_id)
           .order('order_index')
+        const sig2 = timeoutSignal(10000)
+        if (sig2) itemsQ = itemsQ.abortSignal(sig2)
+        const { data: playlistItems, error: itemsError } = await itemsQ
 
         if (itemsError) throw itemsError
 

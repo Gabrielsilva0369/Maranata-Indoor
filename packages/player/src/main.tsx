@@ -11,6 +11,16 @@ if (typeof window !== 'undefined' && !('ResizeObserver' in window)) {
   ;(window as any).ResizeObserver = ResizeObserverPolyfill
 }
 
+// Armazenamento persistente: pede ao navegador/WebView para NÃO despejar o cache
+// (IndexedDB/localStorage/Cache Storage). Sem isto, o sistema pode limpar os dados
+// sob pressão de espaço — e o player abriria sem nada offline. Assim o cache
+// sobrevive a fechar o app e a desligar/ligar o box (validade controlada nós: 24h).
+if (typeof navigator !== 'undefined' && navigator.storage?.persist) {
+  navigator.storage.persisted?.().then(already => {
+    if (!already) navigator.storage.persist().catch(() => {})
+  }).catch(() => {})
+}
+
 // ============================================================
 // Auto-update do PWA (atualizar = só redeployar o player)
 // ============================================================

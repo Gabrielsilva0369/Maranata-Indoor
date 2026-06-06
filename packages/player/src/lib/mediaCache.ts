@@ -1,5 +1,6 @@
 import { getPublicUrl } from './supabase'
 import { refreshFeedArticles } from './newsCache'
+import { hasInternet } from './network'
 
 const DB_NAME = 'MaranataMediaCache'
 const DB_VERSION = 1
@@ -211,7 +212,7 @@ async function warmCache(url: string): Promise<void> {
   try {
     if (typeof AbortController !== 'undefined') {
       const ctrl = new AbortController()
-      const t = setTimeout(() => ctrl.abort(), 30000)
+      const t = setTimeout(() => ctrl.abort(), 10000)
       try {
         await fetch(url, { mode: 'no-cors', signal: ctrl.signal })
       } finally {
@@ -246,8 +247,10 @@ export async function syncMediaCache(
   onProgress?: (progress: SyncProgress) => void
 ): Promise<void> {
   // ── 0. Validade de 24h: se o cache venceu (ou nunca existiu), apaga tudo e
-  //       remarca — assim o loop abaixo rebaixa todo o conteúdo do zero. ──
-  if (isCacheExpired()) {
+  //       remarca — MAS só se tiver internet pra rebaixar. Offline (ex: box
+  //       desligado >24h e religado sem rede) NÃO apaga: melhor tocar o cache
+  //       vencido do que ficar sem nada. ──
+  if (isCacheExpired() && (await hasInternet())) {
     await clearAllCache()
     markCacheBuilt()
   }
@@ -285,14 +288,12 @@ export async function syncMediaCache(
   // URLs externas para "aquecer" no Service Worker (imagens de notícia + logo do rodapé).
   const warmUrls: string[] = []
   if (footer?.logo_path) warmUrls.push(getPublicUrl(footer.logo_path))
-  for (const fid of feedIds) {
-    try {
-      const imgs = await refreshFeedArticles(fid)
-      warmUrls.push(...imgs)
-    } catch {
-      /* offline: usa o cache de artigos anterior */
-    }
-  }
+  // Busca os feeds EM PARALELO e cada um já tem timeout — offline isto resolve
+  // rápido (não pendura o boot) e a reprodução cai pro cache.
+  const perFeed = await Promise.all(
+    Array.from(feedIds).map(fid => refreshFeedArticles(fid).catch(() => [] as string[]))
+  )
+  for (const imgs of perFeed) warmUrls.push(...imgs)
 
   const total = activePaths.length + warmUrls.length
   if (total === 0) {
