@@ -111,6 +111,7 @@ const DEFAULT_CLOCK: ClockConfig = {
 const DEFAULT_QUOTES: QuotesConfig = {
   quote: '',
   author: '',
+  font: 'system-ui',
   bg_type: 'color',
   bg_image_path: null,
   bg_color: '#0f172a',
@@ -121,11 +122,22 @@ const DEFAULT_QUOTES: QuotesConfig = {
 // ── Frase motivacional: preview + formulário ──────────────────────────────────
 function QuotesPreview({ cfg, bgUrl }: { cfg: QuotesConfig; bgUrl?: string }) {
   const text = cfg.quote.trim() || 'Sua frase aqui…'
+  // Carrega a Google Font escolhida (se for uma).
+  useEffect(() => {
+    if (!GOOGLE_FONTS.find(f => f.value === cfg.font)) return
+    const id = `gf-${cfg.font.replace(/ /g, '-')}`
+    if (document.getElementById(id)) return
+    document.head.appendChild(Object.assign(document.createElement('link'), {
+      id, rel: 'stylesheet',
+      href: `https://fonts.googleapis.com/css2?family=${cfg.font.replace(/ /g, '+')}:wght@400;700&display=swap`,
+    }))
+  }, [cfg.font])
+
   const bg = cfg.bg_type === 'image' && bgUrl
     ? { backgroundImage: `url(${bgUrl})`, backgroundSize: 'cover', backgroundPosition: 'center' }
     : { backgroundColor: cfg.bg_color }
   return (
-    <div style={{ ...bg, borderRadius: 12, overflow: 'hidden', aspectRatio: '16/9',
+    <div style={{ ...bg, borderRadius: 12, overflow: 'hidden', aspectRatio: '16/9', fontFamily: cfg.font,
       display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8, padding: 24, position: 'relative' }}>
       <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.35)' }} />
       <p style={{
@@ -138,7 +150,7 @@ function QuotesPreview({ cfg, bgUrl }: { cfg: QuotesConfig; bgUrl?: string }) {
           position: 'relative', color: cfg.font_color, opacity: 0.85, textAlign: 'center',
           fontStyle: 'italic', textShadow: '0 2px 8px rgba(0,0,0,0.5)',
           fontSize: Math.max(9, cfg.font_size * 0.16), margin: 0,
-        }}>— {cfg.author.trim()}</p>
+        }}>{cfg.author.trim()}</p>
       )}
     </div>
   )
@@ -174,6 +186,15 @@ function QuotesForm({ cfg, onChange, bgUrl, onBgFileChange }: {
         <input value={cfg.author} onChange={e => set({ author: e.target.value })}
           placeholder="Napoleão Hill"
           className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
+      </div>
+
+      {/* Fonte */}
+      <div>
+        <label className="block text-sm font-medium mb-1">Fonte</label>
+        <select value={cfg.font} onChange={e => set({ font: e.target.value })}
+          className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500">
+          {FONTS.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
+        </select>
       </div>
 
       {/* Cor + tamanho da fonte */}

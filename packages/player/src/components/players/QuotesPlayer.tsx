@@ -4,12 +4,15 @@ import { useCachedUrl } from '../../hooks/useCachedUrl'
 interface QuotesConfig {
   quote: string
   author: string
+  font: string
   bg_type: 'color' | 'image'
   bg_image_path: string | null
   bg_color: string
   font_color: string
   font_size: number
 }
+
+const NON_GOOGLE = ['system-ui', 'Arial', 'Georgia', 'Courier New']
 
 interface Props {
   config: QuotesConfig
@@ -23,6 +26,18 @@ interface Props {
 export default function QuotesPlayer({ config, duration, showProgress = true, onEnd }: Props) {
   const [progress, setProgress] = useState(0)
   const { url: bgUrl } = useCachedUrl(config.bg_type === 'image' ? config.bg_image_path : null)
+  const font = config.font || 'system-ui'
+
+  // Carrega a Google Font escolhida, se for uma.
+  useEffect(() => {
+    if (!font || NON_GOOGLE.includes(font)) return
+    const id = `gf-${font.replace(/ /g, '-')}`
+    if (document.getElementById(id)) return
+    document.head.appendChild(Object.assign(document.createElement('link'), {
+      id, rel: 'stylesheet',
+      href: `https://fonts.googleapis.com/css2?family=${font.replace(/ /g, '+')}:wght@400;700&display=swap`,
+    }))
+  }, [font])
 
   useEffect(() => {
     setProgress(0)
@@ -59,7 +74,7 @@ export default function QuotesPlayer({ config, duration, showProgress = true, on
       <p style={{
         position: 'relative', zIndex: 1,
         color: config.font_color,
-        fontFamily: 'system-ui, -apple-system, sans-serif',
+        fontFamily: font,
         fontWeight: 700,
         fontSize,
         lineHeight: 1.3,
@@ -76,14 +91,14 @@ export default function QuotesPlayer({ config, duration, showProgress = true, on
         <p style={{
           position: 'relative', zIndex: 1,
           color: config.font_color, opacity: 0.85,
-          fontFamily: 'system-ui, -apple-system, sans-serif',
+          fontFamily: font,
           fontStyle: 'italic',
           fontSize: authorSize,
           textAlign: 'center',
           margin: 0,
           textShadow: '0 2px 12px rgba(0,0,0,0.5)',
         }}>
-          — {config.author.trim()}
+          {config.author.trim()}
         </p>
       )}
 
