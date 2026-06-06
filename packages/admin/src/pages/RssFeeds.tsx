@@ -50,7 +50,9 @@ export default function RssFeedsPage() {
       // sync falhava em silêncio. Mandamos os dois headers.
       const res = await fetch(RSS_SYNC_URL, {
         method: 'POST',
-        headers: { apikey: key, Authorization: `Bearer ${key}` },
+        headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+        // flag manual: só assim a função sincroniza (chamadas automáticas são ignoradas)
+        body: JSON.stringify({ manual: true }),
       })
       if (!res.ok) throw new Error(`Falha no sync RSS: HTTP ${res.status}`)
       qc.invalidateQueries({ queryKey: ['rss-feeds'] })
