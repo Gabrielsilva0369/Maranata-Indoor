@@ -14,19 +14,19 @@ async function uploadVideoRenditions(
 ): Promise<string> {
   const r = await transcodeVideoRenditions({ file, onProgress, onStatusChange: onStatus })
   const base = `videos/${Date.now()}-${Math.random().toString(36).slice(2)}`
-  for (const q of ['sd', 'hd', 'fhd'] as const) {
+  for (const q of ['sd', 'qhd', 'hd', 'fhd'] as const) {
     const { error } = await supabase.storage.from('media').upload(`${base}_${q}.mp4`, r[q])
     if (error) throw error
   }
   return `${base}_fhd.mp4`
 }
 
-// Remove do storage. Vídeo novo tem 3 renditions (_sd/_hd/_fhd) → remove as 3.
+// Remove do storage. Vídeo novo tem 4 renditions (_sd/_qhd/_hd/_fhd) → remove as 4.
 async function removeMediaStorage(storagePath: string | null | undefined) {
   if (!storagePath) return
   if (/_fhd\.mp4$/.test(storagePath)) {
     const base = storagePath.replace(/_fhd\.mp4$/, '')
-    await supabase.storage.from('media').remove([`${base}_sd.mp4`, `${base}_hd.mp4`, `${base}_fhd.mp4`])
+    await supabase.storage.from('media').remove([`${base}_sd.mp4`, `${base}_qhd.mp4`, `${base}_hd.mp4`, `${base}_fhd.mp4`])
   } else {
     await supabase.storage.from('media').remove([storagePath])
   }

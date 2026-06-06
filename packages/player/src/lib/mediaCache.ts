@@ -243,7 +243,7 @@ export interface FooterCacheInfo {
  */
 export async function syncMediaCache(
   items: any[],
-  quality: 'sd' | 'hd' | 'fhd',
+  quality: 'sd' | 'qhd' | 'hd' | 'fhd',
   footer: FooterCacheInfo | null,
   onProgress?: (progress: SyncProgress) => void
 ): Promise<void> {

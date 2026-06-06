@@ -4,13 +4,17 @@ import { useCachedUrl } from '../../hooks/useCachedUrl'
 interface Props {
   storagePath: string
   muted: boolean
-  quality?: 'sd' | 'hd' | 'fhd'
+  quality?: 'sd' | 'qhd' | 'hd' | 'fhd'
   onEnd: () => void
 }
 
 export default function VideoPlayer({ storagePath, muted, quality = 'fhd', onEnd }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const [poster, setPoster] = useState<string | null>(null)
+  // Esconde o <video> até ele REALMENTE começar a tocar. Antes disso a WebView
+  // mostra o botão de play nativo (círculo com triângulo) — que o público não
+  // pode ver. Enquanto escondido, fica o fundo preto/borrado por baixo.
+  const [started, setStarted] = useState(false)
   // Vídeos novos têm 3 versões (storage_path = ..._fhd.mp4); a tela escolhe SD/HD/FHD.
   // Trocamos o sufixo para a qualidade da tela. Vídeo antigo (sem _fhd) fica como está.
   const path = quality !== 'fhd' ? storagePath.replace(/_fhd\.mp4$/, `_${quality}.mp4`) : storagePath
@@ -22,6 +26,7 @@ export default function VideoPlayer({ storagePath, muted, quality = 'fhd', onEnd
     const v = videoRef.current
     if (!v || !url) return
     setPoster(null)
+    setStarted(false)
     let captured = false
 
     // NÃO forçar currentTime=0: o elemento recém-criado (src novo) já começa do 0,
@@ -37,6 +42,8 @@ export default function VideoPlayer({ storagePath, muted, quality = 'fhd', onEnd
     // e mostrava o símbolo de play). Só funciona com vídeo do cache local (blob);
     // se for de rede (canvas "tainted"), fica fundo escuro.
     const grabFrame = () => {
+      // Backup do onPlaying: se o tempo já anda, o vídeo está tocando → revela.
+      if (v.currentTime > 0) setStarted(true)
       if (captured || !v.videoWidth || v.currentTime < 0.3) return
       captured = true
       try {
@@ -82,6 +89,7 @@ export default function VideoPlayer({ storagePath, muted, quality = 'fhd', onEnd
         src={url || undefined}
         onEnded={onEnd}
         onError={() => onEnd()}   // formato não suportado / falha → pula para o próximo
+        onPlaying={() => setStarted(true)}  // só revela quando está tocando de fato
         playsInline
         autoPlay
         muted={muted}
@@ -93,8 +101,23 @@ export default function VideoPlayer({ storagePath, muted, quality = 'fhd', onEnd
           width: '100%', height: '100%',
           objectFit: 'contain',
           display: 'block',
+          // Invisível até começar a tocar → esconde o botão de play da WebView.
+          opacity: started ? 1 : 0,
+          transition: 'opacity 150ms ease-in',
         }}
       />
+
+      {/* Cobertura preta por cima ENQUANTO o vídeo não começou — garante esconder
+          o botão de play nativo mesmo em WebView que o desenha numa camada própria. */}
+      {!started && (
+        <div
+          aria-hidden
+          style={{
+            position: 'absolute', top: 0, right: 0, bottom: 0, left: 0,
+            background: '#000', zIndex: 2,
+          }}
+        />
+      )}
     </div>
   )
 }

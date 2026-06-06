@@ -5,7 +5,7 @@ import type { Screen, Playlist } from '../lib/database.types'
 import {
   ChevronLeft, Settings, BarChart3, Wifi, WifiOff,
   RotateCw, RefreshCw, Trash2, Monitor, Cpu, MonitorPlay, HardDrive, Clock,
-  MemoryStick, Database, Server, Camera,
+  MemoryStick, Database, Server, Camera, DownloadCloud,
 } from 'lucide-react'
 
 function isOnline(lastSeen: string | null) {
@@ -201,13 +201,18 @@ export default function ScreenDetail() {
             className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-lg text-sm font-medium transition-colors">
             <Camera size={16} /> Tirar Print
           </button>
+          <button onClick={() => { if (confirm('Atualizar o app desta tela para a versão publicada?')) sendCommand.mutate('update') }}
+            className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-lg text-sm font-medium transition-colors">
+            <DownloadCloud size={16} /> Atualizar App
+          </button>
         </div>
         <p className="text-xs text-gray-400 mt-3 max-w-2xl leading-relaxed">
           <b>Atualizar Tela</b>: recarrega a playlist e as mídias e reinicia a reprodução,
           <b> sem recarregar o navegador</b> (rápido, ideal pro kiosk). ·
           <b> Reiniciar Navegador</b>: recarrega a página inteira (use para forçar nova versão do app). ·
           <b> Limpar Cache</b>: apaga TODO o cache local (vídeos inclusive) e baixa do zero. ·
-          <b> Tirar Print</b>: captura a tela atual (YouTube/live podem sair pretos).
+          <b> Tirar Print</b>: captura a tela atual (YouTube/live podem sair pretos). ·
+          <b> Atualizar App</b>: busca a versão publicada do player e recarrega (mostra "Atualizando app" na tela).
         </p>
       </section>
 

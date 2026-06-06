@@ -90,7 +90,7 @@ export interface FooterConfig {
 
 export type ScreenOrientation = 'landscape' | 'landscape-reverse' | 'portrait' | 'portrait-reverse'
 
-export type VideoQuality = 'sd' | 'hd' | 'fhd'
+export type VideoQuality = 'sd' | 'qhd' | 'hd' | 'fhd'
 
 export interface ScreenConfig {
   id: string

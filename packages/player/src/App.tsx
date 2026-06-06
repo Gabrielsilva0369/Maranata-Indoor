@@ -8,6 +8,8 @@ import PlaylistPlayer from './components/PlaylistPlayer'
 import OrientationWrapper from './components/OrientationWrapper'
 import AudioUnlock from './components/AudioUnlock'
 import LoadingScreen from './components/LoadingScreen'
+import UpdatingScreen from './components/UpdatingScreen'
+import { applyUpdate } from './lib/appUpdate'
 
 const RSS_SYNC_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/rss-sync`
 const ANON_KEY     = import.meta.env.VITE_SUPABASE_ANON_KEY as string
@@ -24,12 +26,19 @@ export default function App() {
   const { token, pairCode } = useScreenToken()
   const { screen, items, paired, loading, refetch, syncStatus } = usePlaylist(token)
   const [currentMedia, setCurrentMedia] = useState('')
+  const [updating, setUpdating] = useState(false)
   useScreenSync({
     screenId: screen?.id,
     currentMedia,
     orientation: screen?.orientation ?? 'landscape',
-    onRefresh: refetch,   // comando "Atualizar Tela": re-busca conteúdo sem recarregar o navegador
+    onRefresh: refetch,            // comando "Atualizar Tela": re-busca conteúdo sem recarregar o navegador
+    onUpdate: () => setUpdating(true),  // comando "Atualizar App": mostra a tela e busca versão nova
   })
+
+  // Quando entra em modo "atualizando", mostra a tela e aplica a atualização.
+  useEffect(() => {
+    if (updating) applyUpdate()
+  }, [updating])
 
   // O download terminou (ou deu erro) → conteúdo pronto pra tocar do cache.
   // O preload é dirigido DIRETO por isto: enquanto não está 'done'/'error', a
@@ -82,6 +91,11 @@ export default function App() {
       document.removeEventListener('keydown', requestFullscreen)
     }
   }, [])
+
+  // Atualizando o app (comando do admin): tem prioridade sobre tudo.
+  if (updating) {
+    return <UpdatingScreen />
+  }
 
   // Ainda descobrindo se a tela está emparelhada (primeira busca, sem cache).
   if (loading && !paired) {

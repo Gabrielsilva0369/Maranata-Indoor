@@ -59,7 +59,7 @@ export interface Screen {
   token: string
   playlist_id: string | null
   sound_enabled: boolean
-  video_quality: 'sd' | 'hd' | 'fhd'
+  video_quality: 'sd' | 'qhd' | 'hd' | 'fhd'
   footer_config: FooterConfig | null
   orientation: ScreenOrientation
   telemetry: ScreenTelemetry | null

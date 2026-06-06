@@ -27,11 +27,13 @@ async function analyze(ffmpeg: FFmpeg, fileName: string): Promise<{ h264aac: boo
   return { h264aac, w: m ? parseInt(m[1], 10) : 0, h: m ? parseInt(m[2], 10) : 0 };
 }
 
-export type Quality = 'sd' | 'hd' | 'fhd';
+export type Quality = 'sd' | 'qhd' | 'hd' | 'fhd';
 
 // Perfil de cada qualidade: caixa máxima (cabe dentro, sem ampliar), bitrate e perfil H.264.
+// qhd = 960×540, casa exatamente com os boxes de 540p (sem reescalar).
 const RENDITIONS: Record<Quality, { w: number; h: number; crf: number; maxrate: string; bufsize: string; profile: string }> = {
   sd:  { w: 854,  h: 480,  crf: 26, maxrate: '1200k', bufsize: '2400k', profile: 'baseline' },
+  qhd: { w: 960,  h: 540,  crf: 25, maxrate: '1800k', bufsize: '3600k', profile: 'main' },
   hd:  { w: 1280, h: 720,  crf: 24, maxrate: '2800k', bufsize: '5600k', profile: 'main' },
   fhd: { w: 1920, h: 1080, crf: 22, maxrate: '5000k', bufsize: '10000k', profile: 'high' },
 };
@@ -43,7 +45,7 @@ interface Options {
 }
 
 /**
- * Gera 3 versões do vídeo (SD 480p, HD 720p, Full HD 1080p), todas H.264/AAC MP4,
+ * Gera 4 versões do vídeo (SD 480p, 540p 960×540, HD 720p, Full HD 1080p), H.264/AAC MP4,
  * leves o suficiente pra rodar liso em box fraco e com qualidade onde a TV aguenta.
  * Cada tela escolhe (no admin) qual qualidade reproduzir.
  *
@@ -68,7 +70,7 @@ export async function transcodeVideoRenditions({
 
   // Quais qualidades precisam ser reencodadas. Full HD pode reusar o original.
   const reuseOriginalAsFhd = info.h264aac && info.w > 0 && info.w <= 1920 && info.h <= 1080;
-  const toEncode: Quality[] = reuseOriginalAsFhd ? ['hd', 'sd'] : ['fhd', 'hd', 'sd'];
+  const toEncode: Quality[] = reuseOriginalAsFhd ? ['hd', 'qhd', 'sd'] : ['fhd', 'hd', 'qhd', 'sd'];
 
   onStatusChange?.('transcoding');
   const out: Partial<Record<Quality, File>> = {};

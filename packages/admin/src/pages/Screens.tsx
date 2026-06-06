@@ -275,7 +275,7 @@ function EditScreenModal({ screen, playlists, onClose, onSave }: {
   const [name, setName] = useState(screen.name)
   const [playlistId, setPlaylistId] = useState(screen.playlist_id ?? '')
   const [soundEnabled, setSoundEnabled] = useState(screen.sound_enabled)
-  const [videoQuality, setVideoQuality] = useState<'sd' | 'hd' | 'fhd'>(screen.video_quality ?? 'hd')
+  const [videoQuality, setVideoQuality] = useState<'sd' | 'qhd' | 'hd' | 'fhd'>(screen.video_quality ?? 'hd')
   const [orientation, setOrientation] = useState<ScreenOrientation>(screen.orientation ?? 'landscape')
 
   const ORIENTATIONS: { value: ScreenOrientation; label: string; hint: string }[] = [
@@ -334,9 +334,10 @@ function EditScreenModal({ screen, playlists, onClose, onSave }: {
 
           <div>
             <label className="block text-sm font-medium mb-1">Qualidade de vídeo</label>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-4 gap-2">
               {([
                 { value: 'sd', label: 'SD', hint: '480p — box fraco' },
+                { value: 'qhd', label: '540p', hint: '960×540 — box de 540p' },
                 { value: 'hd', label: 'HD', hint: '720p — equilíbrio' },
                 { value: 'fhd', label: 'Full HD', hint: '1080p — TV boa' },
               ] as const).map(q => (
@@ -348,7 +349,7 @@ function EditScreenModal({ screen, playlists, onClose, onSave }: {
               ))}
             </div>
             <p className="text-xs text-gray-400 mt-1">
-              Use SD em box fraco (roda liso) e Full HD em TV boa (mais qualidade).
+              SD/540p em box fraco (roda liso) e Full HD em TV boa. <b>540p</b> casa exato com box 960×540.
             </p>
           </div>
 
@@ -386,7 +387,7 @@ export default function Screens() {
   const [pairCode, setPairCode] = useState('')
   const [newName, setNewName] = useState('')
   const [newPlaylistId, setNewPlaylistId] = useState('')
-  const [newQuality, setNewQuality] = useState<'sd' | 'hd' | 'fhd'>('hd')
+  const [newQuality, setNewQuality] = useState<'sd' | 'qhd' | 'hd' | 'fhd'>('hd')
   const [pairError, setPairError] = useState('')
   const [footerScreen, setFooterScreen] = useState<Screen | null>(null)
   const [editScreen, setEditScreen] = useState<Screen | null>(null)
@@ -511,9 +512,10 @@ export default function Screens() {
 
               <div>
                 <label className="block text-xs font-medium text-gray-500 mb-1">Qualidade de vídeo</label>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-4 gap-2">
                   {([
                     { value: 'sd', label: 'SD', hint: '480p — box fraco' },
+                    { value: 'qhd', label: '540p', hint: '960×540 — box de 540p' },
                     { value: 'hd', label: 'HD', hint: '720p — equilíbrio' },
                     { value: 'fhd', label: 'Full HD', hint: '1080p — TV boa' },
                   ] as const).map(q => (

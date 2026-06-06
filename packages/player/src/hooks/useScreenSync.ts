@@ -11,6 +11,8 @@ interface Args {
   orientation: string
   /** Refresh suave: re-busca playlist/config e reinicia a reprodução SEM recarregar o navegador. */
   onRefresh?: () => void
+  /** Atualizar app: mostra a tela "Atualizando app" e busca a versão nova do site. */
+  onUpdate?: () => void
 }
 
 function detectOS(ua: string): string {
@@ -93,7 +95,7 @@ async function buildTelemetry(currentMedia: string, orientation: string) {
   }
 }
 
-export function useScreenSync({ screenId, currentMedia, orientation, onRefresh }: Args) {
+export function useScreenSync({ screenId, currentMedia, orientation, onRefresh, onUpdate }: Args) {
   const mediaRef = useRef(currentMedia)
   mediaRef.current = currentMedia
   const orientationRef = useRef(orientation)
@@ -101,6 +103,8 @@ export function useScreenSync({ screenId, currentMedia, orientation, onRefresh }
   // Ref para sempre chamar o callback mais recente sem re-assinar o polling.
   const onRefreshRef = useRef(onRefresh)
   onRefreshRef.current = onRefresh
+  const onUpdateRef = useRef(onUpdate)
+  onUpdateRef.current = onUpdate
 
   // Heartbeat + telemetria (online_since uma vez, last_seen + telemetria a cada 60s)
   useEffect(() => {
@@ -173,6 +177,9 @@ export function useScreenSync({ screenId, currentMedia, orientation, onRefresh }
       } else if (cmd === 'screenshot') {
         // Tira um print da tela atual e sobe pro admin.
         await captureAndUpload(screenId)
+      } else if (cmd === 'update') {
+        // Atualizar app: mostra a tela "Atualizando app" e busca a versão nova.
+        onUpdateRef.current?.()
       }
     }
 
