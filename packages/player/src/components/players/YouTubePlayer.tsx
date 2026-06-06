@@ -152,6 +152,31 @@ export default function YouTubePlayer({ url, duration, muted, onEnd }: Props) {
     }
   }, [online, url, id, duration, muted, onEnd])
 
+  // Vigia a conexão DURANTE a reprodução: se a internet cair e NÃO voltar em 10s,
+  // pula para o próximo (sem isto o YouTube ficaria em "buffering" pra sempre).
+  useEffect(() => {
+    if (online !== true) return
+    let lastOnline = Date.now()
+    let stopped = false
+    let timer: ReturnType<typeof setTimeout>
+
+    const loop = async () => {
+      if (stopped) return
+      const ok = await hasInternet(3000)
+      if (stopped) return
+      if (ok) {
+        lastOnline = Date.now()
+      } else if (Date.now() - lastOnline >= 10000) {
+        if (!endedRef.current) { endedRef.current = true; onEnd() }
+        return // para o loop; o item vai desmontar
+      }
+      timer = setTimeout(loop, 2000)
+    }
+    timer = setTimeout(loop, 2000)
+
+    return () => { stopped = true; clearTimeout(timer) }
+  }, [online, onEnd])
+
   if (!id) return null
 
   return (
