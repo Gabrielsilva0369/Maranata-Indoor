@@ -4,10 +4,11 @@ import { useCachedUrl } from '../../hooks/useCachedUrl'
 interface Props {
   storagePath: string
   duration: number
+  showProgress?: boolean
   onEnd: () => void
 }
 
-export default function ImagePlayer({ storagePath, duration, onEnd }: Props) {
+export default function ImagePlayer({ storagePath, duration, showProgress = true, onEnd }: Props) {
   const [progress, setProgress] = useState(0)
   const { url } = useCachedUrl(storagePath)
 
@@ -59,10 +60,12 @@ export default function ImagePlayer({ storagePath, duration, onEnd }: Props) {
         draggable={false}
       />
 
-      {/* Barra de progresso */}
-      <div style={{ position: 'absolute', bottom: 0, left: 0, width: '100%', height: 3, background: 'rgba(255,255,255,0.15)', zIndex: 2 }}>
-        <div style={{ height: '100%', width: `${progress * 100}%`, background: '#60a5fa', transition: 'width 50ms linear' }} />
-      </div>
+      {/* Barra de progresso (pode ser desativada por tela) */}
+      {showProgress && (
+        <div style={{ position: 'absolute', bottom: 0, left: 0, width: '100%', height: 3, background: 'rgba(255,255,255,0.15)', zIndex: 2 }}>
+          <div style={{ height: '100%', width: `${progress * 100}%`, background: '#60a5fa', transition: 'width 50ms linear' }} />
+        </div>
+      )}
     </div>
   )
 }

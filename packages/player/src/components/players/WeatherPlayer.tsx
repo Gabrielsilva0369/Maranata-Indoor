@@ -18,6 +18,7 @@ interface WeatherConfig {
 interface Props {
   config: WeatherConfig
   duration: number
+  showProgress?: boolean
   onEnd: () => void
 }
 
@@ -45,7 +46,7 @@ function getWeatherInfo(code: number) {
 function toF(c: number) { return Math.round(c * 9 / 5 + 32) }
 
 // ── Player ────────────────────────────────────────────────────────────────────
-export default function WeatherPlayer({ config, duration, onEnd }: Props) {
+export default function WeatherPlayer({ config, duration, showProgress = true, onEnd }: Props) {
   const [weather, setWeather] = useState<WeatherData | null>(null)
   const [progress, setProgress] = useState(0)
   // null = checando internet; true = pode exibir o clima
@@ -234,17 +235,19 @@ export default function WeatherPlayer({ config, duration, onEnd }: Props) {
         )}
       </div>
 
-      {/* Barra de progresso */}
-      <div style={{
-        position: 'absolute', bottom: 0, left: 0, right: 0,
-        height: 3, background: 'rgba(255,255,255,0.15)',
-      }}>
+      {/* Barra de progresso (pode ser desativada por tela) */}
+      {showProgress && (
         <div style={{
-          height: '100%', width: `${progress * 100}%`,
-          background: 'rgba(255,255,255,0.6)',
-          transition: 'width 100ms linear',
-        }} />
-      </div>
+          position: 'absolute', bottom: 0, left: 0, right: 0,
+          height: 3, background: 'rgba(255,255,255,0.15)',
+        }}>
+          <div style={{
+            height: '100%', width: `${progress * 100}%`,
+            background: 'rgba(255,255,255,0.6)',
+            transition: 'width 100ms linear',
+          }} />
+        </div>
+      )}
     </div>
   )
 }

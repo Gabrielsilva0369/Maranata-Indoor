@@ -14,7 +14,8 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 import { supabase } from '../lib/supabase'
 import type { PlaylistItem, Media, RssFeed, PlaylistItemFooter, ItemSchedule, MediaFolder } from '../lib/database.types'
-import { GripVertical, Copy, Trash2, ChevronLeft, Image, Film, Code, Rss, Clock, Newspaper, Volume2, VolumeX, Volume1, PanelBottom, PanelBottomClose, PanelBottomOpen, Folder, ChevronDown, ChevronRight, CalendarClock, X, Plus } from 'lucide-react'
+import { GripVertical, Copy, Trash2, ChevronLeft, Image, Film, Code, Rss, Clock, Newspaper, Volume2, VolumeX, Volume1, PanelBottom, PanelBottomClose, PanelBottomOpen, Folder, ChevronDown, ChevronRight, CalendarClock, X, Plus, Eye, Radio, Cloud } from 'lucide-react'
+import { youtubeId } from './Media'
 
 type RichItem = PlaylistItem & { media?: Media | null; rss_feed?: RssFeed | null }
 
@@ -301,8 +302,67 @@ function ScheduleModal({ item, onClose, onSave }: {
   )
 }
 
+// ── Modal de preview da mídia ─────────────────────────────────────────────────
+function PreviewModal({ item, onClose }: { item: RichItem; onClose: () => void }) {
+  const m = item.media
+  const feed = item.rss_feed
+  const pub = (p: string) => supabase.storage.from('media').getPublicUrl(p).data.publicUrl
+
+  let body: React.ReactNode = <p className="text-gray-400 text-sm">Sem preview disponível.</p>
+
+  if (feed) {
+    body = (
+      <div className="text-center text-gray-300 py-12">
+        <Rss size={40} className="mx-auto mb-3 text-orange-400" />
+        <p className="font-medium">{feed.name}</p>
+        <p className="text-xs text-gray-500 mt-1">As notícias são montadas no player (texto + imagem).</p>
+      </div>
+    )
+  } else if (m) {
+    if (m.type === 'image' && m.storage_path) {
+      body = <img src={pub(m.storage_path)} alt={m.name} className="max-h-[70vh] max-w-full object-contain mx-auto rounded" />
+    } else if (m.type === 'video' && m.storage_path) {
+      body = <video src={pub(m.storage_path)} controls autoPlay muted playsInline className="max-h-[70vh] max-w-full mx-auto rounded bg-black" />
+    } else if (m.type === 'youtube' && m.url) {
+      const id = youtubeId(m.url)
+      body = id
+        ? <iframe src={`https://www.youtube.com/embed/${id}?autoplay=1&mute=1`} className="w-full aspect-video rounded" allow="autoplay; encrypted-media" allowFullScreen />
+        : <p className="text-red-400 text-sm">URL de YouTube inválida.</p>
+    } else if (m.type === 'html') {
+      body = m.url
+        ? <iframe src={m.url} className="w-full h-[70vh] rounded bg-white" />
+        : <iframe srcDoc={m.html_content ?? ''} className="w-full h-[70vh] rounded bg-white" />
+    } else if (m.type === 'stream' && m.url) {
+      body = (
+        <div className="text-center text-gray-300 py-12">
+          <Radio size={40} className="mx-auto mb-3 text-blue-400" />
+          <p className="font-medium">Stream ao vivo</p>
+          <p className="text-xs text-gray-500 mt-1 break-all px-6">{m.url}</p>
+          <p className="text-xs text-gray-500 mt-2">O preview de stream HLS é feito direto no player.</p>
+        </div>
+      )
+    } else if (m.type === 'clock') {
+      body = <div className="text-center text-gray-300 py-12"><Clock size={40} className="mx-auto mb-3 text-brand-400" /><p className="font-medium">Relógio</p><p className="text-xs text-gray-500 mt-1">Gerado no player.</p></div>
+    } else if (m.type === 'weather') {
+      body = <div className="text-center text-gray-300 py-12"><Cloud size={40} className="mx-auto mb-3 text-sky-400" /><p className="font-medium">Clima</p><p className="text-xs text-gray-500 mt-1">Gerado no player.</p></div>
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-6" onClick={onClose}>
+      <div className="bg-gray-900 rounded-2xl shadow-2xl w-full max-w-3xl overflow-hidden" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-3 border-b border-white/10">
+          <h3 className="text-white font-semibold truncate">{feed?.name ?? m?.name ?? 'Preview'}</h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-white"><X size={20} /></button>
+        </div>
+        <div className="p-4 bg-black flex items-center justify-center min-h-[240px]">{body}</div>
+      </div>
+    </div>
+  )
+}
+
 // ── Item sortável da playlist ─────────────────────────────────────────────────
-function PlaylistCard({ item, index, onDelete, onDuplicate, onUpdateDuration, onUpdateArticleCount, onUpdateAudio, onUpdateFooter, onOpenSchedule }: {
+function PlaylistCard({ item, index, onDelete, onDuplicate, onUpdateDuration, onUpdateArticleCount, onUpdateAudio, onUpdateFooter, onOpenSchedule, onPreview }: {
   item: RichItem
   index: number
   onDelete: () => void
@@ -312,6 +372,7 @@ function PlaylistCard({ item, index, onDelete, onDuplicate, onUpdateDuration, on
   onUpdateAudio: (value: boolean | null) => void
   onUpdateFooter: (value: PlaylistItemFooter | null) => void
   onOpenSchedule: () => void
+  onPreview: () => void
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: item.id })
   const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.4 : 1 }
@@ -382,6 +443,9 @@ function PlaylistCard({ item, index, onDelete, onDuplicate, onUpdateDuration, on
       </button>
 
       {/* ações */}
+      <button onClick={onPreview} title="Pré-visualizar"
+        className="text-gray-300 hover:text-indigo-500 transition-colors shrink-0 opacity-0 group-hover:opacity-100"
+      ><Eye size={14} /></button>
       <button onClick={onDuplicate} title="Duplicar"
         className="text-gray-300 hover:text-brand-500 transition-colors shrink-0 opacity-0 group-hover:opacity-100"
       ><Copy size={14} /></button>
@@ -443,6 +507,7 @@ export default function PlaylistEditor() {
   const [activeInfo, setActiveInfo] = useState<{ label: string; type: 'media' | 'rss' } | null>(null)
   const [localItems, setLocalItems] = useState<RichItem[]>([])
   const [scheduleItem, setScheduleItem] = useState<RichItem | null>(null)
+  const [previewItem, setPreviewItem] = useState<RichItem | null>(null)
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
@@ -787,6 +852,7 @@ export default function PlaylistEditor() {
                       onUpdateAudio={v => handleUpdateAudio(item, v)}
                       onUpdateFooter={v => handleUpdateFooter(item, v)}
                       onOpenSchedule={() => setScheduleItem(item)}
+                      onPreview={() => setPreviewItem(item)}
                     />
                   ))}
                 </div>
@@ -811,6 +877,10 @@ export default function PlaylistEditor() {
           onClose={() => setScheduleItem(null)}
           onSave={s => handleUpdateSchedule(scheduleItem, s)}
         />
+      )}
+
+      {previewItem && (
+        <PreviewModal item={previewItem} onClose={() => setPreviewItem(null)} />
       )}
     </div>
   )

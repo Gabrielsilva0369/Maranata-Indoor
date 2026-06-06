@@ -97,6 +97,7 @@ export interface ScreenConfig {
   name: string
   sound_enabled: boolean
   video_quality: VideoQuality
+  show_progress: boolean
   playlist_id: string | null
   footer_config: FooterConfig | null
   orientation: ScreenOrientation
@@ -110,6 +111,7 @@ function computeSig(data: any, items: PlaylistItem[]): string {
     s: {
       sound_enabled: data.sound_enabled,
       video_quality: data.video_quality,
+      show_progress: data.show_progress,
       playlist_id: data.playlist_id,
       orientation: data.orientation,
       footer_config: data.footer_config,
@@ -195,7 +197,7 @@ export function usePlaylist(token: string) {
       // o limite faz falhar rápido e cair pro cache offline em vez de travar.
       let screenQ = supabase
         .from('screens')
-        .select('id, name, sound_enabled, video_quality, playlist_id, footer_config, orientation')
+        .select('id, name, sound_enabled, video_quality, show_progress, playlist_id, footer_config, orientation')
         .eq('token', code)
       const sig1 = timeoutSignal(10000)
       if (sig1) screenQ = screenQ.abortSignal(sig1)

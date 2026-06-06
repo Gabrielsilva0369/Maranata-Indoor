@@ -275,6 +275,7 @@ function EditScreenModal({ screen, playlists, onClose, onSave }: {
   const [name, setName] = useState(screen.name)
   const [playlistId, setPlaylistId] = useState(screen.playlist_id ?? '')
   const [soundEnabled, setSoundEnabled] = useState(screen.sound_enabled)
+  const [showProgress, setShowProgress] = useState(screen.show_progress !== false)
   const [videoQuality, setVideoQuality] = useState<'sd' | 'qhd' | 'hd' | 'fhd'>(screen.video_quality ?? 'hd')
   const [orientation, setOrientation] = useState<ScreenOrientation>(screen.orientation ?? 'landscape')
 
@@ -364,12 +365,24 @@ function EditScreenModal({ screen, playlists, onClose, onSave }: {
                 className="absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform" />
             </button>
           </div>
+
+          <div className="flex items-center justify-between py-2 px-4 bg-gray-50 rounded-xl">
+            <div>
+              <p className="text-sm font-medium">Barra de progresso</p>
+              <p className="text-xs text-gray-400">A barrinha de tempo no rodapé da mídia</p>
+            </div>
+            <button onClick={() => setShowProgress(v => !v)}
+              className={`relative w-11 h-6 rounded-full transition-colors ${showProgress ? 'bg-brand-600' : 'bg-gray-200'}`}>
+              <span style={{ transform: showProgress ? 'translateX(22px)' : 'translateX(2px)' }}
+                className="absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform" />
+            </button>
+          </div>
         </div>
 
         <div className="flex gap-2 px-6 py-4 border-t bg-gray-50 rounded-b-2xl justify-end">
           <button onClick={onClose} className="border rounded-lg px-4 py-2 text-sm">Cancelar</button>
           <button
-            onClick={() => onSave({ name: name.trim(), playlist_id: playlistId || null, sound_enabled: soundEnabled, video_quality: videoQuality, orientation })}
+            onClick={() => onSave({ name: name.trim(), playlist_id: playlistId || null, sound_enabled: soundEnabled, video_quality: videoQuality, show_progress: showProgress, orientation })}
             disabled={!name.trim()}
             className="bg-brand-600 hover:bg-brand-700 text-white rounded-lg px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50">
             Salvar
@@ -388,6 +401,7 @@ export default function Screens() {
   const [newName, setNewName] = useState('')
   const [newPlaylistId, setNewPlaylistId] = useState('')
   const [newQuality, setNewQuality] = useState<'sd' | 'qhd' | 'hd' | 'fhd'>('hd')
+  const [newShowProgress, setNewShowProgress] = useState(true)
   const [pairError, setPairError] = useState('')
   const [footerScreen, setFooterScreen] = useState<Screen | null>(null)
   const [editScreen, setEditScreen] = useState<Screen | null>(null)
@@ -429,12 +443,13 @@ export default function Screens() {
         name: newName, token, sound_enabled: false,
         playlist_id: newPlaylistId || null,
         video_quality: newQuality,
+        show_progress: newShowProgress,
       })
       if (error) throw error
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['screens'] })
-      setShowAdd(false); setPairCode(''); setNewName(''); setNewPlaylistId(''); setNewQuality('hd'); setPairError('')
+      setShowAdd(false); setPairCode(''); setNewName(''); setNewPlaylistId(''); setNewQuality('hd'); setNewShowProgress(true); setPairError('')
     },
     onError: (e: Error) => setPairError(e.message),
   })
@@ -526,6 +541,15 @@ export default function Screens() {
                     </button>
                   ))}
                 </div>
+              </div>
+
+              <div className="flex items-center justify-between py-1.5">
+                <span className="text-xs font-medium text-gray-500">Barra de progresso</span>
+                <button type="button" onClick={() => setNewShowProgress(v => !v)}
+                  className={`relative w-11 h-6 rounded-full transition-colors ${newShowProgress ? 'bg-brand-600' : 'bg-gray-200'}`}>
+                  <span style={{ transform: newShowProgress ? 'translateX(22px)' : 'translateX(2px)' }}
+                    className="absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform" />
+                </button>
               </div>
 
               {pairError && <p className="text-red-600 text-sm">{pairError}</p>}

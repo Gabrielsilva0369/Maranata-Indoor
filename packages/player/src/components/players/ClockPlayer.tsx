@@ -14,12 +14,13 @@ interface ClockConfig {
 interface Props {
   config: ClockConfig
   duration: number
+  showProgress?: boolean
   onEnd: () => void
 }
 
 const GOOGLE_FONTS = ['Roboto','Open Sans','Montserrat','Lato','Raleway','Oswald','Poppins','Playfair Display','Bebas Neue','Ubuntu']
 
-export default function ClockPlayer({ config, duration, onEnd }: Props) {
+export default function ClockPlayer({ config, duration, showProgress = true, onEnd }: Props) {
   const [now, setNow] = useState(new Date())
   const [progress, setProgress] = useState(0)
 
@@ -149,19 +150,21 @@ export default function ClockPlayer({ config, duration, onEnd }: Props) {
         </div>
       </div>
 
-      {/* Barra de progresso */}
-      <div style={{
-        position: 'absolute', bottom: 0, left: 0, right: 0,
-        height: 3, background: 'rgba(255,255,255,0.15)',
-      }}>
+      {/* Barra de progresso (pode ser desativada por tela) */}
+      {showProgress && (
         <div style={{
-          height: '100%',
-          width: `${progress * 100}%`,
-          background: config.font_color,
-          opacity: 0.6,
-          transition: 'width 100ms linear',
-        }} />
-      </div>
+          position: 'absolute', bottom: 0, left: 0, right: 0,
+          height: 3, background: 'rgba(255,255,255,0.15)',
+        }}>
+          <div style={{
+            height: '100%',
+            width: `${progress * 100}%`,
+            background: config.font_color,
+            opacity: 0.6,
+            transition: 'width 100ms linear',
+          }} />
+        </div>
+      )}
     </div>
   )
 }

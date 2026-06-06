@@ -25,10 +25,11 @@ interface Props {
   feedId: string
   duration: number       // segundos por artigo
   articleCount: number   // quantas notícias exibir
+  showProgress?: boolean
   onEnd: () => void
 }
 
-export default function RssNewsPlayer({ feedId, duration, articleCount, onEnd }: Props) {
+export default function RssNewsPlayer({ feedId, duration, articleCount, showProgress = true, onEnd }: Props) {
   const [articles, setArticles] = useState<Article[]>([])
   const [index, setIndex] = useState(0)
   const [progress, setProgress] = useState(0)
@@ -228,18 +229,20 @@ export default function RssNewsPlayer({ feedId, duration, articleCount, onEnd }:
         </div>
       </div>
 
-      {/* Barra de progresso */}
-      <div style={{
-        position: 'absolute', bottom: 0, left: 0, right: 0,
-        height: 3, background: 'rgba(255,255,255,0.15)',
-      }}>
+      {/* Barra de progresso (pode ser desativada por tela) */}
+      {showProgress && (
         <div style={{
-          height: '100%',
-          width: `${progress * 100}%`,
-          background: '#ef4444',
-          transition: 'width 50ms linear',
-        }} />
-      </div>
+          position: 'absolute', bottom: 0, left: 0, right: 0,
+          height: 3, background: 'rgba(255,255,255,0.15)',
+        }}>
+          <div style={{
+            height: '100%',
+            width: `${progress * 100}%`,
+            background: '#ef4444',
+            transition: 'width 50ms linear',
+          }} />
+        </div>
+      )}
     </div>
   )
 }

@@ -60,6 +60,7 @@ export interface Screen {
   playlist_id: string | null
   sound_enabled: boolean
   video_quality: 'sd' | 'qhd' | 'hd' | 'fhd'
+  show_progress: boolean
   footer_config: FooterConfig | null
   orientation: ScreenOrientation
   telemetry: ScreenTelemetry | null

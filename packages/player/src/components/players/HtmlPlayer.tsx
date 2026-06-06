@@ -4,10 +4,11 @@ interface Props {
   url: string | null
   htmlContent: string | null
   duration: number
+  showProgress?: boolean
   onEnd: () => void
 }
 
-export default function HtmlPlayer({ url, htmlContent, duration, onEnd }: Props) {
+export default function HtmlPlayer({ url, htmlContent, duration, showProgress = true, onEnd }: Props) {
   const [progress, setProgress] = useState(0)
 
   useEffect(() => {
@@ -40,9 +41,11 @@ export default function HtmlPlayer({ url, htmlContent, duration, onEnd }: Props)
         sandbox="allow-scripts allow-same-origin allow-popups"
         title="html-content"
       />
-      <div style={{ position: 'absolute', bottom: 0, left: 0, width: '100%', height: 3, background: 'rgba(255,255,255,0.15)' }}>
-        <div style={{ height: '100%', width: `${progress * 100}%`, background: '#60a5fa', transition: 'width 50ms linear' }} />
-      </div>
+      {showProgress && (
+        <div style={{ position: 'absolute', bottom: 0, left: 0, width: '100%', height: 3, background: 'rgba(255,255,255,0.15)' }}>
+          <div style={{ height: '100%', width: `${progress * 100}%`, background: '#60a5fa', transition: 'width 50ms linear' }} />
+        </div>
+      )}
     </div>
   )
 }
