@@ -25,6 +25,16 @@ function category(row: LogRow): string {
   return 'Arquivos'
 }
 
+// Carrega uma imagem (logo) para usar no PDF.
+function loadImage(src: string): Promise<HTMLImageElement | null> {
+  return new Promise(resolve => {
+    const img = new Image()
+    img.onload = () => resolve(img)
+    img.onerror = () => resolve(null)
+    img.src = src
+  })
+}
+
 function periodStart(days: number): Date {
   const d = new Date()
   if (days === 0) {
@@ -99,18 +109,25 @@ export default function Reports() {
         ? now.toLocaleDateString('pt-BR')
         : `${since.toLocaleDateString('pt-BR')} a ${now.toLocaleDateString('pt-BR')}`
 
+      // Logo da Maranata no topo
+      const logo = await loadImage('/maranata-logo.png')
+      const textX = logo ? 104 : 40
+      if (logo) {
+        try { doc.addImage(logo, 'PNG', 40, 28, 52, 52) } catch { /* ignora */ }
+      }
+
       // Cabeçalho
       doc.setFontSize(16); doc.setTextColor(30)
-      doc.text('Relatório de Exibições', 40, 45)
+      doc.text('Relatório de Exibições', textX, 48)
       doc.setFontSize(11); doc.setTextColor(90)
-      doc.text(`Maranata Marketing  →  ${screen?.name ?? 'Tela'}`, 40, 64)
+      doc.text(`Maranata Marketing  -  ${screen?.name ?? 'Tela'}`, textX, 66)
       doc.setFontSize(9); doc.setTextColor(130)
-      doc.text(`Gerado em ${fmtDate(now)}`, 40, 80)
+      doc.text(`Gerado em ${fmtDate(now)}`, textX, 81)
 
       // Resumo
       doc.setFontSize(11); doc.setTextColor(30)
-      doc.text(`Total de itens exibidos: ${rows.length}`, 40, 108)
-      doc.text(`Período: ${periodInfo.label} (${periodLabel})`, 40, 124)
+      doc.text(`Total de itens exibidos: ${rows.length}`, 40, 116)
+      doc.text(`Período: ${periodInfo.label} (${periodLabel})`, 40, 132)
 
       // ── Estatísticas por categoria ──
       const byCat = new Map<string, number>()
@@ -120,13 +137,15 @@ export default function Reports() {
         byCat.set(c, (byCat.get(c) ?? 0) + 1)
         if (r.type !== 'rss') byFile.set(r.name, (byFile.get(r.name) ?? 0) + 1)
       }
+      const totalFiles = [...byFile.values()].reduce((a, b) => a + b, 0)
+      const pct = (n: number, total: number) => (total ? `${Math.round((n / total) * 100)}%` : '0%')
       const catRows = [...byCat.entries()].sort((a, b) => b[1] - a[1])
-        .map(([c, n]) => [c, String(n), rows.length ? `${Math.round((n / rows.length) * 100)}%` : '0%'])
+        .map(([c, n]) => [c, String(n), pct(n, rows.length)])
       const fileRows = [...byFile.entries()].sort((a, b) => b[1] - a[1])
-        .map(([f, n]) => [f, String(n)])
+        .map(([f, n]) => [f, String(n), pct(n, totalFiles)])
 
       autoTable(doc, {
-        startY: 144,
+        startY: 152,
         head: [['Categoria', 'Exibições', '%']],
         body: catRows,
         styles: { fontSize: 9 },
@@ -137,7 +156,7 @@ export default function Reports() {
       if (fileRows.length) {
         autoTable(doc, {
           startY: (doc as any).lastAutoTable.finalY + 16,
-          head: [['Arquivo', 'Exibições']],
+          head: [['Arquivo', 'Exibições', '%']],
           body: fileRows,
           styles: { fontSize: 9 },
           headStyles: { fillColor: [13, 148, 136] },
