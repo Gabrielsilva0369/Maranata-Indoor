@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useCachedUrl } from '../../hooks/useCachedUrl'
+import { onAudioUnlock } from '../../lib/audioUnlock'
 
 interface Props {
   storagePath: string
@@ -28,22 +29,36 @@ export default function VideoPlayer({ storagePath, muted, quality = 'fhd', onEnd
     setPoster(null)
     setStarted(false)
     let captured = false
+    const wantSound = !muted
+    let gaveUpSound = false
 
-    // NÃO forçar currentTime=0: o elemento recém-criado (src novo) já começa do 0,
-    // e reposicionar durante o decode causa o "frame verde quebrado" em box fraco.
-    v.muted = muted
-    v.play().catch(() => {
-      v.muted = true
-      v.play().catch(() => onEnd())
+    // Recuperação: se o vídeo pausar sozinho (provável bloqueio de som), volta
+    // pro mudo e retoma — pra NUNCA ficar parado mostrando o botão de play.
+    const onPause = () => {
+      if (v.ended) return
+      if (wantSound && !v.muted && !gaveUpSound) { gaveUpSound = true; v.muted = true }
+      v.play().catch(() => { /* ignore */ })
+    }
+    v.addEventListener('pause', onPause)
+
+    // Overlay de desbloqueio / gesto real → tenta o som de novo.
+    const offUnlock = onAudioUnlock(() => {
+      if (!wantSound) return
+      gaveUpSound = false
+      v.muted = false
+      v.play().catch(() => { /* ignore */ })
     })
 
-    // Captura UM quadro (após começar a tocar) pra usar de fundo borrado — assim
-    // preenchemos as laterais SEM um segundo vídeo decodificando (que travava a TV
-    // e mostrava o símbolo de play). Só funciona com vídeo do cache local (blob);
-    // se for de rede (canvas "tainted"), fica fundo escuro.
+    // Começa SEMPRE mudo → autoplay é garantido em qualquer WebView/TV (autoplay
+    // mudo nunca é bloqueado), então o botão de play nativo não aparece. Depois,
+    // se a tela quer som, desmuta (no kiosk com a flag, sai som).
+    v.muted = true
+    v.play().then(() => { if (wantSound) v.muted = false }).catch(() => onEnd())
+
+    // Captura UM quadro (após começar) pra usar de fundo borrado; e revela o vídeo
+    // só DEPOIS do 1º segundo (esconde o comecinho, conforme pedido).
     const grabFrame = () => {
-      // Backup do onPlaying: se o tempo já anda, o vídeo está tocando → revela.
-      if (v.currentTime > 0) setStarted(true)
+      if (v.currentTime >= 1) setStarted(true)
       if (captured || !v.videoWidth || v.currentTime < 0.3) return
       captured = true
       try {
@@ -56,11 +71,14 @@ export default function VideoPlayer({ storagePath, muted, quality = 'fhd', onEnd
           setPoster(c.toDataURL('image/jpeg', 0.5))
         }
       } catch { /* canvas tainted (vídeo de rede) → sem poster */ }
-      v.removeEventListener('timeupdate', grabFrame)
     }
     v.addEventListener('timeupdate', grabFrame)
 
-    return () => v.removeEventListener('timeupdate', grabFrame)
+    return () => {
+      v.removeEventListener('timeupdate', grabFrame)
+      v.removeEventListener('pause', onPause)
+      offUnlock()
+    }
   }, [url, muted, onEnd])
 
   return (
