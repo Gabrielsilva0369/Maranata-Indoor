@@ -385,6 +385,8 @@ export default function Screens() {
   const [showAdd, setShowAdd] = useState(false)
   const [pairCode, setPairCode] = useState('')
   const [newName, setNewName] = useState('')
+  const [newPlaylistId, setNewPlaylistId] = useState('')
+  const [newQuality, setNewQuality] = useState<'sd' | 'hd' | 'fhd'>('hd')
   const [pairError, setPairError] = useState('')
   const [footerScreen, setFooterScreen] = useState<Screen | null>(null)
   const [editScreen, setEditScreen] = useState<Screen | null>(null)
@@ -422,12 +424,16 @@ export default function Screens() {
       const token = pairCode.toUpperCase()
       const { data: existing } = await supabase.from('screens').select('id').ilike('token', `${token}%`).maybeSingle()
       if (existing) throw new Error('Código já pareado ou inválido.')
-      const { error } = await supabase.from('screens').insert({ name: newName, token, sound_enabled: false, playlist_id: null })
+      const { error } = await supabase.from('screens').insert({
+        name: newName, token, sound_enabled: false,
+        playlist_id: newPlaylistId || null,
+        video_quality: newQuality,
+      })
       if (error) throw error
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['screens'] })
-      setShowAdd(false); setPairCode(''); setNewName(''); setPairError('')
+      setShowAdd(false); setPairCode(''); setNewName(''); setNewPlaylistId(''); setNewQuality('hd'); setPairError('')
     },
     onError: (e: Error) => setPairError(e.message),
   })
@@ -493,6 +499,33 @@ export default function Screens() {
                 maxLength={6} />
               <input placeholder="Nome da tela" value={newName} onChange={e => setNewName(e.target.value)}
                 className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
+
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Playlist</label>
+                <select value={newPlaylistId} onChange={e => setNewPlaylistId(e.target.value)}
+                  className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500">
+                  <option value="">— Sem playlist —</option>
+                  {playlists.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Qualidade de vídeo</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {([
+                    { value: 'sd', label: 'SD', hint: '480p — box fraco' },
+                    { value: 'hd', label: 'HD', hint: '720p — equilíbrio' },
+                    { value: 'fhd', label: 'Full HD', hint: '1080p — TV boa' },
+                  ] as const).map(q => (
+                    <button key={q.value} type="button" onClick={() => setNewQuality(q.value)}
+                      className={`py-2 px-1 rounded-lg border text-xs font-medium transition-colors ${newQuality === q.value ? 'bg-brand-600 text-white border-brand-600' : 'border-gray-200 hover:border-brand-300'}`}
+                      title={q.hint}>
+                      {q.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               {pairError && <p className="text-red-600 text-sm">{pairError}</p>}
               <div className="flex gap-2 pt-1">
                 <button onClick={() => { setShowAdd(false); setPairError('') }} className="flex-1 border rounded-lg py-2 text-sm">Cancelar</button>
