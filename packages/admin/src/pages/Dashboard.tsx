@@ -1,7 +1,7 @@
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import type { Screen } from '../lib/database.types'
-import { Monitor, Wifi, WifiOff } from 'lucide-react'
+import { Monitor, Wifi, WifiOff, DownloadCloud, Loader2 } from 'lucide-react'
 
 function isOnline(lastSeen: string | null) {
   if (!lastSeen) return false
@@ -9,6 +9,7 @@ function isOnline(lastSeen: string | null) {
 }
 
 export default function Dashboard() {
+  const qc = useQueryClient()
   const { data: screens = [] } = useQuery<Screen[]>({
     queryKey: ['screens'],
     queryFn: async () => {
@@ -19,11 +20,38 @@ export default function Dashboard() {
     refetchInterval: 30_000,
   })
 
+  // Atualiza TODAS as telas para a nova versão do player (comando 'update').
+  // Não desconecta nada — só recarrega buscando a versão nova ("Atualizando app").
+  const updateAll = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase
+        .from('screens')
+        .update({ pending_command: 'update' })
+        .not('id', 'is', null) // todas as telas
+      if (error) throw error
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['screens'] }),
+  })
+
   const online = screens.filter(s => isOnline(s.last_seen)).length
 
   return (
     <div className="p-8">
-      <h2 className="text-2xl font-bold mb-6">Dashboard</h2>
+      <div className="flex items-center justify-between mb-6">
+        <h2 className="text-2xl font-bold">Dashboard</h2>
+        <button
+          onClick={() => { if (confirm('Atualizar TODAS as telas para a nova versão do player? Elas não serão desconectadas — só vão recarregar a versão nova.')) updateAll.mutate() }}
+          disabled={updateAll.isPending || screens.length === 0}
+          className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50">
+          {updateAll.isPending ? <Loader2 size={16} className="animate-spin" /> : <DownloadCloud size={16} />}
+          Atualizar todas as telas
+        </button>
+      </div>
+      {updateAll.isSuccess && (
+        <p className="text-sm text-emerald-600 mb-4 -mt-2">
+          Comando enviado ✓ As telas vão atualizar assim que receberem (em até ~15s, se online).
+        </p>
+      )}
 
       <div className="grid grid-cols-3 gap-4 mb-8">
         <StatCard label="Telas cadastradas" value={screens.length} icon={<Monitor size={24} />} />
