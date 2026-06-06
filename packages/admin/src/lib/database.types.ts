@@ -66,6 +66,8 @@ export interface Screen {
   online_since: string | null
   pending_command: string | null
   last_seen: string | null
+  last_screenshot: string | null
+  last_screenshot_at: string | null
   created_at: string
 }
 

@@ -59,12 +59,13 @@ export async function clearAllCache(): Promise<void> {
     console.error('[Cache] erro ao limpar Cache Storage:', e)
   }
 
-  // Notícias em localStorage
+  // Notícias em localStorage + marca de idade (força rebaixar tudo do zero)
   try {
     for (let i = localStorage.length - 1; i >= 0; i--) {
       const k = localStorage.key(i)
       if (k && k.startsWith('maranata_news_')) localStorage.removeItem(k)
     }
+    localStorage.removeItem(BUILT_AT_KEY)
   } catch {
     /* ignora */
   }

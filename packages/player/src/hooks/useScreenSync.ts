@@ -1,5 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
+import { clearAllCache } from '../lib/mediaCache'
+import { captureAndUpload } from '../lib/screenshot'
 
 export const APP_VERSION = '1.0.0'
 
@@ -160,11 +162,17 @@ export function useScreenSync({ screenId, currentMedia, orientation, onRefresh }
         // Reload "duro": recarrega o navegador (força nova versão do app, etc.).
         location.reload()
       } else if (cmd === 'clear_cache') {
+        // Limpeza TOTAL: apaga os vídeos/imagens (IndexedDB), os caches do SW e
+        // as notícias; também o precache do app. Depois recarrega e baixa do zero.
+        await clearAllCache()
         if ('caches' in window) {
           const keys = await caches.keys()
           await Promise.all(keys.map(k => caches.delete(k)))
         }
         location.reload()
+      } else if (cmd === 'screenshot') {
+        // Tira um print da tela atual e sobe pro admin.
+        await captureAndUpload(screenId)
       }
     }
 
