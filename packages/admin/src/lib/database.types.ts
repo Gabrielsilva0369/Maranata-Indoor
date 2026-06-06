@@ -27,7 +27,8 @@ export interface ClockConfig {
 }
 
 export interface QuotesConfig {
-  quotes: string[]            // até 8 frases
+  quote: string               // a frase
+  author: string              // a citação / autor
   bg_type: 'color' | 'image'
   bg_image_path: string | null
   bg_color: string            // usado se não houver imagem de fundo

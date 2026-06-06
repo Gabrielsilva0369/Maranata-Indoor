@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import type { Media, MediaType, ClockConfig, WeatherConfig, QuotesConfig, MediaFolder } from '../lib/database.types'
-import { Upload, Trash2, Plus, Image, Film, Code, Clock, Cloud, Search, MapPin, Pencil, Folder, FolderPlus, Layers, Youtube, Radio, Quote, X } from 'lucide-react'
+import { Upload, Trash2, Plus, Image, Film, Code, Clock, Cloud, Search, MapPin, Pencil, Folder, FolderPlus, Layers, Youtube, Radio, Quote } from 'lucide-react'
 import { transcodeVideoRenditions } from '../lib/videoTranscode'
 import { uploadToSpaces, deleteFromSpaces, mediaUrl } from '../lib/spaces'
 
@@ -109,7 +109,8 @@ const DEFAULT_CLOCK: ClockConfig = {
 }
 
 const DEFAULT_QUOTES: QuotesConfig = {
-  quotes: [''],
+  quote: '',
+  author: '',
   bg_type: 'color',
   bg_image_path: null,
   bg_color: '#0f172a',
@@ -117,21 +118,28 @@ const DEFAULT_QUOTES: QuotesConfig = {
   font_size: 60,
 }
 
-// ── Frases motivacionais: preview + formulário ────────────────────────────────
+// ── Frase motivacional: preview + formulário ──────────────────────────────────
 function QuotesPreview({ cfg, bgUrl }: { cfg: QuotesConfig; bgUrl?: string }) {
-  const first = cfg.quotes.find(q => q.trim()) || 'Sua frase aqui…'
+  const text = cfg.quote.trim() || 'Sua frase aqui…'
   const bg = cfg.bg_type === 'image' && bgUrl
     ? { backgroundImage: `url(${bgUrl})`, backgroundSize: 'cover', backgroundPosition: 'center' }
     : { backgroundColor: cfg.bg_color }
   return (
     <div style={{ ...bg, borderRadius: 12, overflow: 'hidden', aspectRatio: '16/9',
-      display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, position: 'relative' }}>
+      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8, padding: 24, position: 'relative' }}>
       <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.35)' }} />
       <p style={{
         position: 'relative', color: cfg.font_color, textAlign: 'center', fontWeight: 700,
         lineHeight: 1.25, textShadow: '0 2px 8px rgba(0,0,0,0.5)',
         fontSize: Math.max(12, cfg.font_size * 0.3), margin: 0,
-      }}>"{first}"</p>
+      }}>{text}</p>
+      {cfg.author.trim() && (
+        <p style={{
+          position: 'relative', color: cfg.font_color, opacity: 0.85, textAlign: 'center',
+          fontStyle: 'italic', textShadow: '0 2px 8px rgba(0,0,0,0.5)',
+          fontSize: Math.max(9, cfg.font_size * 0.16), margin: 0,
+        }}>— {cfg.author.trim()}</p>
+      )}
     </div>
   )
 }
@@ -144,13 +152,6 @@ function QuotesForm({ cfg, onChange, bgUrl, onBgFileChange }: {
 }) {
   const bgFileRef = useRef<HTMLInputElement>(null)
   const set = (patch: Partial<QuotesConfig>) => onChange({ ...cfg, ...patch })
-  const quotes = cfg.quotes.length ? cfg.quotes : ['']
-
-  const setQuote = (i: number, v: string) => {
-    const next = [...quotes]; next[i] = v; set({ quotes: next })
-  }
-  const addQuote = () => { if (quotes.length < 8) set({ quotes: [...quotes, ''] }) }
-  const removeQuote = (i: number) => set({ quotes: quotes.filter((_, idx) => idx !== i) })
 
   return (
     <div className="space-y-4">
@@ -159,29 +160,20 @@ function QuotesForm({ cfg, onChange, bgUrl, onBgFileChange }: {
         <QuotesPreview cfg={cfg} bgUrl={bgUrl} />
       </div>
 
-      {/* Frases */}
+      {/* Frase */}
       <div>
-        <label className="block text-sm font-medium mb-2">Frases <span className="text-gray-400 font-normal">({quotes.length}/8)</span></label>
-        <div className="space-y-2">
-          {quotes.map((q, i) => (
-            <div key={i} className="flex gap-2 items-start">
-              <span className="text-xs text-gray-400 pt-2 w-4 text-right">{i + 1}</span>
-              <textarea value={q} onChange={e => setQuote(i, e.target.value)} rows={2}
-                placeholder="Digite a frase..."
-                className="flex-1 border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 resize-none" />
-              {quotes.length > 1 && (
-                <button onClick={() => removeQuote(i)} className="text-gray-300 hover:text-red-500 p-1.5" title="Remover frase">
-                  <X size={16} />
-                </button>
-              )}
-            </div>
-          ))}
-        </div>
-        {quotes.length < 8 && (
-          <button onClick={addQuote} className="mt-2 flex items-center gap-1.5 text-sm text-brand-600 hover:text-brand-700">
-            <Plus size={15} /> Adicionar frase
-          </button>
-        )}
+        <label className="block text-sm font-medium mb-1">Frase</label>
+        <textarea value={cfg.quote} onChange={e => set({ quote: e.target.value })} rows={3}
+          placeholder="A mente decidida move montanhas. A mente hesitante não move nem a si mesma."
+          className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 resize-none" />
+      </div>
+
+      {/* Citação / Autor */}
+      <div>
+        <label className="block text-sm font-medium mb-1">Citação <span className="text-gray-400 font-normal">(autor)</span></label>
+        <input value={cfg.author} onChange={e => set({ author: e.target.value })}
+          placeholder="Napoleão Hill"
+          className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
       </div>
 
       {/* Cor + tamanho da fonte */}
@@ -734,8 +726,8 @@ export default function MediaPage() {
         finalClock = { ...clockCfg, bg_image_path: path }
       }
 
-      // Frases: upload do fundo + limpa frases vazias
-      let finalQuotes = { ...quotesCfg, quotes: quotesCfg.quotes.map(q => q.trim()).filter(Boolean) }
+      // Frase: upload do fundo
+      let finalQuotes = { ...quotesCfg, quote: quotesCfg.quote.trim(), author: quotesCfg.author.trim() }
       if (type === 'quotes' && quotesCfg.bg_type === 'image' && bgFile) {
         const ext = bgFile.name.split('.').pop()
         const path = `quotes-bg/${Date.now()}.${ext}`
@@ -807,9 +799,9 @@ export default function MediaPage() {
         patch.clock_config = finalClock
       }
 
-      // Frases: substituir fundo (se novo) + limpa frases vazias
+      // Frase: substituir fundo (se novo)
       if (type === 'quotes') {
-        let finalQuotes = { ...quotesCfg, quotes: quotesCfg.quotes.map(q => q.trim()).filter(Boolean) }
+        let finalQuotes = { ...quotesCfg, quote: quotesCfg.quote.trim(), author: quotesCfg.author.trim() }
         if (quotesCfg.bg_type === 'image' && bgFile) {
           const ext = bgFile.name.split('.').pop()
           const path = `quotes-bg/${Date.now()}.${ext}`
@@ -889,7 +881,7 @@ export default function MediaPage() {
     (type === 'weather' && weatherCfg.latitude === 0) ||
     (type === 'youtube' && !youtubeId(url)) ||
     (type === 'stream' && !url.trim()) ||
-    (type === 'quotes' && !quotesCfg.quotes.some(q => q.trim()))
+    (type === 'quotes' && !quotesCfg.quote.trim())
 
   return (
     <div className="p-8">
@@ -1115,13 +1107,11 @@ export default function MediaPage() {
 
               {/* Duração */}
               <div>
-                <label className="block text-sm font-medium mb-1">
-                  Duração (segundos){type === 'quotes' ? ' — por frase' : ''}
-                </label>
+                <label className="block text-sm font-medium mb-1">Duração (segundos)</label>
                 <input type="number" min={1} value={duration} onChange={e => setDuration(Number(e.target.value))}
                   className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
                 {type === 'quotes' && (
-                  <p className="text-xs text-gray-400 mt-1">Cada frase fica esse tempo na tela; ao terminar todas, passa para a próxima mídia.</p>
+                  <p className="text-xs text-gray-400 mt-1">Tempo que a frase fica na tela.</p>
                 )}
               </div>
 

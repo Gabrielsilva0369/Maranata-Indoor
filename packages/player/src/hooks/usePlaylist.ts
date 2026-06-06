@@ -31,7 +31,8 @@ export interface WeatherConfig {
 }
 
 export interface QuotesConfig {
-  quotes: string[]
+  quote: string
+  author: string
   bg_type: 'color' | 'image'
   bg_image_path: string | null
   bg_color: string
