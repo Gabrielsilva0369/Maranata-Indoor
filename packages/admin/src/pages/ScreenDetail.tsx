@@ -253,19 +253,28 @@ export default function ScreenDetail() {
         </div>
         <hr className="mb-4" />
         {(() => {
-          // O iframe assume a proporção da orientação da tela: retrato → 9:16
-          // (alto e estreito), paisagem → 16:9. Assim o conteúdo girado pelo
-          // player aparece na posição certa.
+          // O player sempre roda numa viewport PAISAGEM (16:9) — é assim que ele
+          // monta o conteúdo de retrato (canvas lógico em pé) e gira pra caber.
+          // Aqui, pra mostrar como fica na TV física girada, deixamos o iframe
+          // 16:9 e GIRAMOS o iframe 90° via CSS, dentro de um quadro em retrato.
           const portrait = screen.orientation === 'portrait' || screen.orientation === 'portrait-reverse'
+          const rotateDeg = screen.orientation === 'portrait' ? -90 : screen.orientation === 'portrait-reverse' ? 90 : 0
           return (
-            <div className="rounded-xl overflow-hidden border bg-black mx-auto" style={{ maxWidth: portrait ? 360 : 720 }}>
-              <div style={{ position: 'relative', width: '100%', paddingTop: portrait ? '177.78%' : '56.25%' }}>
+            <div className="rounded-xl overflow-hidden border bg-black mx-auto" style={{ maxWidth: portrait ? 380 : 720 }}>
+              <div style={{ position: 'relative', width: '100%', paddingTop: portrait ? '177.78%' : '56.25%', overflow: 'hidden' }}>
                 <iframe
                   key={previewKey}
                   src={`${PLAYER_URL}/?preview=${screen.token}`}
                   title="Preview da tela"
                   allow="autoplay; encrypted-media"
-                  style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 'none' }}
+                  style={portrait
+                    ? {
+                        position: 'absolute', top: '50%', left: '50%',
+                        width: '177.78%', height: '56.25%',
+                        transform: `translate(-50%, -50%) rotate(${rotateDeg}deg)`,
+                        transformOrigin: 'center', border: 'none',
+                      }
+                    : { position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 'none' }}
                 />
               </div>
             </div>
