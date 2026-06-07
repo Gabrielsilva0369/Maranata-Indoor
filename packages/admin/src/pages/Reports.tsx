@@ -175,11 +175,12 @@ export default function Reports() {
     }
     const totalFiles = [...byFile.values()].reduce((a, b) => a + b, 0)
     const catRows = [...byCat.entries()].sort((a, b) => b[1] - a[1]).map(([c, n]) => [c, String(n), fmtDur(timeByCat.get(c) ?? 0), pct(n, rows.length)])
-    const fileRows = [...byFile.entries()].sort((a, b) => b[1] - a[1]).map(([f, n]) => [f, String(n), fmtDur(timeByFile.get(f) ?? 0), pct(n, totalFiles)])
+    // % entre arquivos = só entre os arquivos; % geral = sobre TUDO (arquivos + RSS + etc.)
+    const fileRows = [...byFile.entries()].sort((a, b) => b[1] - a[1]).map(([f, n]) => [f, String(n), fmtDur(timeByFile.get(f) ?? 0), pct(n, totalFiles), pct(n, rows.length)])
 
-    autoTable(doc, { startY: 168, head: [['Categoria', 'Exibições', 'Tempo', '%']], body: catRows, styles: { fontSize: 9 }, headStyles: { fillColor: [37, 99, 235] }, margin: { left: 40, right: 40 } })
+    autoTable(doc, { startY: 168, head: [['Categoria', 'Exibições', 'Tempo', '% geral']], body: catRows, styles: { fontSize: 9 }, headStyles: { fillColor: [37, 99, 235] }, margin: { left: 40, right: 40 } })
     if (fileRows.length) {
-      autoTable(doc, { startY: (doc as any).lastAutoTable.finalY + 16, head: [['Arquivo', 'Exibições', 'Tempo', '%']], body: fileRows, styles: { fontSize: 9 }, headStyles: { fillColor: [13, 148, 136] }, margin: { left: 40, right: 40 } })
+      autoTable(doc, { startY: (doc as any).lastAutoTable.finalY + 16, head: [['Arquivo', 'Exibições', 'Tempo', '% entre arquivos', '% geral']], body: fileRows, styles: { fontSize: 9 }, headStyles: { fillColor: [13, 148, 136] }, margin: { left: 40, right: 40 } })
     }
 
     const multiDay = periodInfo.days !== 0
@@ -213,11 +214,6 @@ export default function Reports() {
     const logo = await loadImage('/maranata-logo.png')
     header(doc, logo, `Mídia: ${mediaName}`, now)
 
-    doc.setFontSize(11); doc.setTextColor(30)
-    doc.text(`Total de exibições: ${rows.length}`, 40, 116)
-    doc.text(`Tempo total de exibição: ${fmtDur(sumDur(rows))}`, 40, 132)
-    doc.text(`Período: ${periodInfo.label} (${periodLabel})`, 40, 148)
-
     // Detalhamento por tela: contagem + tempo da mídia naquela tela
     const byScreen = new Map<string, number>()
     const timeByScreen = new Map<string, number>()
@@ -238,11 +234,20 @@ export default function Reports() {
       return count ?? 0
     }))
     const totalMap = new Map(ids.map((id, i) => [id, totals[i]]))
+    const grandTotal = [...totalMap.values()].reduce((a, b) => a + b, 0)
+
+    doc.setFontSize(11); doc.setTextColor(30)
+    doc.text(`Total de exibições: ${rows.length}`, 40, 116)
+    doc.text(`Tempo total de exibição: ${fmtDur(sumDur(rows))}`, 40, 132)
+    // Participação geral: a fatia desta mídia sobre TUDO que passou (arquivos + RSS)
+    // nas telas onde ela rodou, no período.
+    doc.text(`Participação geral: ${pct(rows.length, grandTotal)} (de ${grandTotal} exibições no total)`, 40, 148)
+    doc.text(`Período: ${periodInfo.label} (${periodLabel})`, 40, 164)
 
     const screenRows = [...byScreen.entries()].sort((a, b) => b[1] - a[1])
       .map(([id, n]) => [screenName(id), String(n), fmtDur(timeByScreen.get(id) ?? 0), String(totalMap.get(id) ?? 0), pct(n, totalMap.get(id) ?? 0)])
 
-    autoTable(doc, { startY: 168, head: [['Tela', 'Exibições', 'Tempo', 'Total na tela', '% da tela']], body: screenRows, styles: { fontSize: 9 }, headStyles: { fillColor: [37, 99, 235] }, margin: { left: 40, right: 40 } })
+    autoTable(doc, { startY: 184, head: [['Tela', 'Exibições', 'Tempo', 'Total na tela', '% da tela']], body: screenRows, styles: { fontSize: 9 }, headStyles: { fillColor: [37, 99, 235] }, margin: { left: 40, right: 40 } })
 
     const multiDay = periodInfo.days !== 0
     const listRows = rows.map(r => {
