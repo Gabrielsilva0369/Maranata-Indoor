@@ -253,12 +253,12 @@ export default function ScreenDetail() {
         </div>
         <hr className="mb-4" />
         {(() => {
-          // O player sempre roda numa viewport PAISAGEM (16:9) — é assim que ele
-          // monta o conteúdo de retrato (canvas lógico em pé) e gira pra caber.
-          // Aqui, pra mostrar como fica na TV física girada, deixamos o iframe
-          // 16:9 e GIRAMOS o iframe 90° via CSS, dentro de um quadro em retrato.
-          const portrait = screen.orientation === 'portrait' || screen.orientation === 'portrait-reverse'
-          const rotateDeg = screen.orientation === 'portrait' ? -90 : screen.orientation === 'portrait-reverse' ? 90 : 0
+          // A orientação (incl. "invertido") é só pra compensar a montagem FÍSICA
+          // da TV. No painel a gente DESFAZ essa rotação pra mostrar sempre em pé.
+          // O player roda numa viewport 16:9; aqui giramos o iframe pelo inverso.
+          const o = screen.orientation
+          const portrait = o === 'portrait' || o === 'portrait-reverse'
+          const rotateDeg = o === 'landscape-reverse' ? 180 : o === 'portrait' ? -90 : o === 'portrait-reverse' ? 90 : 0
           return (
             <div className="rounded-xl overflow-hidden border bg-black mx-auto" style={{ maxWidth: portrait ? 380 : 720 }}>
               <div style={{ position: 'relative', width: '100%', paddingTop: portrait ? '177.78%' : '56.25%', overflow: 'hidden' }}>
@@ -274,7 +274,11 @@ export default function ScreenDetail() {
                         transform: `translate(-50%, -50%) rotate(${rotateDeg}deg)`,
                         transformOrigin: 'center', border: 'none',
                       }
-                    : { position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 'none' }}
+                    : {
+                        position: 'absolute', top: 0, left: 0, width: '100%', height: '100%',
+                        transform: rotateDeg ? `rotate(${rotateDeg}deg)` : undefined,
+                        border: 'none',
+                      }}
                 />
               </div>
             </div>
