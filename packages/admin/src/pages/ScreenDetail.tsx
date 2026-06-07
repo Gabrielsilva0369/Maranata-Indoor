@@ -2,12 +2,14 @@ import { useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
-import type { Screen, Playlist } from '../lib/database.types'
+import type { Screen, Playlist, RssFeed } from '../lib/database.types'
 import {
   ChevronLeft, Settings, BarChart3, Wifi, WifiOff,
   RotateCw, RefreshCw, Trash2, Monitor, Cpu, MonitorPlay, HardDrive, Clock,
   MemoryStick, Database, Server, Camera, DownloadCloud,
+  Pencil, Volume2, VolumeX, PanelBottom,
 } from 'lucide-react'
+import { FooterModal, EditScreenModal, uploadFooterLogo } from '../components/screenSettings'
 
 function isOnline(lastSeen: string | null) {
   if (!lastSeen) return false
@@ -43,6 +45,8 @@ export default function ScreenDetail() {
   const navigate = useNavigate()
   const qc = useQueryClient()
   const [previewKey, setPreviewKey] = useState(0)
+  const [editOpen, setEditOpen] = useState(false)
+  const [footerOpen, setFooterOpen] = useState(false)
 
   const { data: screen } = useQuery<Screen>({
     queryKey: ['screen', id],
@@ -54,15 +58,38 @@ export default function ScreenDetail() {
     refetchInterval: 10_000,  // atualiza status a cada 10s
   })
 
-  const { data: playlist } = useQuery<Playlist | null>({
-    queryKey: ['playlist', screen?.playlist_id],
+  const { data: playlists = [] } = useQuery<Playlist[]>({
+    queryKey: ['playlists'],
     queryFn: async () => {
-      if (!screen?.playlist_id) return null
-      const { data } = await supabase.from('playlists').select('*').eq('id', screen.playlist_id).maybeSingle()
+      const { data, error } = await supabase.from('playlists').select('*').order('name')
+      if (error) throw error
       return data
     },
-    enabled: !!screen,
   })
+
+  const { data: feeds = [] } = useQuery<RssFeed[]>({
+    queryKey: ['rss-feeds'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('rss_feeds').select('*').order('name')
+      if (error) throw error
+      return data
+    },
+  })
+
+  // Atualiza qualquer campo da tela (playlist, som, rodapé, etc.).
+  const updateScreen = useMutation({
+    mutationFn: async (patch: Partial<Screen>) => {
+      const { error } = await supabase.from('screens').update(patch).eq('id', id!)
+      if (error) throw error
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['screen', id] }),
+  })
+
+  const saveFooter = async (s: Screen, cfg: Parameters<typeof uploadFooterLogo>[1], logoFile: File | null, removeLogo: boolean) => {
+    const finalCfg = await uploadFooterLogo(s, cfg, logoFile, removeLogo)
+    updateScreen.mutate({ footer_config: finalCfg })
+    setFooterOpen(false)
+  }
 
   const sendCommand = useMutation({
     mutationFn: async (cmd: string) => {
@@ -92,19 +119,52 @@ export default function ScreenDetail() {
 
       {/* Configurações básicas */}
       <section className="mb-8">
-        <h2 className="flex items-center gap-2 text-xl font-bold text-slate-700 mb-1">
-          <Settings size={20} className="text-brand-600" /> Configurações básicas
-        </h2>
+        <div className="flex items-center justify-between mb-1">
+          <h2 className="flex items-center gap-2 text-xl font-bold text-slate-700">
+            <Settings size={20} className="text-brand-600" /> Configurações básicas
+          </h2>
+          <button onClick={() => setEditOpen(true)}
+            className="flex items-center gap-1.5 text-sm border px-3 py-1.5 rounded-lg hover:bg-gray-50 transition-colors">
+            <Pencil size={14} /> Editar tela
+          </button>
+        </div>
         <hr className="mb-5" />
         <dl className="space-y-3 text-sm">
           <Row label="Nome"><span className="text-brand-600 font-medium">{screen.name}</span></Row>
+
+          {/* Playlist — troca inline */}
           <Row label="Lista de Reprodução">
-            {screen.playlist_id ? (
-              <Link to={`/playlists/${screen.playlist_id}`} className="text-brand-600 hover:underline">
-                {playlist?.name ?? '...'}
-              </Link>
-            ) : <span className="text-gray-400">— Nenhuma —</span>}
+            <div className="flex items-center gap-2">
+              <select value={screen.playlist_id ?? ''}
+                onChange={e => updateScreen.mutate({ playlist_id: e.target.value || null })}
+                className="border rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 min-w-[180px]">
+                <option value="">— Nenhuma —</option>
+                {playlists.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+              </select>
+              {screen.playlist_id && (
+                <Link to={`/playlists/${screen.playlist_id}`} className="text-brand-600 hover:underline text-xs">editar</Link>
+              )}
+            </div>
           </Row>
+
+          {/* Som — toggle inline */}
+          <Row label="Som">
+            <button onClick={() => updateScreen.mutate({ sound_enabled: !screen.sound_enabled })}
+              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium transition-colors ${screen.sound_enabled ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+              {screen.sound_enabled ? <Volume2 size={14} /> : <VolumeX size={14} />}
+              {screen.sound_enabled ? 'Ativado' : 'Sem som'}
+            </button>
+          </Row>
+
+          {/* Rodapé — abre o modal */}
+          <Row label="Rodapé">
+            <button onClick={() => setFooterOpen(true)}
+              className="inline-flex items-center gap-1.5 text-sm border px-3 py-1 rounded-lg hover:bg-gray-50 transition-colors">
+              <PanelBottom size={14} /> Configurar
+              {screen.footer_config?.enabled && <span className="text-green-600 text-xs">• ativo</span>}
+            </button>
+          </Row>
+
           <Row label="Orientação"><span className="text-brand-600">{ORIENTATION_LABEL[screen.orientation] ?? 'Horizontal'}</span></Row>
           <Row label="Código"><span className="font-mono text-gray-500">{screen.token.slice(0, 6).toUpperCase()}</span></Row>
         </dl>
@@ -128,7 +188,8 @@ export default function ScreenDetail() {
                   {online ? 'Online - Funcionando' : 'Offline'}
                 </span>
               </Info>
-              <Info label="Online a">{uptime(screen.online_since, online)}</Info>
+              <Info label="Online a">{uptime(screen.session_started_at, online)}</Info>
+              <Info label="Online esse mês">{uptime(screen.online_since, online)}</Info>
               <Info label="Última Atualização">
                 {screen.last_seen ? new Date(screen.last_seen).toLocaleString('pt-BR') : '—'}
               </Info>
@@ -275,6 +336,24 @@ export default function ScreenDetail() {
           </p>
         )}
       </section>
+
+      {/* Modais */}
+      {editOpen && (
+        <EditScreenModal
+          screen={screen}
+          playlists={playlists}
+          onClose={() => setEditOpen(false)}
+          onSave={patch => { updateScreen.mutate(patch); setEditOpen(false) }}
+        />
+      )}
+      {footerOpen && (
+        <FooterModal
+          screen={screen}
+          feeds={feeds}
+          onClose={() => setFooterOpen(false)}
+          onSave={(cfg, logoFile, removeLogo) => saveFooter(screen, cfg, logoFile, removeLogo)}
+        />
+      )}
     </div>
   )
 }

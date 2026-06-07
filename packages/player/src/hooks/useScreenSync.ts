@@ -108,23 +108,33 @@ export function useScreenSync({ screenId, currentMedia, orientation, onRefresh, 
   const onUpdateRef = useRef(onUpdate)
   onUpdateRef.current = onUpdate
 
-  // Heartbeat + telemetria (online_since uma vez, last_seen + telemetria a cada 60s)
+  // Heartbeat + telemetria a cada 60s.
+  //  • session_started_at: reinicia a cada ABERTURA do app (tempo "Online a:").
+  //  • online_since: acumulado do mês — reseta na virada de mês ("Online esse mês:").
   useEffect(() => {
     if (!screenId || disabled) return
-    let onlineSet = false
+    let sessionSet = false
 
     const beat = async () => {
       const telemetry = await buildTelemetry(mediaRef.current, orientationRef.current)
+      const now = new Date()
       const patch: Record<string, unknown> = {
-        last_seen: new Date().toISOString(),
+        last_seen: now.toISOString(),
         telemetry,
       }
-      if (!onlineSet) {
-        // Define online_since só se ainda estiver nulo
-        const { data } = await supabase.from('screens').select('online_since').eq('id', screenId).maybeSingle()
-        if (data && !data.online_since) patch.online_since = new Date().toISOString()
-        onlineSet = true
+
+      // Nova sessão: marca o início desta abertura (uma vez por carregamento).
+      if (!sessionSet) {
+        patch.session_started_at = now.toISOString()
+        sessionSet = true
       }
+
+      // online_since do mês: define se está nulo ou se é de um mês anterior.
+      const { data } = await supabase.from('screens').select('online_since').eq('id', screenId).maybeSingle()
+      const os = data?.online_since ? new Date(data.online_since) : null
+      const sameMonth = !!os && os.getMonth() === now.getMonth() && os.getFullYear() === now.getFullYear()
+      if (!sameMonth) patch.online_since = now.toISOString()
+
       await supabase.from('screens').update(patch).eq('id', screenId)
     }
 
