@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import type { Screen, Playlist, RssFeed, FooterConfig } from '../lib/database.types'
-import { Plus, Trash2, Volume2, VolumeX, Wifi, WifiOff, PanelBottom, Pencil } from 'lucide-react'
+import { Plus, Trash2, Volume2, VolumeX, PanelBottom, Pencil, Monitor } from 'lucide-react'
 import { FooterModal, EditScreenModal, uploadFooterLogo } from '../components/screenSettings'
 
 function isOnline(lastSeen: string | null) {
@@ -95,12 +95,22 @@ export default function Screens() {
     setFooterScreen(null)
   }
 
+  const onlineCount = screens.filter(s => isOnline(s.last_seen)).length
+
   return (
     <div className="p-8">
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-bold">Telas</h2>
+      <div className="flex items-end justify-between mb-6 gap-4 flex-wrap">
+        <div>
+          <h2 className="text-2xl font-bold text-slate-800">Telas</h2>
+          <p className="text-sm text-gray-500 mt-0.5">
+            {screens.length} {screens.length === 1 ? 'tela' : 'telas'}
+            {screens.length > 0 && (
+              <> · <span className="text-green-600 font-medium">{onlineCount} online</span></>
+            )}
+          </p>
+        </div>
         <button onClick={() => setShowAdd(true)}
-          className="flex items-center gap-2 bg-brand-600 hover:bg-brand-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+          className="flex items-center gap-2 bg-brand-600 hover:bg-brand-700 text-white px-4 py-2.5 rounded-xl text-sm font-medium transition-colors shadow-sm"
         >
           <Plus size={16} /> Adicionar Tela
         </button>
@@ -190,81 +200,83 @@ export default function Screens() {
         />
       )}
 
-      {/* Tabela */}
-      <div className="bg-white rounded-xl border overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-gray-50 border-b">
-            <tr>
-              <th className="text-left px-5 py-3 font-medium text-gray-600">Nome</th>
-              <th className="text-left px-5 py-3 font-medium text-gray-600">Código</th>
-              <th className="text-left px-5 py-3 font-medium text-gray-600">Playlist</th>
-              <th className="text-left px-5 py-3 font-medium text-gray-600">Som</th>
-              <th className="text-left px-5 py-3 font-medium text-gray-600">Rodapé</th>
-              <th className="text-left px-5 py-3 font-medium text-gray-600">Status</th>
-              <th className="px-5 py-3" />
-            </tr>
-          </thead>
-          <tbody>
-            {screens.map(screen => {
-              const online = isOnline(screen.last_seen)
-              const hasFooter = !!screen.footer_config?.enabled
-              return (
-                <tr key={screen.id} className="border-b last:border-0 hover:bg-gray-50">
-                  <td className="px-5 py-3 font-medium">
-                    <Link to={`/screens/${screen.id}`} className="text-brand-600 hover:underline">
+      {/* Grid de cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
+        {screens.map(screen => {
+          const online = isOnline(screen.last_seen)
+          const hasFooter = !!screen.footer_config?.enabled
+          return (
+            <div key={screen.id} className="bg-white rounded-2xl border shadow-sm hover:shadow-md transition-shadow overflow-hidden flex flex-col">
+              {/* Miniatura (print mais recente, ou placeholder) */}
+              <Link to={`/screens/${screen.id}`} className="block relative aspect-video bg-slate-900 overflow-hidden group">
+                {screen.last_screenshot ? (
+                  <img src={screen.last_screenshot} alt="" className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform" />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-slate-700 to-slate-900 text-slate-500">
+                    <Monitor size={36} />
+                  </div>
+                )}
+                <span className={`absolute top-2.5 right-2.5 inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full ${online ? 'bg-green-500 text-white' : 'bg-black/55 text-gray-100'}`}>
+                  <span className={`w-1.5 h-1.5 rounded-full ${online ? 'bg-white animate-pulse' : 'bg-gray-400'}`} />
+                  {online ? 'Online' : 'Offline'}
+                </span>
+              </Link>
+
+              {/* Corpo */}
+              <div className="p-4 flex flex-col gap-3 flex-1">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <Link to={`/screens/${screen.id}`} className="font-semibold text-slate-800 hover:text-brand-600 truncate block">
                       {screen.name}
                     </Link>
-                  </td>
-                  <td className="px-5 py-3 font-mono text-gray-500">{screen.token.slice(0, 6).toUpperCase()}</td>
-                  <td className="px-5 py-3">
-                    <select value={screen.playlist_id ?? ''} onChange={e => updateScreen.mutate({ id: screen.id, playlist_id: e.target.value || null })}
-                      className="border rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500">
-                      <option value="">— Sem playlist —</option>
-                      {playlists.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                    </select>
-                  </td>
-                  <td className="px-5 py-3">
-                    <button onClick={() => updateScreen.mutate({ id: screen.id, sound_enabled: !screen.sound_enabled })}
-                      className={`p-1.5 rounded-lg transition-colors ${screen.sound_enabled ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}
-                      title={screen.sound_enabled ? 'Som ativo' : 'Sem som'}>
-                      {screen.sound_enabled ? <Volume2 size={16} /> : <VolumeX size={16} />}
+                    <span className="text-xs font-mono text-gray-400 tracking-wider">{screen.token.slice(0, 6).toUpperCase()}</span>
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button onClick={() => setEditScreen(screen)} title="Editar tela"
+                      className="p-1.5 text-gray-400 hover:text-brand-600 hover:bg-brand-50 rounded-lg transition-colors">
+                      <Pencil size={15} />
                     </button>
-                  </td>
-                  <td className="px-5 py-3">
-                    <button onClick={() => setFooterScreen(screen)}
-                      className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors ${hasFooter ? 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
-                      title="Configurar rodapé">
-                      <PanelBottom size={13} />
-                      {hasFooter ? 'Ativo' : 'Configurar'}
+                    <button onClick={() => { if (confirm('Remover tela?')) deleteScreen.mutate(screen.id) }} title="Remover tela"
+                      className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
+                      <Trash2 size={15} />
                     </button>
-                  </td>
-                  <td className="px-5 py-3">
-                    <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full ${online ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
-                      {online ? <Wifi size={12} /> : <WifiOff size={12} />}
-                      {online ? 'Online' : 'Offline'}
-                    </span>
-                  </td>
-                  <td className="px-5 py-3 text-right">
-                    <div className="flex items-center justify-end gap-2">
-                      <button onClick={() => setEditScreen(screen)}
-                        className="text-gray-400 hover:text-brand-600 transition-colors" title="Editar tela">
-                        <Pencil size={16} />
-                      </button>
-                      <button onClick={() => { if (confirm('Remover tela?')) deleteScreen.mutate(screen.id) }}
-                        className="text-gray-400 hover:text-red-600 transition-colors" title="Remover tela">
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              )
-            })}
-            {screens.length === 0 && (
-              <tr><td colSpan={7} className="px-5 py-8 text-center text-gray-400">Nenhuma tela cadastrada.</td></tr>
-            )}
-          </tbody>
-        </table>
+                  </div>
+                </div>
+
+                {/* Playlist */}
+                <select value={screen.playlist_id ?? ''} onChange={e => updateScreen.mutate({ id: screen.id, playlist_id: e.target.value || null })}
+                  className="w-full border rounded-lg px-3 py-2 text-sm bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-500 transition-colors">
+                  <option value="">— Sem playlist —</option>
+                  {playlists.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
+
+                {/* Controles */}
+                <div className="flex items-center gap-2 mt-auto pt-1">
+                  <button onClick={() => updateScreen.mutate({ id: screen.id, sound_enabled: !screen.sound_enabled })}
+                    title={screen.sound_enabled ? 'Som ativo' : 'Sem som'}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${screen.sound_enabled ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>
+                    {screen.sound_enabled ? <Volume2 size={14} /> : <VolumeX size={14} />}
+                    Som
+                  </button>
+                  <button onClick={() => setFooterScreen(screen)} title="Configurar rodapé"
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${hasFooter ? 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>
+                    <PanelBottom size={14} />
+                    Rodapé{hasFooter ? ' ✓' : ''}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )
+        })}
       </div>
+
+      {screens.length === 0 && (
+        <div className="bg-white rounded-2xl border border-dashed py-16 text-center">
+          <Monitor size={36} className="mx-auto text-gray-300 mb-3" />
+          <p className="text-gray-500 font-medium">Nenhuma tela cadastrada</p>
+          <p className="text-sm text-gray-400 mt-1">Clique em "Adicionar Tela" e use o código que aparece no player.</p>
+        </div>
+      )}
     </div>
   )
 }
