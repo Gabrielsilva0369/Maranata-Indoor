@@ -252,17 +252,25 @@ export default function ScreenDetail() {
           </button>
         </div>
         <hr className="mb-4" />
-        <div className="rounded-xl overflow-hidden border bg-black mx-auto" style={{ maxWidth: 720 }}>
-          <div style={{ position: 'relative', width: '100%', paddingTop: '56.25%' }}>
-            <iframe
-              key={previewKey}
-              src={`${PLAYER_URL}/?preview=${screen.token}`}
-              title="Preview da tela"
-              allow="autoplay; encrypted-media"
-              style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 'none' }}
-            />
-          </div>
-        </div>
+        {(() => {
+          // O iframe assume a proporção da orientação da tela: retrato → 9:16
+          // (alto e estreito), paisagem → 16:9. Assim o conteúdo girado pelo
+          // player aparece na posição certa.
+          const portrait = screen.orientation === 'portrait' || screen.orientation === 'portrait-reverse'
+          return (
+            <div className="rounded-xl overflow-hidden border bg-black mx-auto" style={{ maxWidth: portrait ? 360 : 720 }}>
+              <div style={{ position: 'relative', width: '100%', paddingTop: portrait ? '177.78%' : '56.25%' }}>
+                <iframe
+                  key={previewKey}
+                  src={`${PLAYER_URL}/?preview=${screen.token}`}
+                  title="Preview da tela"
+                  allow="autoplay; encrypted-media"
+                  style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 'none' }}
+                />
+              </div>
+            </div>
+          )
+        })()}
         <p className="text-xs text-gray-400 mt-2 max-w-2xl">
           Mostra o mesmo conteúdo que está passando nesta tela (mesma playlist e configuração), tocando aqui no admin — <b>mudo</b> e sem afetar o status da tela. O tempo pode não estar idêntico ao do box; para o quadro exato use <b>Tirar Print</b>.
         </p>
