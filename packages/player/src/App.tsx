@@ -104,25 +104,29 @@ export default function App() {
     }
   }, [])
 
+  // Telas de "gate" (atualizando / carregando / pareamento) também seguem a
+  // orientação da tela — senão ficam de lado quando a TV está em retrato.
+  const orient = screen?.orientation ?? 'landscape'
+
   // Atualizando o app (comando do admin): tem prioridade sobre tudo.
   if (updating) {
-    return <UpdatingScreen />
+    return <OrientationWrapper orientation={orient}><UpdatingScreen /></OrientationWrapper>
   }
 
   // Ainda descobrindo se a tela está emparelhada (primeira busca, sem cache).
   if (loading && !paired) {
-    return <LoadingScreen sync={null} />
+    return <OrientationWrapper orientation={orient}><LoadingScreen sync={null} /></OrientationWrapper>
   }
 
   if (!paired) {
-    return <PairingScreen pairCode={pairCode} onRetry={refetch} />
+    return <OrientationWrapper orientation={orient}><PairingScreen pairCode={pairCode} onRetry={refetch} /></OrientationWrapper>
   }
 
   // Tela de carregamento: PERSISTE até TODAS as mídias terminarem de baixar
   // (status 'done'/'error') e o tempo mínimo de exibição passar. Reaparece
   // sozinha quando a playlist muda, pois aí o usePlaylist redispara o download.
   if (!ready || !minElapsed) {
-    return <LoadingScreen sync={syncStatus} />
+    return <OrientationWrapper orientation={orient}><LoadingScreen sync={syncStatus} /></OrientationWrapper>
   }
 
   return (
