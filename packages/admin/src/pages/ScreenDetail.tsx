@@ -113,22 +113,30 @@ export default function ScreenDetail() {
   return (
     <div className="p-8 max-w-5xl">
       <button onClick={() => navigate('/screens')}
-        className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-800 mb-5">
+        className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-800 mb-4">
         <ChevronLeft size={16} /> Voltar
       </button>
 
-      {/* Configurações básicas */}
-      <section className="mb-8">
-        <div className="flex items-center justify-between mb-1">
-          <h2 className="flex items-center gap-2 text-xl font-bold text-slate-700">
-            <Settings size={20} className="text-brand-600" /> Configurações básicas
-          </h2>
-          <button onClick={() => setEditOpen(true)}
-            className="flex items-center gap-1.5 text-sm border px-3 py-1.5 rounded-lg hover:bg-gray-50 transition-colors">
-            <Pencil size={14} /> Editar tela
-          </button>
+      {/* Cabeçalho da tela */}
+      <div className="flex items-center justify-between gap-4 flex-wrap mb-6">
+        <div className="flex items-center gap-3">
+          <h1 className="text-2xl font-bold text-slate-800">{screen.name}</h1>
+          <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full ${online ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+            <span className={`w-1.5 h-1.5 rounded-full ${online ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`} />
+            {online ? 'Online' : 'Offline'}
+          </span>
         </div>
-        <hr className="mb-5" />
+        <button onClick={() => setEditOpen(true)}
+          className="flex items-center gap-1.5 text-sm bg-brand-600 hover:bg-brand-700 text-white px-4 py-2 rounded-xl font-medium transition-colors shadow-sm">
+          <Pencil size={14} /> Editar tela
+        </button>
+      </div>
+
+      {/* Configurações básicas */}
+      <section className="bg-white rounded-2xl border shadow-sm p-6 mb-6">
+        <h2 className="flex items-center gap-2 text-base font-bold text-slate-700 mb-4">
+          <Settings size={18} className="text-brand-600" /> Configurações básicas
+        </h2>
         <dl className="space-y-3 text-sm">
           <Row label="Nome"><span className="text-brand-600 font-medium">{screen.name}</span></Row>
 
@@ -171,11 +179,10 @@ export default function ScreenDetail() {
       </section>
 
       {/* Status e Informações */}
-      <section className="mb-8">
-        <h2 className="flex items-center gap-2 text-xl font-bold text-green-700 mb-1">
-          <BarChart3 size={20} /> Status e Informações
+      <section className="bg-white rounded-2xl border shadow-sm p-6 mb-6">
+        <h2 className="flex items-center gap-2 text-base font-bold text-slate-700 mb-4">
+          <BarChart3 size={18} className="text-green-600" /> Status e Informações
         </h2>
-        <hr className="mb-5" />
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* Status */}
@@ -241,17 +248,16 @@ export default function ScreenDetail() {
       </section>
 
       {/* Preview ao vivo */}
-      <section className="mt-8">
-        <div className="flex items-center justify-between mb-1">
-          <h2 className="flex items-center gap-2 text-xl font-bold text-slate-700">
-            <MonitorPlay size={20} className="text-emerald-600" /> Preview ao vivo
+      <section className="bg-white rounded-2xl border shadow-sm p-6 mb-6">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="flex items-center gap-2 text-base font-bold text-slate-700">
+            <MonitorPlay size={18} className="text-emerald-600" /> Preview ao vivo
           </h2>
           <button onClick={() => setPreviewKey(k => k + 1)}
             className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800">
             <RefreshCw size={14} /> Recarregar
           </button>
         </div>
-        <hr className="mb-4" />
         {(() => {
           // A orientação (incl. "invertido") é só pra compensar a montagem FÍSICA
           // da TV. No painel a gente DESFAZ essa rotação pra mostrar sempre em pé.
@@ -290,11 +296,10 @@ export default function ScreenDetail() {
       </section>
 
       {/* Comandos */}
-      <section>
-        <h2 className="flex items-center gap-2 text-xl font-bold text-slate-700 mb-1">
-          <Clock size={20} className="text-purple-600" /> Comandos
+      <section className="bg-white rounded-2xl border shadow-sm p-6 mb-6">
+        <h2 className="flex items-center gap-2 text-base font-bold text-slate-700 mb-4">
+          <Clock size={18} className="text-purple-600" /> Comandos
         </h2>
-        <hr className="mb-5" />
         {!online && (
           <p className="text-xs text-amber-600 mb-3">A tela está offline — os comandos serão executados quando ela voltar.</p>
         )}
@@ -334,11 +339,10 @@ export default function ScreenDetail() {
       </section>
 
       {/* Print da tela */}
-      <section className="mt-8">
-        <h2 className="flex items-center gap-2 text-xl font-bold text-slate-700 mb-1">
-          <Camera size={20} className="text-indigo-600" /> Print da Tela
+      <section className="bg-white rounded-2xl border shadow-sm p-6 mb-6">
+        <h2 className="flex items-center gap-2 text-base font-bold text-slate-700 mb-4">
+          <Camera size={18} className="text-indigo-600" /> Print da Tela
         </h2>
-        <hr className="mb-5" />
         {screen.last_screenshot ? (
           <div>
             <img
