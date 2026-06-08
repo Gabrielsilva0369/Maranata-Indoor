@@ -64,6 +64,7 @@ export interface ScreenTelemetry {
   cpu?: string               // processador (núcleos · arquitetura)
   ram?: string               // memória RAM aproximada
   device_model?: string      // modelo do aparelho (quando disponível)
+  internet?: string          // 'ok' | 'sem' | '' (checagem real de internet)
 }
 
 export interface Screen {

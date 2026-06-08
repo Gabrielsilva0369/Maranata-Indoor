@@ -169,6 +169,27 @@ export async function clearUnusedCache(keepKeys: string[]): Promise<void> {
   }
 }
 
+/**
+ * Recupera um arquivo que falhou ao reproduzir (provável corrompido/incompleto
+ * no cache): apaga do IndexedDB e re-baixa em background (com checagem de
+ * integridade). O player pula o item agora; na próxima passada toca o arquivo bom.
+ */
+export async function recoverCorruptMedia(path: string): Promise<void> {
+  if (!path) return
+  try {
+    await deleteCache(path)
+    const res = await fetchWithTimeout(getPublicUrl(path), 90000)
+    if (!res.ok) return
+    const expected = Number(res.headers.get('content-length') || 0)
+    const blob = await res.blob()
+    if (blob.size === 0) return
+    if (expected && blob.size !== expected) return
+    await setCache(path, blob)
+  } catch {
+    /* sem rede / falha → fica sem cache; tenta de novo no próximo sync */
+  }
+}
+
 export interface SyncProgress {
   completed: number
   total: number
@@ -321,7 +342,12 @@ export async function syncMediaCache(
       if (!cachedBlob) {
         const res = await fetchWithTimeout(getPublicUrl(path), 90000)
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        const expected = Number(res.headers.get('content-length') || 0)
         const blob = await res.blob()
+        // Integridade: não cacheia arquivo vazio nem baixado pela metade
+        // (Content-Length ≠ tamanho recebido = download interrompido/corrompido).
+        if (blob.size === 0) throw new Error('arquivo vazio')
+        if (expected && blob.size !== expected) throw new Error(`incompleto ${blob.size}/${expected}`)
         await setCache(path, blob)
       }
     } catch {

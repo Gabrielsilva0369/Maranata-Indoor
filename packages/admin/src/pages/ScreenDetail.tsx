@@ -195,6 +195,12 @@ export default function ScreenDetail() {
                   {online ? 'Online - Funcionando' : 'Offline'}
                 </span>
               </Info>
+              <Info label="Internet">
+                {!online ? <span className="text-gray-400">—</span>
+                  : t?.internet === 'sem'
+                    ? <span className="text-amber-600 font-medium">Sem internet</span>
+                    : <span className="text-green-600 font-medium">OK</span>}
+              </Info>
               <Info label="Online a">{uptime(screen.session_started_at, online)}</Info>
               <Info label="Online esse mês">{uptime(screen.online_since, online)}</Info>
               <Info label="Última Atualização">

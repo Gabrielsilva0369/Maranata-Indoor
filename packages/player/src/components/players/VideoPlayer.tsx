@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useCachedUrl } from '../../hooks/useCachedUrl'
 import { onAudioUnlock } from '../../lib/audioUnlock'
+import { recoverCorruptMedia } from '../../lib/mediaCache'
 
 interface Props {
   storagePath: string
@@ -114,7 +115,12 @@ export default function VideoPlayer({ storagePath, muted, quality = 'fhd', onEnd
         ref={videoRef}
         src={url || undefined}
         onEnded={onEnd}
-        onError={() => onEnd()}   // formato não suportado / falha → pula para o próximo
+        onError={() => {
+          // Falhou ao tocar (provável arquivo corrompido/incompleto no cache):
+          // apaga e re-baixa em background, e pula para o próximo agora.
+          recoverCorruptMedia(path)
+          onEnd()
+        }}
         onPlaying={() => setStarted(true)}  // só revela quando está tocando de fato
         playsInline
         autoPlay

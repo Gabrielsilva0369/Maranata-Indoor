@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { clearAllCache } from '../lib/mediaCache'
 import { captureAndUpload } from '../lib/screenshot'
+import { hasInternet } from '../lib/network'
 
 export const APP_VERSION = '1.0.0'
 
@@ -35,8 +36,15 @@ function formatBytes(b: number): string {
   return `${(b / 1024 / 1024).toFixed(1)} MB`
 }
 
-async function buildTelemetry(currentMedia: string, orientation: string) {
+async function buildTelemetry(currentMedia: string, orientation: string, checkNet = false) {
   const ua = navigator.userAgent
+
+  // Checa internet de verdade (só no heartbeat, pra não pesar). Se chegou aqui
+  // e conseguiu, está online; o valor ajuda no diagnóstico pelo admin.
+  let internet = ''
+  if (checkNet) {
+    try { internet = (await hasInternet()) ? 'ok' : 'sem' } catch { internet = 'sem' }
+  }
   const res = `${window.screen.width} x ${window.screen.height} (${orientation === 'landscape' || orientation === 'landscape-reverse' ? 'Horizontal' : 'Vertical'})`
 
   // ── Armazenamento: cache usado + total/livre disponível para o app ──
@@ -91,6 +99,7 @@ async function buildTelemetry(currentMedia: string, orientation: string) {
     cpu: cpuStr,                    // processador (núcleos · arquitetura)
     ram: ramStr,                   // memória RAM aproximada
     device_model: deviceModel,     // modelo do aparelho (quando disponível)
+    internet,                      // 'ok' | 'sem' | '' (checado no heartbeat)
     ua_full: ua,
     diag,
     build: typeof __BUILD_TIME__ !== 'undefined' ? __BUILD_TIME__ : '',
@@ -116,7 +125,7 @@ export function useScreenSync({ screenId, currentMedia, orientation, onRefresh, 
     let sessionSet = false
 
     const beat = async () => {
-      const telemetry = await buildTelemetry(mediaRef.current, orientationRef.current)
+      const telemetry = await buildTelemetry(mediaRef.current, orientationRef.current, true)
       const now = new Date()
       const patch: Record<string, unknown> = {
         last_seen: now.toISOString(),
