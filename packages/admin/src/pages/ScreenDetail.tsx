@@ -16,6 +16,12 @@ function isOnline(lastSeen: string | null) {
   return Date.now() - new Date(lastSeen).getTime() < 90_000
 }
 
+function fmtBytes(b: number): string {
+  if (!b) return '0 MB'
+  if (b >= 1024 * 1024 * 1024) return `${(b / 1024 / 1024 / 1024).toFixed(2)} GB`
+  return `${Math.round(b / 1024 / 1024)} MB`
+}
+
 function uptime(since: string | null, online: boolean) {
   if (!since || !online) return '—'
   const ms = Date.now() - new Date(since).getTime()
@@ -76,6 +82,21 @@ export default function ScreenDetail() {
     },
   })
 
+  // Mídias da playlist desta tela — pra estimar quanto ocupa no box.
+  const { data: playlistMedia = [] } = useQuery<{ type: string; size_bytes: number | null; rendition_sizes: Record<string, number> | null }[]>({
+    queryKey: ['playlist-media', screen?.playlist_id],
+    queryFn: async () => {
+      if (!screen?.playlist_id) return []
+      const { data, error } = await supabase
+        .from('playlist_items')
+        .select('media(type, size_bytes, rendition_sizes)')
+        .eq('playlist_id', screen.playlist_id)
+      if (error) throw error
+      return (data ?? []).map((it: any) => it.media).filter(Boolean)
+    },
+    enabled: !!screen?.playlist_id,
+  })
+
   // Atualiza qualquer campo da tela (playlist, som, rodapé, etc.).
   const updateScreen = useMutation({
     mutationFn: async (patch: Partial<Screen>) => {
@@ -109,6 +130,26 @@ export default function ScreenDetail() {
 
   const online = isOnline(screen.last_seen)
   const t = screen.telemetry
+
+  // Estima quanto a playlist ocupa no box, na qualidade da tela.
+  const quality = screen.video_quality ?? 'hd'
+  let contentBytes = 0
+  let unknownCount = 0
+  for (const m of playlistMedia) {
+    if (m.type === 'video') {
+      const s = m.rendition_sizes?.[quality] ?? m.rendition_sizes?.fhd
+      if (s) contentBytes += s
+      else unknownCount++
+    } else if (m.type === 'image') {
+      if (m.size_bytes) contentBytes += m.size_bytes
+      else unknownCount++
+    }
+  }
+  const quotaBytes = t?.storage_quota_bytes ?? 0
+  const usagePct = quotaBytes ? Math.min(100, Math.round((contentBytes / quotaBytes) * 100)) : 0
+  // Margem de segurança de 15% (notícias, app, etc. também ocupam).
+  const fits = quotaBytes ? contentBytes < quotaBytes * 0.85 : null
+  const QUALITY_LABEL: Record<string, string> = { sd: 'SD', qhd: '540p', hd: 'HD', fhd: 'Full HD' }
 
   return (
     <div className="p-8 max-w-5xl">
@@ -251,6 +292,37 @@ export default function ScreenDetail() {
             </div>
           </div>
         </div>
+
+        {/* Capacidade: quanto a playlist desta tela ocupa vs. o que cabe no box */}
+        {quotaBytes > 0 && (
+          <div className="mt-7 border-t pt-5">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-sm font-semibold text-slate-600 flex items-center gap-1.5">
+                <HardDrive size={15} className="text-gray-400" />
+                Capacidade desta tela <span className="text-gray-400 font-normal">(qualidade {QUALITY_LABEL[quality] ?? quality})</span>
+              </h3>
+              <span className="text-sm text-gray-600">
+                {fmtBytes(contentBytes)} de {fmtBytes(quotaBytes)}
+              </span>
+            </div>
+            <div className="h-3 w-full rounded-full bg-gray-100 overflow-hidden">
+              <div
+                className={`h-full rounded-full transition-all ${fits ? 'bg-emerald-500' : 'bg-red-500'}`}
+                style={{ width: `${usagePct}%` }}
+              />
+            </div>
+            <p className={`mt-2 text-sm font-medium ${fits ? 'text-emerald-600' : 'text-red-600'}`}>
+              {fits
+                ? `✓ Cabe no armazenamento (${usagePct}% usado)`
+                : `⚠ Conteúdo muito grande para este box (${usagePct}%) — reduza a qualidade ou remova mídias`}
+            </p>
+            {unknownCount > 0 && (
+              <p className="mt-1 text-xs text-gray-400">
+                {unknownCount} mídia(s) sem tamanho registrado (envie novamente para contabilizar).
+              </p>
+            )}
+          </div>
+        )}
       </section>
 
       {/* Preview ao vivo */}

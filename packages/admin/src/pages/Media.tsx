@@ -12,13 +12,15 @@ async function uploadVideoRenditions(
   file: File,
   onProgress: (n: number) => void,
   onStatus: (s: 'loading' | 'analyzing' | 'transcoding' | 'done' | 'error' | null) => void,
-): Promise<string> {
+): Promise<{ path: string; sizes: Record<string, number> }> {
   const r = await transcodeVideoRenditions({ file, onProgress, onStatusChange: onStatus })
   const base = `videos/${Date.now()}-${Math.random().toString(36).slice(2)}`
+  const sizes: Record<string, number> = {}
   for (const q of ['sd', 'qhd', 'hd', 'fhd'] as const) {
     await uploadToSpaces(`${base}_${q}.mp4`, r[q], 'video/mp4')
+    sizes[q] = r[q].size
   }
-  return `${base}_fhd.mp4`
+  return { path: `${base}_fhd.mp4`, sizes }
 }
 
 // Remove da DO. Vídeo novo tem 4 renditions (_sd/_qhd/_hd/_fhd) → remove as 4.
@@ -725,17 +727,22 @@ export default function MediaPage() {
       setTranscodeStatus(null)
       setTranscodeProgress(0)
       let storagePath: string | null = null
+      let sizeBytes: number | null = null
+      let renditionSizes: Record<string, number> | null = null
       let finalClock = clockCfg
 
       // Upload arquivo (imagem/vídeo)
       if ((type === 'image' || type === 'video') && file) {
         if (type === 'video') {
-          storagePath = await uploadVideoRenditions(file, setTranscodeProgress, setTranscodeStatus)
+          const r = await uploadVideoRenditions(file, setTranscodeProgress, setTranscodeStatus)
+          storagePath = r.path
+          renditionSizes = r.sizes
         } else {
           const ext = file.name.split('.').pop()
           const path = `images/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
           await uploadToSpaces(path, file, file.type || 'image/jpeg')
           storagePath = path
+          sizeBytes = file.size
         }
       }
 
@@ -765,6 +772,8 @@ export default function MediaPage() {
         clock_config: type === 'clock' ? finalClock : null,
         weather_config: type === 'weather' ? weatherCfg : null,
         quotes_config: type === 'quotes' ? finalQuotes : null,
+        size_bytes: sizeBytes,
+        rendition_sizes: renditionSizes,
         folder_id: folderId,
         duration,
       })
@@ -797,11 +806,16 @@ export default function MediaPage() {
         setTranscodeProgress(0)
         let newPath: string
         if (type === 'video') {
-          newPath = await uploadVideoRenditions(file, setTranscodeProgress, setTranscodeStatus)
+          const r = await uploadVideoRenditions(file, setTranscodeProgress, setTranscodeStatus)
+          newPath = r.path
+          patch.rendition_sizes = r.sizes
+          patch.size_bytes = null
         } else {
           const ext = file.name.split('.').pop()
           newPath = `images/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
           await uploadToSpaces(newPath, file, file.type || 'image/jpeg')
+          patch.size_bytes = file.size
+          patch.rendition_sizes = null
         }
         await removeMediaStorage(existing?.storage_path)
         patch.storage_path = newPath

@@ -65,6 +65,7 @@ export interface ScreenTelemetry {
   ram?: string               // memória RAM aproximada
   device_model?: string      // modelo do aparelho (quando disponível)
   internet?: string          // 'ok' | 'sem' | '' (checagem real de internet)
+  storage_quota_bytes?: number  // cota total do app em bytes
 }
 
 export interface Screen {
@@ -103,6 +104,8 @@ export interface Media {
   clock_config: ClockConfig | null
   weather_config: WeatherConfig | null
   quotes_config: QuotesConfig | null
+  size_bytes: number | null
+  rendition_sizes: Record<string, number> | null
   folder_id: string | null
   duration: number
   created_at: string

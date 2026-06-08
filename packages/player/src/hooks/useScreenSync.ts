@@ -51,11 +51,13 @@ async function buildTelemetry(currentMedia: string, orientation: string, checkNe
   let storageStr = ''   // cache usado (uso da origem: IndexedDB + Cache Storage + localStorage)
   let storageTotal = '' // total disponível para o app
   let storageFree = ''  // livre estimado
+  let storageQuotaBytes = 0  // cota total em bytes (p/ o indicador de capacidade no admin)
   try {
     if (navigator.storage?.estimate) {
       const est = await navigator.storage.estimate()
       const usage = est.usage ?? 0
       const quota = est.quota ?? 0
+      storageQuotaBytes = quota
       storageStr = formatBytes(usage)
       storageTotal = formatBytes(quota)
       storageFree = formatBytes(Math.max(0, quota - usage))
@@ -96,6 +98,7 @@ async function buildTelemetry(currentMedia: string, orientation: string, checkNe
     storage_estimate: storageStr,   // cache salvo
     storage_total: storageTotal,    // disponível para o app
     storage_free: storageFree,      // livre estimado
+    storage_quota_bytes: storageQuotaBytes,  // cota em bytes (p/ indicador de capacidade)
     cpu: cpuStr,                    // processador (núcleos · arquitetura)
     ram: ramStr,                   // memória RAM aproximada
     device_model: deviceModel,     // modelo do aparelho (quando disponível)
