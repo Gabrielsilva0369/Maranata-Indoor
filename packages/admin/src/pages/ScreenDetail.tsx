@@ -82,20 +82,49 @@ export default function ScreenDetail() {
     },
   })
 
-  // Mídias da playlist desta tela — pra estimar quanto ocupa no box.
-  const { data: playlistMedia = [] } = useQuery<{ type: string; size_bytes: number | null; rendition_sizes: Record<string, number> | null }[]>({
-    queryKey: ['playlist-media', screen?.playlist_id],
+  // Itens da playlist desta tela — pra estimar quanto TUDO ocupa no box
+  // (mídias, fundos de frase/relógio e notícias).
+  const { data: playlistRows = [] } = useQuery<{
+    rss_feed_id: string | null
+    rss_article_count: number | null
+    media: { type: string; size_bytes: number | null; rendition_sizes: Record<string, number> | null;
+             clock_config: { bg_image_path: string | null } | null;
+             quotes_config: { bg_image_path: string | null } | null } | null
+  }[]>({
+    queryKey: ['playlist-capacity', screen?.playlist_id],
     queryFn: async () => {
       if (!screen?.playlist_id) return []
       const { data, error } = await supabase
         .from('playlist_items')
-        .select('media(type, size_bytes, rendition_sizes)')
+        .select('rss_feed_id, rss_article_count, media(type, size_bytes, rendition_sizes, clock_config, quotes_config)')
         .eq('playlist_id', screen.playlist_id)
       if (error) throw error
-      return (data ?? []).map((it: any) => it.media).filter(Boolean)
+      return (data ?? []).map((it: any) => ({
+        rss_feed_id: it.rss_feed_id, rss_article_count: it.rss_article_count,
+        media: Array.isArray(it.media) ? (it.media[0] ?? null) : it.media,
+      }))
     },
     enabled: !!screen?.playlist_id,
   })
+
+  // Caminhos dos fundos (frase/relógio) usados — pra somar o tamanho deles (estão na tabela assets).
+  const bgPaths = Array.from(new Set(
+    playlistRows.flatMap(r => {
+      const p = r.media?.clock_config?.bg_image_path ?? r.media?.quotes_config?.bg_image_path
+      return p ? [p] : []
+    })
+  ))
+  const { data: bgAssets = [] } = useQuery<{ path: string; rendition_sizes: Record<string, number> | null }[]>({
+    queryKey: ['bg-assets', bgPaths],
+    queryFn: async () => {
+      if (!bgPaths.length) return []
+      const { data, error } = await supabase.from('assets').select('path, rendition_sizes').in('path', bgPaths)
+      if (error) throw error
+      return data ?? []
+    },
+    enabled: bgPaths.length > 0,
+  })
+  const bgSizeByPath = new Map(bgAssets.map(a => [a.path, a.rendition_sizes]))
 
   // Atualiza qualquer campo da tela (playlist, som, rodapé, etc.).
   const updateScreen = useMutation({
@@ -131,16 +160,39 @@ export default function ScreenDetail() {
   const online = isOnline(screen.last_seen)
   const t = screen.telemetry
 
-  // Estima quanto a playlist ocupa no box, na qualidade da tela. Vídeo e imagem
-  // nova têm renditions (rendition_sizes); imagem antiga tem size_bytes único.
+  // Estima quanto a playlist INTEIRA ocupa no box, na qualidade da tela:
+  //  • vídeo/imagem  → rendition da qualidade (ou size_bytes legado)
+  //  • frase/relógio → tamanho do fundo (imagem em cache; 0 se for cor sólida)
+  //  • notícias (RSS) → estimativa: ~120 KB por notícia (capa + logo, redimensionados)
+  //  • clima/HTML/YouTube/Stream → 0 (não baixam arquivo; renderizam/transmitem ao vivo)
   const quality = screen.video_quality ?? 'hd'
+  const RSS_BYTES_PER_ARTICLE = 120 * 1024
   let contentBytes = 0
   let unknownCount = 0
-  for (const m of playlistMedia) {
-    if (m.type !== 'video' && m.type !== 'image') continue
-    const s = m.rendition_sizes?.[quality] ?? m.rendition_sizes?.fhd ?? m.size_bytes
-    if (s) contentBytes += s
-    else unknownCount++
+  let hasEstimate = false
+  for (const r of playlistRows) {
+    if (r.rss_feed_id) {
+      contentBytes += (r.rss_article_count ?? 5) * RSS_BYTES_PER_ARTICLE
+      hasEstimate = true
+      continue
+    }
+    const m = r.media
+    if (!m) continue
+    if (m.type === 'video' || m.type === 'image') {
+      const s = m.rendition_sizes?.[quality] ?? m.rendition_sizes?.fhd ?? m.size_bytes
+      if (s) contentBytes += s
+      else unknownCount++
+    } else if (m.type === 'clock' || m.type === 'quotes') {
+      const bg = m.clock_config?.bg_image_path ?? m.quotes_config?.bg_image_path
+      if (bg) {
+        const rs = bgSizeByPath.get(bg)
+        const s = rs?.[quality] ?? rs?.fhd
+        if (s) contentBytes += s
+        else unknownCount++
+      }
+      // sem fundo (cor sólida) = ~0
+    }
+    // weather/html/youtube/stream = ~0 (não cacheiam arquivo)
   }
   const quotaBytes = t?.storage_quota_bytes ?? 0
   const usagePct = quotaBytes ? Math.min(100, Math.round((contentBytes / quotaBytes) * 100)) : 0
@@ -299,7 +351,7 @@ export default function ScreenDetail() {
                 Capacidade desta tela <span className="text-gray-400 font-normal">(qualidade {QUALITY_LABEL[quality] ?? quality})</span>
               </h3>
               <span className="text-sm text-gray-600">
-                {fmtBytes(contentBytes)} de {fmtBytes(quotaBytes)}
+                {hasEstimate ? '≈ ' : ''}{fmtBytes(contentBytes)} de {fmtBytes(quotaBytes)}
               </span>
             </div>
             <div className="h-3 w-full rounded-full bg-gray-100 overflow-hidden">
@@ -313,6 +365,11 @@ export default function ScreenDetail() {
                 ? `✓ Cabe no armazenamento (${usagePct}% usado)`
                 : `⚠ Conteúdo muito grande para este box (${usagePct}%) — reduza a qualidade ou remova mídias`}
             </p>
+            {hasEstimate && (
+              <p className="mt-1 text-xs text-gray-400">
+                Inclui estimativa das notícias (~120 KB por notícia). Clima, HTML, YouTube e Stream não ocupam cache.
+              </p>
+            )}
             {unknownCount > 0 && (
               <p className="mt-1 text-xs text-gray-400">
                 {unknownCount} mídia(s) sem tamanho registrado (envie novamente para contabilizar).
