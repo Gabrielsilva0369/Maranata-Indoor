@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useCachedUrl } from '../../hooks/useCachedUrl'
+import { qualityPath, type VideoQuality } from '../../lib/quality'
 
 interface ClockConfig {
   timezone: string
@@ -15,13 +16,14 @@ interface ClockConfig {
 interface Props {
   config: ClockConfig
   duration: number
+  quality?: VideoQuality
   showProgress?: boolean
   onEnd: () => void
 }
 
 const GOOGLE_FONTS = ['Roboto','Open Sans','Montserrat','Lato','Raleway','Oswald','Poppins','Playfair Display','Bebas Neue','Ubuntu']
 
-export default function ClockPlayer({ config, duration, showProgress = true, onEnd }: Props) {
+export default function ClockPlayer({ config, duration, quality = 'fhd', showProgress = true, onEnd }: Props) {
   const [now, setNow] = useState(new Date())
   const [progress, setProgress] = useState(0)
 
@@ -72,7 +74,9 @@ export default function ClockPlayer({ config, duration, showProgress = true, onE
     day: '2-digit', month: 'long', year: 'numeric',
   }).format(now)
 
-  const { url: bgUrl } = useCachedUrl(config.bg_type === 'image' ? config.bg_image_path : null)
+  const { url: bgUrl } = useCachedUrl(
+    config.bg_type === 'image' && config.bg_image_path ? qualityPath(config.bg_image_path, quality) : null
+  )
 
   const bgStyle: React.CSSProperties =
     config.bg_type === 'image' && bgUrl

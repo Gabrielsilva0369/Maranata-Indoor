@@ -37,11 +37,12 @@ registerSW({
   },
 })
 
-// Restart leve a cada 4h: recarrega a página pra liberar memória acumulada
+// Restart leve a cada 1h: recarrega a página pra liberar memória acumulada
 // (vazamentos do WebView/decoder em box fraco que levam a crash/reboot). NÃO
-// re-baixa nada (cache continua). Pulado no preview do admin.
+// re-baixa nada (o cache continua); o re-sync no boot só RE-VERIFICA a
+// integridade do que já está baixado. Pulado no preview do admin.
 if (typeof window !== 'undefined' && !new URLSearchParams(location.search).get('preview')) {
-  setTimeout(() => location.reload(), 4 * 60 * 60 * 1000)
+  setTimeout(() => location.reload(), 60 * 60 * 1000)
 }
 
 // ============================================================

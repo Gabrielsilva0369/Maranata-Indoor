@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useCachedUrl } from '../../hooks/useCachedUrl'
+import { qualityPath, type VideoQuality } from '../../lib/quality'
 
 interface QuotesConfig {
   quote: string
@@ -17,15 +18,18 @@ const NON_GOOGLE = ['system-ui', 'Arial', 'Georgia', 'Courier New']
 interface Props {
   config: QuotesConfig
   duration: number
+  quality?: VideoQuality
   showProgress?: boolean
   onEnd: () => void
 }
 
 // Frase motivacional: mostra a frase (e a citação/autor) por `duration` segundos
 // sobre um fundo fixo, depois avança para a próxima mídia.
-export default function QuotesPlayer({ config, duration, showProgress = true, onEnd }: Props) {
+export default function QuotesPlayer({ config, duration, quality = 'fhd', showProgress = true, onEnd }: Props) {
   const [progress, setProgress] = useState(0)
-  const { url: bgUrl } = useCachedUrl(config.bg_type === 'image' ? config.bg_image_path : null)
+  const { url: bgUrl } = useCachedUrl(
+    config.bg_type === 'image' && config.bg_image_path ? qualityPath(config.bg_image_path, quality) : null
+  )
   const font = config.font || 'system-ui'
 
   // Carrega a Google Font escolhida, se for uma.

@@ -1,5 +1,7 @@
 import { supabase } from './supabase'
 import { timeoutSignal } from './network'
+import { newsImageUrl } from './newsImage'
+import type { VideoQuality } from './quality'
 
 export interface CachedArticle {
   id: string
@@ -31,7 +33,7 @@ export function getCachedArticles(feedId: string): CachedArticle[] {
  * (capa + logo da fonte) para serem aquecidas no cache do Service Worker.
  * Offline / erro: mantém o cache anterior e devolve [].
  */
-export async function refreshFeedArticles(feedId: string, cap = 20): Promise<string[]> {
+export async function refreshFeedArticles(feedId: string, cap = 20, quality: VideoQuality = 'fhd'): Promise<string[]> {
   // Timeout para não pendurar o boot offline.
   let query = supabase
     .from('rss_articles')
@@ -59,10 +61,14 @@ export async function refreshFeedArticles(feedId: string, cap = 20): Promise<str
     /* cota de localStorage estourada — segue sem persistir */
   }
 
+  // Aquece as MESMAS URLs que o player vai pedir: as versões redimensionadas
+  // pela qualidade da tela (assim o Service Worker já tem o que o <img> busca).
   const urls: string[] = []
   for (const a of data) {
-    if (a.image_url) urls.push(a.image_url)
-    if (a.source_logo) urls.push(a.source_logo)
+    const cover = newsImageUrl(a.image_url, quality)
+    const logo = newsImageUrl(a.source_logo, quality, 0.2)
+    if (cover) urls.push(cover)
+    if (logo) urls.push(logo)
   }
   return urls
 }

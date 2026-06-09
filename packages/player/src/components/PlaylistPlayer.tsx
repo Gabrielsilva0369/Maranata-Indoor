@@ -147,21 +147,21 @@ export default function PlaylistPlayer({ items, screen, onMediaChange, forceMute
   const renderPlayer = () => {
     if (rss_feed_id && rss_feed) {
       return <RssNewsPlayer key={current.id} feedId={rss_feed_id} duration={duration}
-        articleCount={current.rss_article_count ?? 5} showProgress={showProgress} onEnd={advance} />
+        articleCount={current.rss_article_count ?? 5} quality={screen.video_quality} showProgress={showProgress} onEnd={advance} />
     }
     if (media) {
       if (media.type === 'image' && media.storage_path)
-        return <ImagePlayer key={current.id} storagePath={media.storage_path} duration={duration} showProgress={showProgress} onEnd={advance} />
+        return <ImagePlayer key={current.id} storagePath={media.storage_path} quality={screen.video_quality} duration={duration} showProgress={showProgress} onEnd={advance} />
       if (media.type === 'video' && media.storage_path)
         return <VideoPlayer key={current.id} storagePath={media.storage_path} muted={muted} quality={screen.video_quality} onEnd={advance} />
       if (media.type === 'html')
         return <HtmlPlayer key={current.id} url={media.url} htmlContent={media.html_content} duration={duration} showProgress={showProgress} onEnd={advance} />
       if (media.type === 'clock' && media.clock_config)
-        return <ClockPlayer key={current.id} config={media.clock_config} duration={duration} showProgress={showProgress} onEnd={advance} />
+        return <ClockPlayer key={current.id} config={media.clock_config} quality={screen.video_quality} duration={duration} showProgress={showProgress} onEnd={advance} />
       if (media.type === 'weather' && media.weather_config)
         return <WeatherPlayer key={current.id} config={media.weather_config} duration={duration} showProgress={showProgress} onEnd={advance} />
       if (media.type === 'quotes' && media.quotes_config)
-        return <QuotesPlayer key={current.id} config={media.quotes_config} duration={duration} showProgress={showProgress} onEnd={advance} />
+        return <QuotesPlayer key={current.id} config={media.quotes_config} quality={screen.video_quality} duration={duration} showProgress={showProgress} onEnd={advance} />
       if (media.type === 'youtube' && media.url)
         return <YouTubePlayer key={current.id} url={media.url} duration={duration_override ?? media?.duration ?? 0} muted={muted} onEnd={advance} />
       if (media.type === 'stream' && media.url)

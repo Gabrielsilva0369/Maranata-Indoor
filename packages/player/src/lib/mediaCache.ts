@@ -1,6 +1,7 @@
 import { getPublicUrl } from './supabase'
 import { refreshFeedArticles } from './newsCache'
 import { hasInternet } from './network'
+import { qualityPath } from './quality'
 
 const DB_NAME = 'MaranataMediaCache'
 const DB_VERSION = 1
@@ -277,26 +278,29 @@ export async function syncMediaCache(
     markCacheBuilt()
   }
 
-  // ── 1. Mídias do Storage (imagens, vídeos, fundo do relógio) → IndexedDB ──
+  // ── 1. Mídias do Storage (imagens, vídeos, fundos) → IndexedDB ──
+  // Sempre cacheamos a RENDITION da qualidade da tela (mesma que o player toca).
+  // expectedSizes guarda o tamanho esperado (quando conhecido no banco) p/ a
+  // verificação de integridade do que já está em cache.
   const activePaths: string[] = []
+  const expectedSizes = new Map<string, number>()
   for (const item of items) {
     if (item.media) {
       const sp = item.media.storage_path
       // Imagens E vídeos são cacheados localmente para funcionar OFFLINE
       // (queda de internet / boot sem rede). O download é SEQUENCIAL (um de
       // cada vez, abaixo) — nunca em paralelo — para não saturar a banda.
-      if (sp && item.media.type === 'image') {
-        activePaths.push(sp)
-      }
-      if (sp && item.media.type === 'video') {
-        // Cacheia a rendition da qualidade da tela (a mesma que o player toca).
-        activePaths.push(quality !== 'fhd' ? sp.replace(/_fhd\.mp4$/, `_${quality}.mp4`) : sp)
+      if (sp && (item.media.type === 'image' || item.media.type === 'video')) {
+        const p = qualityPath(sp, quality)
+        activePaths.push(p)
+        const exp = item.media.rendition_sizes?.[quality] ?? item.media.size_bytes
+        if (exp) expectedSizes.set(p, exp)
       }
       if (item.media.type === 'clock' && item.media.clock_config?.bg_image_path) {
-        activePaths.push(item.media.clock_config.bg_image_path)
+        activePaths.push(qualityPath(item.media.clock_config.bg_image_path, quality))
       }
       if (item.media.type === 'quotes' && item.media.quotes_config?.bg_image_path) {
-        activePaths.push(item.media.quotes_config.bg_image_path)
+        activePaths.push(qualityPath(item.media.quotes_config.bg_image_path, quality))
       }
     }
   }
@@ -316,7 +320,7 @@ export async function syncMediaCache(
   // Busca os feeds EM PARALELO e cada um já tem timeout — offline isto resolve
   // rápido (não pendura o boot) e a reprodução cai pro cache.
   const perFeed = await Promise.all(
-    Array.from(feedIds).map(fid => refreshFeedArticles(fid).catch(() => [] as string[]))
+    Array.from(feedIds).map(fid => refreshFeedArticles(fid, 20, quality).catch(() => [] as string[]))
   )
   for (const imgs of perFeed) warmUrls.push(...imgs)
 
@@ -337,9 +341,17 @@ export async function syncMediaCache(
       currentFile: path.split('/').pop() || path,
     })
     try {
-      // Só baixa se ainda não estiver no cache local (evita re-download)
+      // Verifica o que JÁ está em cache: se o tamanho não bate com o esperado
+      // (arquivo corrompeu depois de salvo) ou está vazio, apaga p/ re-baixar.
       const cachedBlob = await getCache(path)
-      if (!cachedBlob) {
+      const exp = expectedSizes.get(path)
+      const corrupt = !!cachedBlob && (cachedBlob.size === 0 || (!!exp && cachedBlob.size !== exp))
+      if (corrupt) {
+        console.warn('[Cache] Arquivo corrompido no cache, re-baixando:', path)
+        await deleteCache(path)
+      }
+      // Só baixa se não estiver no cache (ou se acabou de ser removido por corrupção)
+      if (!cachedBlob || corrupt) {
         const res = await fetchWithTimeout(getPublicUrl(path), 90000)
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
         const expected = Number(res.headers.get('content-length') || 0)

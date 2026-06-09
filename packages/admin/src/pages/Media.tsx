@@ -5,6 +5,7 @@ import type { Media, MediaType, ClockConfig, WeatherConfig, QuotesConfig, MediaF
 import { Upload, Trash2, Plus, Image, Film, Code, Clock, Cloud, Search, MapPin, Pencil, Folder, FolderPlus, Layers, Youtube, Radio, Quote } from 'lucide-react'
 import { transcodeVideoRenditions } from '../lib/videoTranscode'
 import { uploadToSpaces, deleteFromSpaces, mediaUrl } from '../lib/spaces'
+import { putAsset, releaseAsset } from '../lib/assets'
 
 // Sobe as 3 qualidades do vídeo (SD/HD/FullHD) e devolve o storage_path base
 // (o arquivo _fhd; o player deriva _hd/_sd trocando o sufixo).
@@ -24,6 +25,7 @@ async function uploadVideoRenditions(
 }
 
 // Remove da DO. Vídeo novo tem 4 renditions (_sd/_qhd/_hd/_fhd) → remove as 4.
+// Imagem (renditions _fhd.jpg ou legado) passa por releaseAsset (refs/dedup).
 async function removeMediaStorage(storagePath: string | null | undefined) {
   if (!storagePath) return
   if (/_fhd\.mp4$/.test(storagePath)) {
@@ -35,7 +37,7 @@ async function removeMediaStorage(storagePath: string | null | undefined) {
       deleteFromSpaces(`${base}_fhd.mp4`),
     ])
   } else {
-    await deleteFromSpaces(storagePath)
+    await releaseAsset(storagePath)
   }
 }
 
@@ -738,29 +740,24 @@ export default function MediaPage() {
           storagePath = r.path
           renditionSizes = r.sizes
         } else {
-          const ext = file.name.split('.').pop()
-          const path = `images/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
-          await uploadToSpaces(path, file, file.type || 'image/jpeg')
-          storagePath = path
-          sizeBytes = file.size
+          // Imagem: gera renditions SD/540p/HD/FullHD e deduplica por conteúdo.
+          const r = await putAsset(file, 'images')
+          storagePath = r.path
+          renditionSizes = r.rendition_sizes
         }
       }
 
-      // Upload fundo do relógio
+      // Upload fundo do relógio (com renditions + dedup)
       if (type === 'clock' && clockCfg.bg_type === 'image' && bgFile) {
-        const ext = bgFile.name.split('.').pop()
-        const path = `clock-bg/${Date.now()}.${ext}`
-        await uploadToSpaces(path, bgFile, bgFile.type || 'image/jpeg')
-        finalClock = { ...clockCfg, bg_image_path: path }
+        const r = await putAsset(bgFile, 'clock-bg')
+        finalClock = { ...clockCfg, bg_image_path: r.path }
       }
 
-      // Frase: upload do fundo
+      // Frase: upload do fundo (com renditions + dedup)
       let finalQuotes = { ...quotesCfg, quote: quotesCfg.quote.trim(), author: quotesCfg.author.trim() }
       if (type === 'quotes' && quotesCfg.bg_type === 'image' && bgFile) {
-        const ext = bgFile.name.split('.').pop()
-        const path = `quotes-bg/${Date.now()}.${ext}`
-        await uploadToSpaces(path, bgFile, bgFile.type || 'image/jpeg')
-        finalQuotes = { ...finalQuotes, bg_image_path: path }
+        const r = await putAsset(bgFile, 'quotes-bg')
+        finalQuotes = { ...finalQuotes, bg_image_path: r.path }
       }
 
       const { error } = await supabase.from('media').insert({
@@ -811,11 +808,10 @@ export default function MediaPage() {
           patch.rendition_sizes = r.sizes
           patch.size_bytes = null
         } else {
-          const ext = file.name.split('.').pop()
-          newPath = `images/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
-          await uploadToSpaces(newPath, file, file.type || 'image/jpeg')
-          patch.size_bytes = file.size
-          patch.rendition_sizes = null
+          const r = await putAsset(file, 'images')
+          newPath = r.path
+          patch.rendition_sizes = r.rendition_sizes
+          patch.size_bytes = null
         }
         await removeMediaStorage(existing?.storage_path)
         patch.storage_path = newPath
@@ -825,11 +821,9 @@ export default function MediaPage() {
       if (type === 'clock') {
         let finalClock = clockCfg
         if (clockCfg.bg_type === 'image' && bgFile) {
-          const ext = bgFile.name.split('.').pop()
-          const path = `clock-bg/${Date.now()}.${ext}`
-          await uploadToSpaces(path, bgFile, bgFile.type || 'image/jpeg')
-          if (existing?.clock_config?.bg_image_path) await deleteFromSpaces(existing.clock_config.bg_image_path)
-          finalClock = { ...clockCfg, bg_image_path: path }
+          const r = await putAsset(bgFile, 'clock-bg')
+          if (existing?.clock_config?.bg_image_path) await releaseAsset(existing.clock_config.bg_image_path)
+          finalClock = { ...clockCfg, bg_image_path: r.path }
         }
         patch.clock_config = finalClock
       }
@@ -838,11 +832,9 @@ export default function MediaPage() {
       if (type === 'quotes') {
         let finalQuotes = { ...quotesCfg, quote: quotesCfg.quote.trim(), author: quotesCfg.author.trim() }
         if (quotesCfg.bg_type === 'image' && bgFile) {
-          const ext = bgFile.name.split('.').pop()
-          const path = `quotes-bg/${Date.now()}.${ext}`
-          await uploadToSpaces(path, bgFile, bgFile.type || 'image/jpeg')
-          if (existing?.quotes_config?.bg_image_path) await deleteFromSpaces(existing.quotes_config.bg_image_path)
-          finalQuotes = { ...finalQuotes, bg_image_path: path }
+          const r = await putAsset(bgFile, 'quotes-bg')
+          if (existing?.quotes_config?.bg_image_path) await releaseAsset(existing.quotes_config.bg_image_path)
+          finalQuotes = { ...finalQuotes, bg_image_path: r.path }
         }
         patch.quotes_config = finalQuotes
       }
@@ -860,8 +852,8 @@ export default function MediaPage() {
   const deleteMedia = useMutation({
     mutationFn: async (item: Media) => {
       await removeMediaStorage(item.storage_path)
-      if (item.clock_config?.bg_image_path) await deleteFromSpaces(item.clock_config.bg_image_path)
-      if (item.quotes_config?.bg_image_path) await deleteFromSpaces(item.quotes_config.bg_image_path)
+      if (item.clock_config?.bg_image_path) await releaseAsset(item.clock_config.bg_image_path)
+      if (item.quotes_config?.bg_image_path) await releaseAsset(item.quotes_config.bg_image_path)
       const { error } = await supabase.from('media').delete().eq('id', item.id)
       if (error) throw error
     },

@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { supabase } from '../../lib/supabase'
 import { getCachedArticles } from '../../lib/newsCache'
+import { newsImageUrl } from '../../lib/newsImage'
+import type { VideoQuality } from '../../lib/quality'
 
 interface Article {
   id: string
@@ -25,11 +27,12 @@ interface Props {
   feedId: string
   duration: number       // segundos por artigo
   articleCount: number   // quantas notícias exibir
+  quality?: VideoQuality
   showProgress?: boolean
   onEnd: () => void
 }
 
-export default function RssNewsPlayer({ feedId, duration, articleCount, showProgress = true, onEnd }: Props) {
+export default function RssNewsPlayer({ feedId, duration, articleCount, quality = 'fhd', showProgress = true, onEnd }: Props) {
   const [articles, setArticles] = useState<Article[]>([])
   const [index, setIndex] = useState(0)
   const [progress, setProgress] = useState(0)
@@ -132,17 +135,22 @@ export default function RssNewsPlayer({ feedId, duration, articleCount, showProg
         }}
       />
 
-      {/* Imagem real da notícia por cima; some no erro e revela o fallback */}
+      {/* Imagem real da notícia por cima (redimensionada à qualidade da tela);
+          no erro tenta a original e, se falhar de novo, some e revela o fallback */}
       {article.image_url && (
         <img
           key={article.image_url}
-          src={article.image_url}
+          src={newsImageUrl(article.image_url, quality) ?? undefined}
           alt=""
           style={{
             position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, width: '100%', height: '100%',
             objectFit: 'cover',
           }}
-          onError={e => (e.currentTarget.style.display = 'none')}
+          onError={e => {
+            const el = e.currentTarget
+            if (article.image_url && el.src !== article.image_url) el.src = article.image_url
+            else el.style.display = 'none'
+          }}
         />
       )}
 
@@ -179,7 +187,7 @@ export default function RssNewsPlayer({ feedId, duration, articleCount, showProg
           )}
           {article.source_logo && (
             <img
-              src={article.source_logo}
+              src={newsImageUrl(article.source_logo, quality, 0.2) ?? undefined}
               alt={article.source_name ?? ''}
               style={{
                 height: 36, width: 'auto', maxWidth: 120,
@@ -187,7 +195,11 @@ export default function RssNewsPlayer({ feedId, duration, articleCount, showProg
                 background: 'rgba(255,255,255,0.15)',
                 padding: '4px 8px',
               }}
-              onError={e => (e.currentTarget.style.display = 'none')}
+              onError={e => {
+                const el = e.currentTarget
+                if (article.source_logo && el.src !== article.source_logo) el.src = article.source_logo
+                else el.style.display = 'none'
+              }}
             />
           )}
         </div>

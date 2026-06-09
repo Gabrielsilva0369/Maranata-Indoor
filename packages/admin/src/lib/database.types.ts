@@ -168,6 +168,14 @@ export interface PlaylistItem {
   rss_feed?: RssFeed | null
 }
 
+export interface Asset {
+  hash: string
+  path: string
+  rendition_sizes: Record<string, number> | null
+  refs: number
+  created_at: string
+}
+
 export interface AppBundle {
   id: string
   version: string
@@ -188,6 +196,7 @@ export type Database = {
       rss_feeds:      { Row: RssFeed;     Insert: Omit<RssFeed,     'id' | 'created_at' | 'last_synced_at'>; Update: Partial<Omit<RssFeed, 'id'>> }
       rss_articles:   { Row: RssArticle;  Insert: Omit<RssArticle,  'id'>;               Update: Partial<Omit<RssArticle,  'id'>> }
       app_bundles:    { Row: AppBundle;   Insert: Omit<AppBundle,   'id' | 'created_at'>; Update: Partial<Omit<AppBundle,   'id'>> }
+      assets:         { Row: Asset;       Insert: Omit<Asset,       'created_at'>;        Update: Partial<Asset> }
     }
   }
 }

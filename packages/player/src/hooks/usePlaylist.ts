@@ -51,6 +51,8 @@ export interface MediaItem {
   clock_config: ClockConfig | null
   weather_config: WeatherConfig | null
   quotes_config: QuotesConfig | null
+  size_bytes: number | null
+  rendition_sizes: Record<string, number> | null
   duration: number
 }
 

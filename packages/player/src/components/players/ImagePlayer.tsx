@@ -1,16 +1,19 @@
 import { useEffect, useState } from 'react'
 import { useCachedUrl } from '../../hooks/useCachedUrl'
+import { qualityPath, type VideoQuality } from '../../lib/quality'
 
 interface Props {
   storagePath: string
   duration: number
+  quality?: VideoQuality
   showProgress?: boolean
   onEnd: () => void
 }
 
-export default function ImagePlayer({ storagePath, duration, showProgress = true, onEnd }: Props) {
+export default function ImagePlayer({ storagePath, duration, quality = 'fhd', showProgress = true, onEnd }: Props) {
   const [progress, setProgress] = useState(0)
-  const { url } = useCachedUrl(storagePath)
+  // Imagem nova tem renditions (..._fhd.jpg); usa a versão da qualidade da tela.
+  const { url } = useCachedUrl(qualityPath(storagePath, quality))
 
   useEffect(() => {
     setProgress(0)
