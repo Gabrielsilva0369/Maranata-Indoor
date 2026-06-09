@@ -9,6 +9,8 @@ export const APP_VERSION = '1.0.0'
 interface Args {
   screenId: string | undefined
   currentMedia: string
+  /** id do item da playlist em exibição — usado pelo preview do admin (modo seguir). */
+  currentItemId?: string
   orientation: string
   /** Refresh suave: re-busca playlist/config e reinicia a reprodução SEM recarregar o navegador. */
   onRefresh?: () => void
@@ -36,7 +38,7 @@ function formatBytes(b: number): string {
   return `${(b / 1024 / 1024).toFixed(1)} MB`
 }
 
-async function buildTelemetry(currentMedia: string, orientation: string, checkNet = false) {
+async function buildTelemetry(currentMedia: string, currentItemId: string, orientation: string, checkNet = false) {
   const ua = navigator.userAgent
 
   // Checa internet de verdade (só no heartbeat, pra não pesar). Se chegou aqui
@@ -92,6 +94,7 @@ async function buildTelemetry(currentMedia: string, orientation: string, checkNe
 
   return {
     current_media: currentMedia,
+    current_item_id: currentItemId,   // p/ o preview do admin seguir o item no ar
     resolution: res,
     user_agent: detectOS(ua),
     app_version: APP_VERSION,
@@ -109,9 +112,11 @@ async function buildTelemetry(currentMedia: string, orientation: string, checkNe
   }
 }
 
-export function useScreenSync({ screenId, currentMedia, orientation, onRefresh, onUpdate, disabled }: Args) {
+export function useScreenSync({ screenId, currentMedia, currentItemId = '', orientation, onRefresh, onUpdate, disabled }: Args) {
   const mediaRef = useRef(currentMedia)
   mediaRef.current = currentMedia
+  const itemIdRef = useRef(currentItemId)
+  itemIdRef.current = currentItemId
   const orientationRef = useRef(orientation)
   orientationRef.current = orientation
   // Ref para sempre chamar o callback mais recente sem re-assinar o polling.
@@ -128,7 +133,7 @@ export function useScreenSync({ screenId, currentMedia, orientation, onRefresh, 
     let sessionSet = false
 
     const beat = async () => {
-      const telemetry = await buildTelemetry(mediaRef.current, orientationRef.current, true)
+      const telemetry = await buildTelemetry(mediaRef.current, itemIdRef.current, orientationRef.current, true)
       const now = new Date()
       const patch: Record<string, unknown> = {
         last_seen: now.toISOString(),
@@ -155,12 +160,13 @@ export function useScreenSync({ screenId, currentMedia, orientation, onRefresh, 
     return () => clearInterval(id)
   }, [screenId, disabled])
 
-  // Atualiza a telemetria imediatamente sempre que a mídia atual muda
+  // Atualiza a telemetria imediatamente sempre que a mídia/item atual muda
+  // (o current_item_id é o que o preview do admin segue).
   useEffect(() => {
     if (!screenId || !currentMedia || disabled) return
     let cancelled = false
     ;(async () => {
-      const telemetry = await buildTelemetry(currentMedia, orientationRef.current)
+      const telemetry = await buildTelemetry(currentMedia, currentItemId, orientationRef.current)
       if (cancelled) return
       await supabase
         .from('screens')
@@ -168,7 +174,7 @@ export function useScreenSync({ screenId, currentMedia, orientation, onRefresh, 
         .eq('id', screenId)
     })()
     return () => { cancelled = true }
-  }, [screenId, currentMedia, disabled])
+  }, [screenId, currentMedia, currentItemId, disabled])
 
   // Polling de comandos remotos (a cada 15s)
   useEffect(() => {

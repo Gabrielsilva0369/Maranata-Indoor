@@ -27,11 +27,13 @@ export default function App() {
   const { token, pairCode, preview } = useScreenToken()
   const { screen, items, paired, loading, refetch, syncStatus } = usePlaylist(token)
   const [currentMedia, setCurrentMedia] = useState('')
+  const [currentItemId, setCurrentItemId] = useState('')
   const [updating, setUpdating] = useState(false)
 
   // Registra cada exibição (para os relatórios). No preview, NÃO grava.
-  const handleMediaChange = (name: string, type?: string, durationSec?: number) => {
+  const handleMediaChange = (name: string, type?: string, durationSec?: number, itemId?: string) => {
     setCurrentMedia(name)
+    setCurrentItemId(itemId ?? '')
     if (preview || !screen?.id || !name || name === '—') return
     supabase.from('exhibition_logs').insert({
       screen_id: screen.id, name, type: type ?? null,
@@ -41,6 +43,7 @@ export default function App() {
   useScreenSync({
     screenId: screen?.id,
     currentMedia,
+    currentItemId,
     orientation: screen?.orientation ?? 'landscape',
     onRefresh: refetch,            // comando "Atualizar Tela": re-busca conteúdo sem recarregar o navegador
     onUpdate: () => setUpdating(true),  // comando "Atualizar App": mostra a tela e busca versão nova
@@ -134,7 +137,7 @@ export default function App() {
       {/* Overlay "tap to start" que libera o áudio do autoplay (auto-clique no load) */}
       <AudioUnlock />
       <OrientationWrapper orientation={screen!.orientation ?? 'landscape'}>
-      <PlaylistPlayer items={items} screen={screen!} onMediaChange={handleMediaChange} forceMuted={preview} />
+      <PlaylistPlayer items={items} screen={screen!} onMediaChange={handleMediaChange} forceMuted={preview} preview={preview} />
 
       {/* Indicador de sincronização local de mídias em background */}
       {syncStatus && syncStatus.status === 'syncing' && (

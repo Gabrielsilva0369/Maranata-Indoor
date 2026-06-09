@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react'
+import { supabase } from '../lib/supabase'
 import type { PlaylistItem, ScreenConfig, FooterConfig } from '../hooks/usePlaylist'
 import ImagePlayer from './players/ImagePlayer'
 import VideoPlayer from './players/VideoPlayer'
@@ -14,9 +15,11 @@ import Footer from './Footer'
 interface Props {
   items: PlaylistItem[]
   screen: ScreenConfig
-  onMediaChange?: (name: string, type?: string, durationSec?: number) => void
+  onMediaChange?: (name: string, type?: string, durationSec?: number, itemId?: string) => void
   /** Preview no admin: força tudo mudo (não sai som no painel). */
   forceMuted?: boolean
+  /** Preview no admin: SEGUE o item que a tela está exibindo (não roda a playlist do zero). */
+  preview?: boolean
 }
 
 // Verifica se um item está no horário/período agendado para exibição
@@ -47,7 +50,7 @@ function isItemActive(schedule: PlaylistItem['schedule'], now: Date): boolean {
   return cur >= startMin || cur < endMin
 }
 
-export default function PlaylistPlayer({ items, screen, onMediaChange, forceMuted }: Props) {
+export default function PlaylistPlayer({ items, screen, onMediaChange, forceMuted, preview }: Props) {
   const [index, setIndex] = useState(0)
 
   // Relógio que reavalia os agendamentos a cada 30s
@@ -75,11 +78,41 @@ export default function PlaylistPlayer({ items, screen, onMediaChange, forceMute
   }, [])
 
   const advance = useCallback(() => {
+    // No preview, enquanto a tela estiver reportando o item no ar (followId), quem
+    // manda é a telemetria (modo "seguir") — não avançamos sozinhos. Se o box ainda
+    // não reportou (player antigo/offline), o preview cicla normalmente como fallback.
+    if (preview && followIdRef.current) return
     setIndex(i => (i + 1) % Math.max(activeItems.length, 1))
-  }, [activeItems.length])
+  }, [activeItems.length, preview])
 
-  // Reinicia ao mudar a lista ou o conjunto ativo
-  useEffect(() => { setIndex(0) }, [items, activeItems.length])
+  // Reinicia ao mudar a lista ou o conjunto ativo (no preview, o item é seguido).
+  useEffect(() => { if (!preview) setIndex(0) }, [items, activeItems.length, preview])
+
+  // ── Modo SEGUIR (preview no admin) ─────────────────────────────────────────
+  // Lê na telemetria da tela qual item ela está exibindo AGORA e posiciona o
+  // preview no mesmo item — assim o painel mostra o que está no ar, não o começo.
+  const [followId, setFollowId] = useState<string | null>(null)
+  const followIdRef = useRef<string | null>(null)
+  followIdRef.current = followId
+  useEffect(() => {
+    if (!preview || !screen.id) return
+    let active = true
+    const poll = async () => {
+      const { data } = await supabase.from('screens').select('telemetry').eq('id', screen.id).maybeSingle()
+      if (!active) return
+      const cid = (data?.telemetry as { current_item_id?: string } | null)?.current_item_id
+      if (cid) setFollowId(cid)
+    }
+    poll()
+    const t = setInterval(poll, 3000)
+    return () => { active = false; clearInterval(t) }
+  }, [preview, screen.id])
+
+  useEffect(() => {
+    if (!preview || !followId) return
+    const i = activeItems.findIndex(it => it.id === followId)
+    if (i >= 0) setIndex(prev => (prev === i ? prev : i))
+  }, [preview, followId, activeItems])
 
   // Reporta a mídia atual para a telemetria
   useEffect(() => {
@@ -102,7 +135,7 @@ export default function PlaylistPlayer({ items, screen, onMediaChange, forceMute
       type = it.media.type
       durationSec = it.duration_override ?? it.media.duration ?? 10
     }
-    if (name) onMediaChange(name, type, durationSec)
+    if (name) onMediaChange(name, type, durationSec, it.id)
   }, [activeItems, index, onMediaChange])
 
   if (items.length === 0) {

@@ -369,7 +369,7 @@ export default function ScreenDetail() {
           )
         })()}
         <p className="text-xs text-gray-400 mt-2 max-w-2xl">
-          Mostra o mesmo conteúdo que está passando nesta tela (mesma playlist e configuração), tocando aqui no admin — <b>mudo</b> e sem afetar o status da tela. O tempo pode não estar idêntico ao do box; para o quadro exato use <b>Tirar Print</b>.
+          <b>Segue</b> o item que está no ar nesta tela (lê a telemetria do box) e troca junto com ele — não reinicia a playlist do começo. Toca aqui no admin <b>mudo</b> e sem afetar o status da tela. Dentro de um vídeo o tempo pode não bater exatamente; para o quadro exato use <b>Tirar Print</b>.
         </p>
       </section>
 

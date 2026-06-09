@@ -55,6 +55,7 @@ export type ScreenOrientation = 'landscape' | 'landscape-reverse' | 'portrait' |
 
 export interface ScreenTelemetry {
   current_media?: string
+  current_item_id?: string   // id do item no ar — o preview do admin segue este id
   resolution?: string
   user_agent?: string
   app_version?: string
