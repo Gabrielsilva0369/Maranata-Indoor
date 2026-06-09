@@ -131,19 +131,16 @@ export default function ScreenDetail() {
   const online = isOnline(screen.last_seen)
   const t = screen.telemetry
 
-  // Estima quanto a playlist ocupa no box, na qualidade da tela.
+  // Estima quanto a playlist ocupa no box, na qualidade da tela. Vídeo e imagem
+  // nova têm renditions (rendition_sizes); imagem antiga tem size_bytes único.
   const quality = screen.video_quality ?? 'hd'
   let contentBytes = 0
   let unknownCount = 0
   for (const m of playlistMedia) {
-    if (m.type === 'video') {
-      const s = m.rendition_sizes?.[quality] ?? m.rendition_sizes?.fhd
-      if (s) contentBytes += s
-      else unknownCount++
-    } else if (m.type === 'image') {
-      if (m.size_bytes) contentBytes += m.size_bytes
-      else unknownCount++
-    }
+    if (m.type !== 'video' && m.type !== 'image') continue
+    const s = m.rendition_sizes?.[quality] ?? m.rendition_sizes?.fhd ?? m.size_bytes
+    if (s) contentBytes += s
+    else unknownCount++
   }
   const quotaBytes = t?.storage_quota_bytes ?? 0
   const usagePct = quotaBytes ? Math.min(100, Math.round((contentBytes / quotaBytes) * 100)) : 0
