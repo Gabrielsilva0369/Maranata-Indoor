@@ -34,11 +34,18 @@ function markCacheBuilt(): void {
 }
 
 /**
- * Apaga TODO o cache de conteúdo: mídias (IndexedDB), imagens/feeds do Service
- * Worker e notícias (localStorage). Não toca no precache do app (a casca offline).
+ * Apaga o cache de conteúdo: mídias (IndexedDB), imagens/feeds do Service Worker
+ * e notícias (localStorage).
+ *
+ * `full` = limpeza TOTAL forçada (botão "Limpar Cache" do admin): também apaga o
+ * precache do app (todos os caches do SW) e a playlist offline em localStorage.
+ * Sem `full` (limpeza de rotina/validade) preserva o precache e a playlist offline
+ * para o boot offline continuar funcionando.
  */
-export async function clearAllCache(): Promise<void> {
-  // IndexedDB (imagens/vídeos)
+export async function clearAllCache(opts: { full?: boolean } = {}): Promise<void> {
+  // IndexedDB (imagens/vídeos). store.clear() funciona mesmo com conexões abertas
+  // (diferente de deleteDatabase, que ficaria "blocked" e não rodaria a tempo do
+  // reload). Fecha a conexão no fim para não segurar handles no WebView antigo.
   try {
     const db = await openDB()
     await new Promise<void>((resolve, reject) => {
@@ -47,24 +54,30 @@ export async function clearAllCache(): Promise<void> {
       tx.oncomplete = () => resolve()
       tx.onerror = () => reject(tx.error)
     })
+    db.close()
   } catch (e) {
     console.error('[Cache] erro ao limpar IndexedDB:', e)
   }
 
-  // Caches do Service Worker (imagens de notícia, mídia do Storage, feeds)
+  // Caches do Service Worker. No modo full apaga TUDO (inclui o precache do app);
+  // na rotina, só os caches de conteúdo (mídia/imagens/feeds).
   try {
     if (typeof caches !== 'undefined') {
-      await Promise.all(RUNTIME_CACHES.map(n => caches.delete(n)))
+      const names = opts.full ? await caches.keys() : RUNTIME_CACHES
+      await Promise.all(names.map(n => caches.delete(n)))
     }
   } catch (e) {
     console.error('[Cache] erro ao limpar Cache Storage:', e)
   }
 
-  // Notícias em localStorage + marca de idade (força rebaixar tudo do zero)
+  // localStorage: notícias + marca de validade. No modo full, também a playlist
+  // offline (maranata_player_cache_*) — força rebaixar e remontar tudo do zero.
   try {
     for (let i = localStorage.length - 1; i >= 0; i--) {
       const k = localStorage.key(i)
-      if (k && k.startsWith('maranata_news_')) localStorage.removeItem(k)
+      if (!k) continue
+      if (k.startsWith('maranata_news_')) localStorage.removeItem(k)
+      else if (opts.full && k.startsWith('maranata_player_cache_')) localStorage.removeItem(k)
     }
     localStorage.removeItem(BUILT_AT_KEY)
   } catch {

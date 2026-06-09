@@ -196,13 +196,10 @@ export function useScreenSync({ screenId, currentMedia, currentItemId = '', orie
         // Reload "duro": recarrega o navegador (força nova versão do app, etc.).
         location.reload()
       } else if (cmd === 'clear_cache') {
-        // Limpeza TOTAL: apaga os vídeos/imagens (IndexedDB), os caches do SW e
-        // as notícias; também o precache do app. Depois recarrega e baixa do zero.
-        await clearAllCache()
-        if ('caches' in window) {
-          const keys = await caches.keys()
-          await Promise.all(keys.map(k => caches.delete(k)))
-        }
+        // Limpeza TOTAL forçada: vídeos/imagens (IndexedDB), TODOS os caches do SW
+        // (inclui o precache do app), notícias e a playlist offline. Depois recarrega
+        // e baixa tudo do zero.
+        await clearAllCache({ full: true })
         location.reload()
       } else if (cmd === 'screenshot') {
         // Tira um print da tela atual e sobe pro admin.
