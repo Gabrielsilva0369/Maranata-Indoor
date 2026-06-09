@@ -87,7 +87,7 @@ export default function ScreenDetail() {
   const { data: playlistRows = [] } = useQuery<{
     rss_feed_id: string | null
     rss_article_count: number | null
-    media: { type: string; size_bytes: number | null; rendition_sizes: Record<string, number> | null;
+    media: { type: string; storage_path: string | null; size_bytes: number | null; rendition_sizes: Record<string, number> | null;
              clock_config: { bg_image_path: string | null } | null;
              quotes_config: { bg_image_path: string | null } | null } | null
   }[]>({
@@ -96,7 +96,7 @@ export default function ScreenDetail() {
       if (!screen?.playlist_id) return []
       const { data, error } = await supabase
         .from('playlist_items')
-        .select('rss_feed_id, rss_article_count, media(type, size_bytes, rendition_sizes, clock_config, quotes_config)')
+        .select('rss_feed_id, rss_article_count, media(type, storage_path, size_bytes, rendition_sizes, clock_config, quotes_config)')
         .eq('playlist_id', screen.playlist_id)
       if (error) throw error
       return (data ?? []).map((it: any) => ({
@@ -160,37 +160,44 @@ export default function ScreenDetail() {
   const online = isOnline(screen.last_seen)
   const t = screen.telemetry
 
-  // Estima quanto a playlist INTEIRA ocupa no box, na qualidade da tela:
+  // Estima quanto a playlist INTEIRA ocupa no box, na qualidade da tela.
+  // DEDUPLICA por caminho: a mesma mídia/fundo repetido na playlist é baixado 1×.
   //  • vídeo/imagem  → rendition da qualidade (ou size_bytes legado)
   //  • frase/relógio → tamanho do fundo (imagem em cache; 0 se for cor sólida)
-  //  • notícias (RSS) → estimativa: ~120 KB por notícia (capa + logo, redimensionados)
+  //  • notícias (RSS) → o player pré-baixa ~20 notícias POR FEED (capa+logo); estima por feed
   //  • clima/HTML/YouTube/Stream → 0 (não baixam arquivo; renderizam/transmitem ao vivo)
   const quality = screen.video_quality ?? 'hd'
-  const RSS_BYTES_PER_ARTICLE = 120 * 1024
+  const NEWS_BYTES_PER_FEED = 20 * 110 * 1024   // ~20 notícias × ~110 KB (capa + logo) redimensionadas
   let contentBytes = 0
   let unknownCount = 0
   let hasEstimate = false
+  const countedPaths = new Set<string>()
+  const countedFeeds = new Set<string>()
   for (const r of playlistRows) {
     if (r.rss_feed_id) {
-      contentBytes += (r.rss_article_count ?? 5) * RSS_BYTES_PER_ARTICLE
-      hasEstimate = true
+      if (!countedFeeds.has(r.rss_feed_id)) {
+        countedFeeds.add(r.rss_feed_id)
+        contentBytes += NEWS_BYTES_PER_FEED
+        hasEstimate = true
+      }
       continue
     }
     const m = r.media
     if (!m) continue
     if (m.type === 'video' || m.type === 'image') {
+      if (!m.storage_path || countedPaths.has(m.storage_path)) continue
+      countedPaths.add(m.storage_path)
       const s = m.rendition_sizes?.[quality] ?? m.rendition_sizes?.fhd ?? m.size_bytes
       if (s) contentBytes += s
       else unknownCount++
     } else if (m.type === 'clock' || m.type === 'quotes') {
       const bg = m.clock_config?.bg_image_path ?? m.quotes_config?.bg_image_path
-      if (bg) {
-        const rs = bgSizeByPath.get(bg)
-        const s = rs?.[quality] ?? rs?.fhd
-        if (s) contentBytes += s
-        else unknownCount++
-      }
-      // sem fundo (cor sólida) = ~0
+      if (!bg || countedPaths.has(bg)) continue
+      countedPaths.add(bg)
+      const rs = bgSizeByPath.get(bg)
+      const s = rs?.[quality] ?? rs?.fhd
+      if (s) contentBytes += s
+      else unknownCount++
     }
     // weather/html/youtube/stream = ~0 (não cacheiam arquivo)
   }
@@ -367,7 +374,7 @@ export default function ScreenDetail() {
             </p>
             {hasEstimate && (
               <p className="mt-1 text-xs text-gray-400">
-                Inclui estimativa das notícias (~120 KB por notícia). Clima, HTML, YouTube e Stream não ocupam cache.
+                Inclui estimativa das notícias (~2 MB por feed RSS — o player guarda ~20 notícias de cada). Clima, HTML, YouTube e Stream não ocupam cache.
               </p>
             )}
             {unknownCount > 0 && (
