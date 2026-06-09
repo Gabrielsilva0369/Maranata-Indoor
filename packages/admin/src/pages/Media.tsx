@@ -731,9 +731,11 @@ export default function MediaPage() {
   const [showNewFolder, setShowNewFolder] = useState(false)
   const [newFolderName, setNewFolderName] = useState('')
 
-  // Gera preview local da imagem de fundo
+  // Gera preview local quando um NOVO arquivo de fundo é escolhido. Quando não há
+  // arquivo novo, NÃO mexe no preview — ele pode vir de um asset reaproveitado ou
+  // do fundo já existente (definidos explicitamente em onSelect/openEdit/resetForm).
   useEffect(() => {
-    if (!bgFile) { setBgPreviewUrl(undefined); return }
+    if (!bgFile) return
     const url = URL.createObjectURL(bgFile)
     setBgPreviewUrl(url)
     return () => URL.revokeObjectURL(url)
@@ -987,12 +989,18 @@ export default function MediaPage() {
   }
 
   // Ao editar, o arquivo de imagem/vídeo é opcional (mantém o atual)
-  const isSaveDisabled = !name.trim() || uploading || addMedia.isPending || updateMedia.isPending ||
-    ((type === 'image' || type === 'video') && !file && !editingId) ||
-    (type === 'weather' && weatherCfg.latitude === 0) ||
-    (type === 'youtube' && !youtubeId(url)) ||
-    (type === 'stream' && !url.trim()) ||
-    (type === 'quotes' && !quotesCfg.quote.trim())
+  // Motivo de o salvar estar bloqueado — mostrado pro usuário não ficar no escuro
+  // (ex.: esqueceu o Nome ao configurar o fundo da frase/relógio).
+  const saveBlockReason =
+    !name.trim() ? 'Digite um nome para a mídia.'
+    : ((type === 'image' || type === 'video') && !file && !editingId) ? 'Selecione um arquivo.'
+    : (type === 'weather' && weatherCfg.latitude === 0) ? 'Defina a localização do clima.'
+    : (type === 'youtube' && !youtubeId(url)) ? 'Informe uma URL do YouTube válida.'
+    : (type === 'stream' && !url.trim()) ? 'Informe a URL do stream.'
+    : (type === 'quotes' && !quotesCfg.quote.trim()) ? 'Digite a frase.'
+    : ''
+
+  const isSaveDisabled = !!saveBlockReason || uploading || addMedia.isPending || updateMedia.isPending
 
   return (
     <div className="p-8">
@@ -1227,6 +1235,12 @@ export default function MediaPage() {
                   <p className="text-xs text-gray-400 mt-1">Tempo que a frase fica na tela.</p>
                 )}
               </div>
+
+              {saveBlockReason && !uploading && (
+                <p className="text-xs text-amber-600 bg-amber-50 rounded-lg px-3 py-2">
+                  Para salvar: {saveBlockReason}
+                </p>
+              )}
 
               <div className="flex gap-2 pt-1">
                 <button onClick={resetForm} className="flex-1 border rounded-lg py-2 text-sm">Cancelar</button>
