@@ -19,6 +19,22 @@ import { youtubeId } from './Media'
 
 type RichItem = PlaylistItem & { media?: Media | null; rss_feed?: RssFeed | null }
 
+// Duração efetiva de um item, em segundos. RSS = tempo por notícia × nº de notícias.
+function itemSeconds(it: RichItem): number {
+  const d = it.duration_override ?? it.media?.duration ?? 10
+  return it.rss_feed ? d * (it.rss_article_count ?? 5) : d
+}
+
+// "4min 30s" / "1h 5min" / "45s"
+function formatDuration(total: number): string {
+  const h = Math.floor(total / 3600)
+  const m = Math.floor((total % 3600) / 60)
+  const s = Math.round(total % 60)
+  if (h > 0) return `${h}h ${m}min`
+  if (m > 0) return s > 0 ? `${m}min ${s}s` : `${m}min`
+  return `${s}s`
+}
+
 const MEDIA_ICONS: Record<string, React.ReactNode> = {
   image: <Image size={12} />, video: <Film size={12} />, html: <Code size={12} />,
 }
@@ -830,9 +846,17 @@ export default function PlaylistEditor() {
           {/* Direita: Playlist */}
           <div className="flex flex-col flex-1 min-w-0">
             <div className="flex items-center justify-between mb-2">
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
-                Playlist atual · {localItems.length} {localItems.length === 1 ? 'item' : 'itens'}
-              </p>
+              <div className="flex items-center gap-2">
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                  Playlist atual · {localItems.length} {localItems.length === 1 ? 'item' : 'itens'}
+                </p>
+                {localItems.length > 0 && (
+                  <span title="Duração total de uma volta completa da playlist"
+                    className="flex items-center gap-1 text-xs font-semibold text-brand-600 bg-brand-50 px-2 py-0.5 rounded-full">
+                    <Clock size={11} /> {formatDuration(localItems.reduce((sum, it) => sum + itemSeconds(it), 0))}
+                  </span>
+                )}
+              </div>
               <p className="text-xs text-gray-400">Clique no tempo para editar</p>
             </div>
             <div ref={plRef}
