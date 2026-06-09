@@ -17,9 +17,11 @@ async function sha256(file: Blob): Promise<string> {
     .join('')
 }
 
-/** Deriva os 4 caminhos das renditions a partir do path base (..._fhd.jpg). */
+/** Deriva os 4 caminhos das renditions a partir do path base (..._fhd.webp/.jpg). */
 function renditionPaths(basePath: string): string[] {
-  return QUALITIES.map(q => basePath.replace(/_fhd\.jpg$/, `_${q}.jpg`))
+  const m = basePath.match(/_fhd\.(\w+)$/)
+  const ext = m ? m[1] : 'webp'
+  return QUALITIES.map(q => basePath.replace(/_fhd\.\w+$/, `_${q}.${ext}`))
 }
 
 /**
@@ -47,13 +49,14 @@ export async function putAsset(
     return { path: existing.path, rendition_sizes: existing.rendition_sizes ?? {} }
   }
 
-  // Novo: gera as 4 renditions e sobe.
-  const { renditions, sizes } = await resizeImageRenditions(file)
+  // Novo: gera as 4 renditions (WebP, ou JPEG no fallback) e sobe.
+  const { renditions, sizes, ext } = await resizeImageRenditions(file)
+  const mime = ext === 'webp' ? 'image/webp' : 'image/jpeg'
   const base = `${prefix}/${Date.now()}-${Math.random().toString(36).slice(2)}`
   for (const q of QUALITIES) {
-    await uploadToSpaces(`${base}_${q}.jpg`, renditions[q], 'image/jpeg')
+    await uploadToSpaces(`${base}_${q}.${ext}`, renditions[q], mime)
   }
-  const path = `${base}_fhd.jpg`
+  const path = `${base}_fhd.${ext}`
   await supabase.from('assets').insert({ hash, path, rendition_sizes: sizes, refs: 1 })
   return { path, rendition_sizes: sizes }
 }
@@ -76,8 +79,8 @@ export async function retainAsset(path: string | null | undefined): Promise<void
 export async function releaseAsset(path: string | null | undefined): Promise<void> {
   if (!path) return
 
-  // Renditions novas terminam em _fhd.jpg e estão na tabela assets.
-  if (/_fhd\.jpg$/.test(path)) {
+  // Renditions novas terminam em _fhd.webp (ou .jpg legado) e estão em assets.
+  if (/_fhd\.(webp|jpg)$/.test(path)) {
     const { data: row } = await supabase
       .from('assets')
       .select('hash, refs')
@@ -94,7 +97,7 @@ export async function releaseAsset(path: string | null | undefined): Promise<voi
       await supabase.from('assets').delete().eq('hash', row.hash)
       return
     }
-    // _fhd.jpg sem linha (caso raro) → apaga as 4 mesmo assim.
+    // _fhd sem linha (caso raro) → apaga as 4 mesmo assim.
     await Promise.all(renditionPaths(path).map(p => deleteFromSpaces(p)))
     return
   }

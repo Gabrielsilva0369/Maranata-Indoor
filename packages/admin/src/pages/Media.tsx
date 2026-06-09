@@ -140,8 +140,8 @@ function AssetPickerModal({ onClose, onSelect }: { onClose: () => void; onSelect
     },
   })
 
-  // Miniatura leve: usa a rendition _sd da imagem.
-  const thumb = (path: string) => mediaUrl(path.replace(/_fhd\.jpg$/, '_sd.jpg'))
+  // Miniatura leve: usa a rendition _sd da imagem (mesma extensão do base).
+  const thumb = (path: string) => mediaUrl(path.replace(/_fhd\.(\w+)$/, '_sd.$1'))
 
   return (
     <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={onClose}>

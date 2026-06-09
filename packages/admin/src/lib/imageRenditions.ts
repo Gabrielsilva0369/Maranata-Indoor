@@ -21,25 +21,40 @@ function loadImage(file: Blob): Promise<HTMLImageElement> {
   })
 }
 
-function canvasToJpeg(canvas: HTMLCanvasElement, q: number): Promise<Blob> {
+function canvasToBlob(canvas: HTMLCanvasElement, mime: string, q: number): Promise<Blob> {
   return new Promise((resolve, reject) => {
     canvas.toBlob(
       b => (b ? resolve(b) : reject(new Error('toBlob falhou'))),
-      'image/jpeg',
+      mime,
       q,
     )
   })
 }
 
+// WebP é ~30% menor que JPEG e é suportado em Android 9+/WebView. Detecta se o
+// navegador do admin consegue ENCODAR webp; senão cai pra JPEG (paths ficam .jpg).
+function supportsWebp(): boolean {
+  try {
+    const c = document.createElement('canvas')
+    c.width = 1; c.height = 1
+    return c.toDataURL('image/webp').startsWith('data:image/webp')
+  } catch {
+    return false
+  }
+}
+
 /**
- * Gera 4 renderizações JPEG da imagem (SD/540p/HD/FullHD), reduzindo por
- * "contain" dentro da caixa de cada qualidade (sem ampliar). Mesma ideia das
- * renditions de vídeo: a tela baixa só a versão da sua qualidade → menos RAM e
- * banda no box fraco.
+ * Gera 4 renderizações da imagem (SD/540p/HD/FullHD) em WebP (ou JPEG se o
+ * navegador não encodar webp), reduzindo por "contain" dentro da caixa de cada
+ * qualidade (sem ampliar). A tela baixa só a versão da sua qualidade → menos RAM
+ * e banda no box fraco. Devolve a extensão usada ('webp' | 'jpg').
  */
 export async function resizeImageRenditions(
   file: Blob,
-): Promise<{ renditions: Record<Quality, Blob>; sizes: Record<string, number> }> {
+): Promise<{ renditions: Record<Quality, Blob>; sizes: Record<string, number>; ext: 'webp' | 'jpg' }> {
+  const webp = supportsWebp()
+  const mime = webp ? 'image/webp' : 'image/jpeg'
+  const ext: 'webp' | 'jpg' = webp ? 'webp' : 'jpg'
   const img = await loadImage(file)
   const ow = img.naturalWidth || img.width
   const oh = img.naturalHeight || img.height
@@ -60,10 +75,10 @@ export async function resizeImageRenditions(
     canvas.height = h
     ctx.clearRect(0, 0, w, h)
     ctx.drawImage(img, 0, 0, w, h)
-    const blob = await canvasToJpeg(canvas, 0.82)
+    const blob = await canvasToBlob(canvas, mime, 0.8)
     renditions[q] = blob
     sizes[q] = blob.size
   }
 
-  return { renditions, sizes }
+  return { renditions, sizes, ext }
 }
