@@ -282,7 +282,9 @@ export async function syncMediaCache(
   // Sempre cacheamos a RENDITION da qualidade da tela (mesma que o player toca).
   // expectedSizes guarda o tamanho esperado (quando conhecido no banco) p/ a
   // verificação de integridade do que já está em cache.
-  const activePaths: string[] = []
+  // Set garante caminho ÚNICO: 50 frases/relógios com o MESMO fundo (ou a mesma
+  // imagem repetida) viram 1 só caminho → baixa e guarda 1 vez só no cache.
+  const pathSet = new Set<string>()
   const expectedSizes = new Map<string, number>()
   for (const item of items) {
     if (item.media) {
@@ -292,18 +294,19 @@ export async function syncMediaCache(
       // cada vez, abaixo) — nunca em paralelo — para não saturar a banda.
       if (sp && (item.media.type === 'image' || item.media.type === 'video')) {
         const p = qualityPath(sp, quality)
-        activePaths.push(p)
+        pathSet.add(p)
         const exp = item.media.rendition_sizes?.[quality] ?? item.media.size_bytes
         if (exp) expectedSizes.set(p, exp)
       }
       if (item.media.type === 'clock' && item.media.clock_config?.bg_image_path) {
-        activePaths.push(qualityPath(item.media.clock_config.bg_image_path, quality))
+        pathSet.add(qualityPath(item.media.clock_config.bg_image_path, quality))
       }
       if (item.media.type === 'quotes' && item.media.quotes_config?.bg_image_path) {
-        activePaths.push(qualityPath(item.media.quotes_config.bg_image_path, quality))
+        pathSet.add(qualityPath(item.media.quotes_config.bg_image_path, quality))
       }
     }
   }
+  const activePaths = Array.from(pathSet)
 
   // ── 2. Notícias (RSS): baixa os artigos por feed e coleta imagens externas ──
   // Feeds usados nos itens da playlist + o feed do rodapé (se for do tipo RSS).
@@ -314,15 +317,17 @@ export async function syncMediaCache(
   }
   if (footer?.type === 'rss' && footer.rss_feed_id) feedIds.add(footer.rss_feed_id)
 
-  // URLs externas para "aquecer" no Service Worker (imagens de notícia + logo do rodapé).
-  const warmUrls: string[] = []
-  if (footer?.logo_path) warmUrls.push(getPublicUrl(footer.logo_path))
+  // URLs externas para "aquecer" no Service Worker (imagens de notícia + logo do
+  // rodapé). Set p/ não aquecer a mesma imagem duas vezes (notícia repetida etc.).
+  const warmSet = new Set<string>()
+  if (footer?.logo_path) warmSet.add(getPublicUrl(footer.logo_path))
   // Busca os feeds EM PARALELO e cada um já tem timeout — offline isto resolve
   // rápido (não pendura o boot) e a reprodução cai pro cache.
   const perFeed = await Promise.all(
     Array.from(feedIds).map(fid => refreshFeedArticles(fid, 20, quality).catch(() => [] as string[]))
   )
-  for (const imgs of perFeed) warmUrls.push(...imgs)
+  for (const imgs of perFeed) for (const u of imgs) warmSet.add(u)
+  const warmUrls = Array.from(warmSet)
 
   const total = activePaths.length + warmUrls.length
   if (total === 0) {

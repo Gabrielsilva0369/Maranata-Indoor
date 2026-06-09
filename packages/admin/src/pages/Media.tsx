@@ -128,9 +128,11 @@ function AssetPickerModal({ onClose, onSelect }: { onClose: () => void; onSelect
   const { data: assets = [], isLoading } = useQuery({
     queryKey: ['assets-picker'],
     queryFn: async () => {
+      // Só fundos já usados (frase/relógio) — não polui com imagens de mídia.
       const { data, error } = await supabase
         .from('assets')
         .select('hash, path, created_at')
+        .or('path.ilike.quotes-bg/%,path.ilike.clock-bg/%')
         .order('created_at', { ascending: false })
         .limit(60)
       if (error) throw error
