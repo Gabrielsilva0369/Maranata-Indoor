@@ -2,10 +2,10 @@ import { useState, useRef, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import type { Media, MediaType, ClockConfig, WeatherConfig, QuotesConfig, MediaFolder } from '../lib/database.types'
-import { Upload, Trash2, Plus, Image, Film, Code, Clock, Cloud, Search, MapPin, Pencil, Folder, FolderPlus, Layers, Youtube, Radio, Quote } from 'lucide-react'
+import { Upload, Trash2, Plus, Image, Film, Code, Clock, Cloud, Search, MapPin, Pencil, Folder, FolderPlus, Layers, Youtube, Radio, Quote, Images, X } from 'lucide-react'
 import { transcodeVideoRenditions } from '../lib/videoTranscode'
 import { uploadToSpaces, deleteFromSpaces, mediaUrl } from '../lib/spaces'
-import { putAsset, releaseAsset } from '../lib/assets'
+import { putAsset, releaseAsset, retainAsset } from '../lib/assets'
 
 // Sobe as 3 qualidades do vídeo (SD/HD/FullHD) e devolve o storage_path base
 // (o arquivo _fhd; o player deriva _hd/_sd trocando o sufixo).
@@ -123,6 +123,52 @@ const DEFAULT_QUOTES: QuotesConfig = {
   font_size: 60,
 }
 
+// ── Reaproveitar uma imagem já enviada (asset) como fundo ─────────────────────
+function AssetPickerModal({ onClose, onSelect }: { onClose: () => void; onSelect: (path: string) => void }) {
+  const { data: assets = [], isLoading } = useQuery({
+    queryKey: ['assets-picker'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('assets')
+        .select('hash, path, created_at')
+        .order('created_at', { ascending: false })
+        .limit(60)
+      if (error) throw error
+      return data as { hash: string; path: string; created_at: string }[]
+    },
+  })
+
+  // Miniatura leve: usa a rendition _sd da imagem.
+  const thumb = (path: string) => mediaUrl(path.replace(/_fhd\.jpg$/, '_sd.jpg'))
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-4 border-b">
+          <h3 className="font-semibold flex items-center gap-2"><Images size={18} className="text-brand-600" /> Reaproveitar imagem enviada</h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-700"><X size={20} /></button>
+        </div>
+        <div className="p-5 overflow-y-auto">
+          {isLoading ? (
+            <p className="text-sm text-gray-500 text-center py-8">Carregando imagens…</p>
+          ) : assets.length === 0 ? (
+            <p className="text-sm text-gray-500 text-center py-8">Nenhuma imagem enviada ainda.</p>
+          ) : (
+            <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
+              {assets.map(a => (
+                <button key={a.hash} onClick={() => onSelect(a.path)}
+                  className="aspect-video rounded-lg overflow-hidden border-2 border-transparent hover:border-brand-500 transition-colors bg-gray-100">
+                  <img src={thumb(a.path)} alt="" className="w-full h-full object-cover" loading="lazy" />
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Frase motivacional: preview + formulário ──────────────────────────────────
 function QuotesPreview({ cfg, bgUrl }: { cfg: QuotesConfig; bgUrl?: string }) {
   const text = cfg.quote.trim() || 'Sua frase aqui…'
@@ -160,11 +206,12 @@ function QuotesPreview({ cfg, bgUrl }: { cfg: QuotesConfig; bgUrl?: string }) {
   )
 }
 
-function QuotesForm({ cfg, onChange, bgUrl, onBgFileChange }: {
+function QuotesForm({ cfg, onChange, bgUrl, onBgFileChange, onOpenPicker }: {
   cfg: QuotesConfig
   onChange: (c: QuotesConfig) => void
   bgUrl?: string
   onBgFileChange: (f: File | null) => void
+  onOpenPicker: () => void
 }) {
   const bgFileRef = useRef<HTMLInputElement>(null)
   const set = (patch: Partial<QuotesConfig>) => onChange({ ...cfg, ...patch })
@@ -240,7 +287,7 @@ function QuotesForm({ cfg, onChange, bgUrl, onBgFileChange }: {
           </div>
         )}
         {cfg.bg_type === 'image' && (
-          <>
+          <div className="space-y-2">
             <input ref={bgFileRef} type="file" accept="image/*"
               onChange={e => onBgFileChange(e.target.files?.[0] ?? null)} className="hidden" />
             <button onClick={() => bgFileRef.current?.click()}
@@ -248,7 +295,12 @@ function QuotesForm({ cfg, onChange, bgUrl, onBgFileChange }: {
               <Upload size={16} />
               {bgUrl ? 'Trocar imagem de fundo' : 'Selecionar imagem de fundo'}
             </button>
-          </>
+            <button onClick={onOpenPicker}
+              className="flex items-center gap-2 border rounded-lg px-4 py-2 text-sm text-gray-600 hover:border-brand-400 w-full justify-center">
+              <Images size={16} />
+              Reaproveitar imagem já enviada
+            </button>
+          </div>
         )}
       </div>
     </div>
@@ -540,11 +592,12 @@ function WeatherForm({ cfg, onChange }: { cfg: WeatherConfig; onChange: (c: Weat
 }
 
 // ── Formulário de configuração do relógio ─────────────────────────────────────
-function ClockForm({ cfg, onChange, bgUrl, onBgFileChange }: {
+function ClockForm({ cfg, onChange, bgUrl, onBgFileChange, onOpenPicker }: {
   cfg: ClockConfig
   onChange: (c: ClockConfig) => void
   bgUrl?: string
   onBgFileChange: (f: File | null) => void
+  onOpenPicker: () => void
 }) {
   const bgFileRef = useRef<HTMLInputElement>(null)
   const set = (patch: Partial<ClockConfig>) => onChange({ ...cfg, ...patch })
@@ -617,7 +670,7 @@ function ClockForm({ cfg, onChange, bgUrl, onBgFileChange }: {
           </div>
         )}
         {cfg.bg_type === 'image' && (
-          <>
+          <div className="space-y-2">
             <input ref={bgFileRef} type="file" accept="image/*"
               onChange={e => onBgFileChange(e.target.files?.[0] ?? null)} className="hidden" />
             <button onClick={() => bgFileRef.current?.click()}
@@ -626,7 +679,12 @@ function ClockForm({ cfg, onChange, bgUrl, onBgFileChange }: {
               <Upload size={16} />
               {bgUrl ? 'Trocar imagem de fundo' : 'Selecionar imagem de fundo'}
             </button>
-          </>
+            <button onClick={onOpenPicker}
+              className="flex items-center gap-2 border rounded-lg px-4 py-2 text-sm text-gray-600 hover:border-brand-400 w-full justify-center">
+              <Images size={16} />
+              Reaproveitar imagem já enviada
+            </button>
+          </div>
         )}
       </div>
 
@@ -657,6 +715,9 @@ export default function MediaPage() {
   const [quotesCfg, setQuotesCfg] = useState<QuotesConfig>({ ...DEFAULT_QUOTES })
   const [bgFile, setBgFile] = useState<File | null>(null)
   const [bgPreviewUrl, setBgPreviewUrl] = useState<string>()
+  // Reaproveitar um asset já enviado como fundo (sem novo upload).
+  const [bgAssetPath, setBgAssetPath] = useState<string | null>(null)
+  const [pickerOpen, setPickerOpen] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [transcodeStatus, setTranscodeStatus] = useState<'loading' | 'analyzing' | 'transcoding' | 'done' | 'error' | null>(null)
   const [transcodeProgress, setTranscodeProgress] = useState(0)
@@ -747,17 +808,27 @@ export default function MediaPage() {
         }
       }
 
-      // Upload fundo do relógio (com renditions + dedup)
-      if (type === 'clock' && clockCfg.bg_type === 'image' && bgFile) {
-        const r = await putAsset(bgFile, 'clock-bg')
-        finalClock = { ...clockCfg, bg_image_path: r.path }
+      // Fundo do relógio: novo upload, ou reaproveitar um asset já enviado.
+      if (type === 'clock' && clockCfg.bg_type === 'image') {
+        if (bgFile) {
+          const r = await putAsset(bgFile, 'clock-bg')
+          finalClock = { ...clockCfg, bg_image_path: r.path }
+        } else if (bgAssetPath) {
+          await retainAsset(bgAssetPath)
+          finalClock = { ...clockCfg, bg_image_path: bgAssetPath }
+        }
       }
 
-      // Frase: upload do fundo (com renditions + dedup)
+      // Frase: novo upload, ou reaproveitar um asset já enviado.
       let finalQuotes = { ...quotesCfg, quote: quotesCfg.quote.trim(), author: quotesCfg.author.trim() }
-      if (type === 'quotes' && quotesCfg.bg_type === 'image' && bgFile) {
-        const r = await putAsset(bgFile, 'quotes-bg')
-        finalQuotes = { ...finalQuotes, bg_image_path: r.path }
+      if (type === 'quotes' && quotesCfg.bg_type === 'image') {
+        if (bgFile) {
+          const r = await putAsset(bgFile, 'quotes-bg')
+          finalQuotes = { ...finalQuotes, bg_image_path: r.path }
+        } else if (bgAssetPath) {
+          await retainAsset(bgAssetPath)
+          finalQuotes = { ...finalQuotes, bg_image_path: bgAssetPath }
+        }
       }
 
       const { error } = await supabase.from('media').insert({
@@ -817,24 +888,34 @@ export default function MediaPage() {
         patch.storage_path = newPath
       }
 
-      // Relógio: substituir fundo (se novo) ou manter o existente
+      // Relógio: substituir fundo (novo upload ou asset reaproveitado) ou manter
       if (type === 'clock') {
         let finalClock = clockCfg
+        const oldBg = existing?.clock_config?.bg_image_path
         if (clockCfg.bg_type === 'image' && bgFile) {
           const r = await putAsset(bgFile, 'clock-bg')
-          if (existing?.clock_config?.bg_image_path) await releaseAsset(existing.clock_config.bg_image_path)
+          if (oldBg) await releaseAsset(oldBg)
           finalClock = { ...clockCfg, bg_image_path: r.path }
+        } else if (clockCfg.bg_type === 'image' && bgAssetPath && bgAssetPath !== oldBg) {
+          await retainAsset(bgAssetPath)
+          if (oldBg) await releaseAsset(oldBg)
+          finalClock = { ...clockCfg, bg_image_path: bgAssetPath }
         }
         patch.clock_config = finalClock
       }
 
-      // Frase: substituir fundo (se novo)
+      // Frase: substituir fundo (novo upload ou asset reaproveitado)
       if (type === 'quotes') {
         let finalQuotes = { ...quotesCfg, quote: quotesCfg.quote.trim(), author: quotesCfg.author.trim() }
+        const oldBg = existing?.quotes_config?.bg_image_path
         if (quotesCfg.bg_type === 'image' && bgFile) {
           const r = await putAsset(bgFile, 'quotes-bg')
-          if (existing?.quotes_config?.bg_image_path) await releaseAsset(existing.quotes_config.bg_image_path)
+          if (oldBg) await releaseAsset(oldBg)
           finalQuotes = { ...finalQuotes, bg_image_path: r.path }
+        } else if (quotesCfg.bg_type === 'image' && bgAssetPath && bgAssetPath !== oldBg) {
+          await retainAsset(bgAssetPath)
+          if (oldBg) await releaseAsset(oldBg)
+          finalQuotes = { ...finalQuotes, bg_image_path: bgAssetPath }
         }
         patch.quotes_config = finalQuotes
       }
@@ -866,7 +947,7 @@ export default function MediaPage() {
     setName(''); setUrl(''); setHtmlContent(''); setDuration(30)
     setFile(null); setType('image'); setClockCfg({ ...DEFAULT_CLOCK }); setWeatherCfg({ ...DEFAULT_WEATHER })
     setQuotesCfg({ ...DEFAULT_QUOTES })
-    setBgFile(null); setBgPreviewUrl(undefined); setUploading(false)
+    setBgFile(null); setBgPreviewUrl(undefined); setBgAssetPath(null); setUploading(false)
     setTranscodeStatus(null); setTranscodeProgress(0)
     setEditingId(null); setFolderId(null); setShowAdd(false)
   }
@@ -888,6 +969,7 @@ export default function MediaPage() {
     setFolderId(item.folder_id)
     setFile(null)
     setBgFile(null)
+    setBgAssetPath(null)
     setClockCfg(item.clock_config ?? { ...DEFAULT_CLOCK })
     setWeatherCfg(item.weather_config ?? { ...DEFAULT_WEATHER })
     setQuotesCfg(item.quotes_config ?? { ...DEFAULT_QUOTES })
@@ -1093,7 +1175,8 @@ export default function MediaPage() {
                   cfg={clockCfg}
                   onChange={setClockCfg}
                   bgUrl={bgPreviewUrl}
-                  onBgFileChange={f => { setBgFile(f) }}
+                  onBgFileChange={f => { setBgFile(f); setBgAssetPath(null) }}
+                  onOpenPicker={() => setPickerOpen(true)}
                 />
               )}
 
@@ -1103,7 +1186,8 @@ export default function MediaPage() {
                   cfg={quotesCfg}
                   onChange={setQuotesCfg}
                   bgUrl={bgPreviewUrl}
-                  onBgFileChange={f => { setBgFile(f) }}
+                  onBgFileChange={f => { setBgFile(f); setBgAssetPath(null) }}
+                  onOpenPicker={() => setPickerOpen(true)}
                 />
               )}
 
@@ -1154,6 +1238,19 @@ export default function MediaPage() {
           </div>
           </div>
         </div>
+      )}
+
+      {/* Picker: reaproveitar uma imagem já enviada como fundo */}
+      {pickerOpen && (
+        <AssetPickerModal
+          onClose={() => setPickerOpen(false)}
+          onSelect={path => {
+            setBgAssetPath(path)
+            setBgFile(null)
+            setBgPreviewUrl(mediaUrl(path))
+            setPickerOpen(false)
+          }}
+        />
       )}
 
       {/* Grid */}

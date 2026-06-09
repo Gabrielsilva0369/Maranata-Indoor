@@ -59,6 +59,16 @@ export async function putAsset(
 }
 
 /**
+ * Marca mais uma referência a um asset já existente (reaproveitar uma imagem já
+ * enviada, sem subir nada). Mantém o refcount correto p/ o releaseAsset.
+ */
+export async function retainAsset(path: string | null | undefined): Promise<void> {
+  if (!path) return
+  const { data } = await supabase.from('assets').select('hash, refs').eq('path', path).maybeSingle()
+  if (data) await supabase.from('assets').update({ refs: data.refs + 1 }).eq('hash', data.hash)
+}
+
+/**
  * Libera uma referência de um asset. Quando chega a zero, apaga as renditions
  * da DO e remove o registro. Caminho que não é um asset gerenciado (legado, sem
  * linha na tabela) é apagado direto.
