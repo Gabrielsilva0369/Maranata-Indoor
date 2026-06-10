@@ -6,6 +6,10 @@ import type { Screen, Playlist, RssFeed, FooterConfig } from '../lib/database.ty
 import { Plus, Trash2, Volume2, VolumeX, PanelBottom, Pencil, Monitor } from 'lucide-react'
 import { FooterModal, EditScreenModal, uploadFooterLogo } from '../components/screenSettings'
 
+const PLAYER_URL =
+  (import.meta.env.VITE_PLAYER_URL as string | undefined) ||
+  'https://maranata-indoor-player.vercel.app'
+
 function isOnline(lastSeen: string | null) {
   if (!lastSeen) return false
   return Date.now() - new Date(lastSeen).getTime() < 90_000
@@ -207,20 +211,25 @@ export default function Screens() {
           const hasFooter = !!screen.footer_config?.enabled
           return (
             <div key={screen.id} className="bg-white rounded-2xl border shadow-sm hover:shadow-md transition-shadow overflow-hidden flex flex-col">
-              {/* Miniatura (print mais recente, ou placeholder) */}
-              <Link to={`/screens/${screen.id}`} className="block relative aspect-video bg-slate-900 overflow-hidden group">
-                {screen.last_screenshot ? (
-                  <img src={screen.last_screenshot} alt="" className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform" />
+              {/* Preview ao vivo (online) ou placeholder (offline) */}
+              <div className="relative aspect-video bg-slate-900 overflow-hidden group">
+                {online ? (
+                  <iframe
+                    src={`${PLAYER_URL}/?preview=${screen.token}`}
+                    title={`Preview ${screen.name}`}
+                    allow="autoplay; encrypted-media"
+                    style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 'none' }}
+                  />
                 ) : (
-                  <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-slate-700 to-slate-900 text-slate-500">
+                  <Link to={`/screens/${screen.id}`} className="flex items-center justify-center w-full h-full bg-gradient-to-br from-slate-700 to-slate-900 text-slate-500 hover:to-slate-800 transition-colors">
                     <Monitor size={36} />
-                  </div>
+                  </Link>
                 )}
                 <span className={`absolute top-2.5 right-2.5 inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full ${online ? 'bg-green-500 text-white' : 'bg-black/55 text-gray-100'}`}>
                   <span className={`w-1.5 h-1.5 rounded-full ${online ? 'bg-white animate-pulse' : 'bg-gray-400'}`} />
                   {online ? 'Online' : 'Offline'}
                 </span>
-              </Link>
+              </div>
 
               {/* Corpo */}
               <div className="p-4 flex flex-col gap-3 flex-1">

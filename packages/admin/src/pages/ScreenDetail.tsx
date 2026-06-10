@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
-import type { Screen, Playlist, RssFeed } from '../lib/database.types'
+import type { Screen, Playlist, RssFeed, ScreenActionLog } from '../lib/database.types'
 import {
   ChevronLeft, Settings, BarChart3, Wifi, WifiOff,
   RotateCw, RefreshCw, Trash2, Monitor, Cpu, MonitorPlay, HardDrive, Clock,
@@ -62,6 +62,21 @@ export default function ScreenDetail() {
       return data
     },
     refetchInterval: 10_000,  // atualiza status a cada 10s
+  })
+
+  const { data: actionLogs = [] } = useQuery<ScreenActionLog[]>({
+    queryKey: ['screen-action-logs', id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('screen_action_logs')
+        .select('*')
+        .eq('screen_id', id!)
+        .order('created_at', { ascending: false })
+        .limit(20)
+      if (error) throw error
+      return data ?? []
+    },
+    refetchInterval: 10_000,
   })
 
   const { data: playlists = [] } = useQuery<Playlist[]>({
@@ -143,10 +158,24 @@ export default function ScreenDetail() {
 
   const sendCommand = useMutation({
     mutationFn: async (cmd: string) => {
+      // Registra o comando no log
+      const { data: { user } } = await supabase.auth.getUser()
+      const { error: logError } = await supabase.from('screen_action_logs').insert({
+        screen_id: id!,
+        action: cmd,
+        executed_by: user?.email ?? null,
+        status: 'pending',
+      })
+      if (logError) console.error('Erro ao registrar log:', logError)
+
+      // Envia o comando
       const { error } = await supabase.from('screens').update({ pending_command: cmd }).eq('id', id!)
       if (error) throw error
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['screen', id] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['screen', id] })
+      qc.invalidateQueries({ queryKey: ['screen-action-logs', id] })
+    },
   })
 
   if (!screen) {
@@ -498,6 +527,55 @@ export default function ScreenDetail() {
           <p className="text-sm text-gray-400">
             Nenhum print ainda. Clique em <b>Tirar Print</b> acima — a imagem aparece aqui em alguns segundos.
           </p>
+        )}
+      </section>
+
+      {/* Log de ações */}
+      <section className="bg-white rounded-2xl border shadow-sm p-6 mb-6">
+        <h2 className="text-base font-bold text-slate-700 mb-4">Log de Ações</h2>
+        {actionLogs.length === 0 ? (
+          <p className="text-xs text-gray-400">Nenhuma ação registrada ainda.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b text-gray-500 font-medium">
+                  <th className="text-left py-2 px-3">Ação</th>
+                  <th className="text-left py-2 px-3">Executado por</th>
+                  <th className="text-left py-2 px-3">Status</th>
+                  <th className="text-left py-2 px-3">Data/Hora</th>
+                </tr>
+              </thead>
+              <tbody>
+                {actionLogs.map(log => (
+                  <tr key={log.id} className="border-b text-gray-700 hover:bg-gray-50">
+                    <td className="py-2.5 px-3 font-medium">
+                      <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded bg-blue-50 text-blue-700 text-xs font-semibold">
+                        {log.action === 'refresh' && '🔄 Atualizar Tela'}
+                        {log.action === 'reload' && '🔃 Reiniciar Navegador'}
+                        {log.action === 'clear_cache' && '🗑️ Limpar Cache'}
+                        {log.action === 'screenshot' && '📸 Tirar Print'}
+                        {log.action === 'update' && '⬆️ Atualizar App'}
+                      </span>
+                    </td>
+                    <td className="py-2.5 px-3 text-gray-600">{log.executed_by ?? '—'}</td>
+                    <td className="py-2.5 px-3">
+                      <span className={`inline-flex px-2 py-0.5 rounded text-xs font-medium ${
+                        log.status === 'pending' ? 'bg-yellow-100 text-yellow-700' :
+                        log.status === 'completed' ? 'bg-green-100 text-green-700' :
+                        'bg-red-100 text-red-700'
+                      }`}>
+                        {log.status === 'pending' && '⏳ Pendente'}
+                        {log.status === 'completed' && '✓ Concluído'}
+                        {log.status === 'failed' && '✗ Falhou'}
+                      </span>
+                    </td>
+                    <td className="py-2.5 px-3 text-gray-500 text-xs">{new Date(log.created_at).toLocaleString('pt-BR')}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </section>
 

@@ -178,6 +178,17 @@ export interface Asset {
   created_at: string
 }
 
+export interface ScreenActionLog {
+  id: string
+  screen_id: string
+  action: 'refresh' | 'reload' | 'clear_cache' | 'screenshot' | 'update'
+  executed_by: string | null
+  status: 'pending' | 'completed' | 'failed'
+  error_message: string | null
+  created_at: string
+  completed_at: string | null
+}
+
 export interface AppBundle {
   id: string
   version: string
