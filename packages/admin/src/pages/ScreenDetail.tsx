@@ -5,7 +5,7 @@ import { supabase } from '../lib/supabase'
 import type { Screen, Playlist, RssFeed, ScreenActionLog } from '../lib/database.types'
 import {
   ChevronLeft, Settings, BarChart3, Wifi, WifiOff,
-  RotateCw, RefreshCw, Trash2, Monitor, Cpu, MonitorPlay, HardDrive, Clock,
+  RefreshCw, Trash2, Monitor, Cpu, MonitorPlay, HardDrive, Clock,
   MemoryStick, Database, Server, Camera, DownloadCloud,
   Pencil, Volume2, VolumeX, PanelBottom,
 } from 'lucide-react'
@@ -496,18 +496,6 @@ export default function ScreenDetail() {
           <p className="text-xs text-blue-600 mb-3">Comando pendente: <b>{screen.pending_command}</b> (aguardando a tela executar...)</p>
         )}
         <div className="flex flex-wrap gap-3">
-          <button onClick={() => sendCommand.mutate('refresh')}
-            className="flex items-center gap-2 bg-brand-600 hover:bg-brand-700 text-white px-4 py-2.5 rounded-lg text-sm font-medium transition-colors">
-            <RefreshCw size={16} /> Atualizar Tela
-          </button>
-          <button onClick={() => sendCommand.mutate('reload')}
-            className="flex items-center gap-2 bg-slate-600 hover:bg-slate-700 text-white px-4 py-2.5 rounded-lg text-sm font-medium transition-colors">
-            <RotateCw size={16} /> Reiniciar Navegador
-          </button>
-          <button onClick={() => sendCommand.mutate('clear_cache')}
-            className="flex items-center gap-2 bg-teal-600 hover:bg-teal-700 text-white px-4 py-2.5 rounded-lg text-sm font-medium transition-colors">
-            <Trash2 size={16} /> Limpar Cache
-          </button>
           <button onClick={() => sendCommand.mutate('screenshot')}
             className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-lg text-sm font-medium transition-colors">
             <Camera size={16} /> Tirar Print
@@ -516,14 +504,15 @@ export default function ScreenDetail() {
             className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-lg text-sm font-medium transition-colors">
             <DownloadCloud size={16} /> Atualizar App
           </button>
+          <button onClick={() => sendCommand.mutate('clear_cache')}
+            className="flex items-center gap-2 bg-teal-600 hover:bg-teal-700 text-white px-4 py-2.5 rounded-lg text-sm font-medium transition-colors">
+            <Trash2 size={16} /> Limpar Cache
+          </button>
         </div>
         <p className="text-xs text-gray-400 mt-3 max-w-2xl leading-relaxed">
-          <b>Atualizar Tela</b>: recarrega a playlist e as mídias e reinicia a reprodução,
-          <b> sem recarregar o navegador</b> (rápido, ideal pro kiosk). ·
-          <b> Reiniciar Navegador</b>: recarrega a página inteira (use para forçar nova versão do app). ·
-          <b> Limpar Cache</b>: apaga TODO o cache local (vídeos inclusive) e baixa do zero. ·
-          <b> Tirar Print</b>: captura a tela atual (YouTube/live podem sair pretos). ·
-          <b> Atualizar App</b>: busca a versão publicada do player e recarrega (mostra "Atualizando app" na tela).
+          <b>Tirar Print</b>: captura a tela atual (YouTube/live podem sair pretos). ·
+          <b> Atualizar App</b>: busca a versão publicada do player e recarrega. ·
+          <b> Limpar Cache</b>: apaga TODO o cache local e baixa do zero.
         </p>
       </section>
 
