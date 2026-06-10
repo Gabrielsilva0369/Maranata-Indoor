@@ -139,7 +139,7 @@ export default function App() {
       <OrientationWrapper orientation={screen!.orientation ?? 'landscape'}>
       <div style={{
         position: 'absolute', top: 0, right: 0, bottom: 0, left: 0,
-        padding: `${screen?.margin_top ?? 0}px ${screen?.margin_right ?? 0}px ${screen?.margin_bottom ?? 0}px ${screen?.margin_left ?? 0}px`,
+        inset: `${screen?.margin_top ?? 0}px ${screen?.margin_right ?? 0}px ${screen?.margin_bottom ?? 0}px ${screen?.margin_left ?? 0}px`,
       }}>
         <PlaylistPlayer items={items} screen={screen!} onMediaChange={handleMediaChange} forceMuted={preview} preview={preview} />
       </div>
