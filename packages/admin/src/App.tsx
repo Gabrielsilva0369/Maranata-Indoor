@@ -11,7 +11,6 @@ import Media from './pages/Media'
 import RssFeeds from './pages/RssFeeds'
 import Playlists from './pages/Playlists'
 import PlaylistEditor from './pages/PlaylistEditor'
-import AppUpdates from './pages/AppUpdates'
 import Reports from './pages/Reports'
 
 export default function App() {
@@ -45,7 +44,6 @@ export default function App() {
             <Route path="playlists" element={<Playlists />} />
             <Route path="playlists/:id" element={<PlaylistEditor />} />
             <Route path="reports" element={<Reports />} />
-            <Route path="updates" element={<AppUpdates />} />
           </Route>
         ) : (
           <Route path="*" element={<Navigate to="/login" replace />} />

@@ -1,7 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import type { Screen } from '../lib/database.types'
-import { Monitor, Wifi, WifiOff, DownloadCloud, Loader2 } from 'lucide-react'
+import { Monitor, Wifi, WifiOff, DownloadCloud, Loader2, ChevronRight } from 'lucide-react'
 
 function isOnline(lastSeen: string | null) {
   if (!lastSeen) return false
@@ -88,14 +89,21 @@ function StatCard({ label, value, icon, color = 'blue' }: {
 }
 
 function ScreenCard({ screen }: { screen: Screen }) {
+  const navigate = useNavigate()
   const online = isOnline(screen.last_seen)
   return (
-    <div className="bg-white rounded-xl border p-5">
+    <button
+      onClick={() => navigate(`/screens/${screen.id}`)}
+      className="bg-white rounded-xl border p-5 hover:border-brand-400 hover:shadow-md transition-all text-left cursor-pointer group"
+    >
       <div className="flex items-center justify-between mb-2">
-        <span className="font-semibold">{screen.name}</span>
-        <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${online ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
-          {online ? 'Online' : 'Offline'}
-        </span>
+        <span className="font-semibold group-hover:text-brand-600 transition-colors">{screen.name}</span>
+        <div className="flex items-center gap-2">
+          <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${online ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+            {online ? 'Online' : 'Offline'}
+          </span>
+          <ChevronRight size={16} className="text-gray-300 group-hover:text-brand-600 transition-colors" />
+        </div>
       </div>
       <p className="text-xs text-gray-400 font-mono">{screen.token.slice(0, 6).toUpperCase()}</p>
       {screen.last_seen && (
@@ -103,6 +111,6 @@ function ScreenCard({ screen }: { screen: Screen }) {
           Visto: {new Date(screen.last_seen).toLocaleString('pt-BR')}
         </p>
       )}
-    </div>
+    </button>
   )
 }
