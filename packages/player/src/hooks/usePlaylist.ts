@@ -103,6 +103,10 @@ export interface FooterConfig {
   font_size: number
   height: number
   scroll_speed: number
+  margin_top: number
+  margin_bottom: number
+  margin_left: number
+  margin_right: number
 }
 
 export type ScreenOrientation = 'landscape' | 'landscape-reverse' | 'portrait' | 'portrait-reverse'
@@ -118,8 +122,6 @@ export interface ScreenConfig {
   playlist_id: string | null
   footer_config: FooterConfig | null
   orientation: ScreenOrientation
-  footer_margin_left: number
-  footer_margin_right: number
 }
 
 // Assinatura do conteúdo que afeta a reprodução (ignora campos voláteis como o
@@ -216,7 +218,7 @@ export function usePlaylist(token: string) {
       // o limite faz falhar rápido e cair pro cache offline em vez de travar.
       let screenQ = supabase
         .from('screens')
-        .select('id, name, sound_enabled, video_quality, show_progress, playlist_id, footer_config, orientation, footer_margin_left, footer_margin_right')
+        .select('id, name, sound_enabled, video_quality, show_progress, playlist_id, footer_config, orientation')
         .eq('token', code)
       const sig1 = timeoutSignal(10000)
       if (sig1) screenQ = screenQ.abortSignal(sig1)

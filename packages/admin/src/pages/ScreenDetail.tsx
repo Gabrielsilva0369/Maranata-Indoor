@@ -530,26 +530,6 @@ export default function ScreenDetail() {
         )}
       </section>
 
-      {/* Ajuste do Rodapé */}
-      <section className="bg-white rounded-2xl border shadow-sm p-6 mb-6">
-        <h2 className="text-base font-bold text-slate-700 mb-4">Ajuste do Rodapé</h2>
-        <p className="text-xs text-gray-400 mb-4">Se o rodapé está cortado nas laterais, aumente as margens.</p>
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Margem Esquerda (px)</label>
-            <input type="number" min="0" max="100" value={screen.footer_margin_left ?? 0}
-              onChange={e => updateScreen.mutate({ id: screen.id, footer_margin_left: Number(e.target.value) })}
-              className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Margem Direita (px)</label>
-            <input type="number" min="0" max="100" value={screen.footer_margin_right ?? 0}
-              onChange={e => updateScreen.mutate({ id: screen.id, footer_margin_right: Number(e.target.value) })}
-              className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
-          </div>
-        </div>
-      </section>
-
       {/* Log de ações */}
       <section className="bg-white rounded-2xl border shadow-sm p-6 mb-6">
         <h2 className="text-base font-bold text-slate-700 mb-4">Log de Ações</h2>

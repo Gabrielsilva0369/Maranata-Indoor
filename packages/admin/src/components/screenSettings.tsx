@@ -28,6 +28,10 @@ export const DEFAULT_FOOTER: FooterConfig = {
   font_size: 18,
   height: 56,
   scroll_speed: 80,
+  margin_top: 0,
+  margin_bottom: 0,
+  margin_left: 0,
+  margin_right: 0,
 }
 
 // Upload da logo do rodapé na DO e devolve o footer_config final a ser salvo.
@@ -209,6 +213,32 @@ export function FooterModal({ screen, feeds, onClose, onSave }: {
                   <label className="block text-xs font-medium mb-1">Velocidade (px/s)</label>
                   <input type="number" min={20} max={400} value={cfg.scroll_speed} onChange={e => set({ scroll_speed: Number(e.target.value) })}
                     className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
+                </div>
+              </div>
+
+              <div className="border-t pt-4">
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Espaçamento</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium mb-1">Margem superior (px)</label>
+                    <input type="number" min={0} max={100} value={cfg.margin_top ?? 0} onChange={e => set({ margin_top: Number(e.target.value) })}
+                      className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium mb-1">Margem inferior (px)</label>
+                    <input type="number" min={0} max={100} value={cfg.margin_bottom ?? 0} onChange={e => set({ margin_bottom: Number(e.target.value) })}
+                      className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium mb-1">Margem esquerda (px)</label>
+                    <input type="number" min={0} max={100} value={cfg.margin_left ?? 0} onChange={e => set({ margin_left: Number(e.target.value) })}
+                      className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium mb-1">Margem direita (px)</label>
+                    <input type="number" min={0} max={100} value={cfg.margin_right ?? 0} onChange={e => set({ margin_right: Number(e.target.value) })}
+                      className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
+                  </div>
                 </div>
               </div>
             </div>

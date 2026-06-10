@@ -49,6 +49,10 @@ export interface FooterConfig {
   font_size: number            // px
   height: number               // px
   scroll_speed: number         // px/s
+  margin_top: number           // px — espaço no topo
+  margin_bottom: number        // px — espaço na base
+  margin_left: number          // px — espaço na esquerda
+  margin_right: number         // px — espaço na direita
 }
 
 export type ScreenOrientation = 'landscape' | 'landscape-reverse' | 'portrait' | 'portrait-reverse'

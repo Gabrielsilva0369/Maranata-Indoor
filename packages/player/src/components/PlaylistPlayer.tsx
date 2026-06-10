@@ -211,23 +211,24 @@ export default function PlaylistPlayer({ items, screen, onMediaChange, forceMute
 
   return (
     <div ref={rootRef} style={{ position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, background: '#000', overflow: 'hidden' }}>
-      {/* Área da mídia — ocupa a tela toda menos o rodapé (sem sobreposição) */}
+      {/* Área da mídia — ocupa a tela toda menos o rodapé e margens (sem sobreposição) */}
       <div style={{
         position: 'absolute',
         top: 0, left: 0,
         width: '100%',
-        height: footerH > 0 ? `calc(100% - ${footerH}px)` : '100%',
+        height: footerH > 0 ? `calc(100% - ${footerH + (effectiveFooter?.margin_top ?? 0) + (effectiveFooter?.margin_bottom ?? 0)}px)` : '100%',
         overflow: 'hidden',
       }}>
         {renderPlayer()}
       </div>
 
-      {/* Rodapé — largura total no rodapé da tela real */}
+      {/* Rodapé — largura total no rodapé da tela real com espaçamento */}
       {effectiveFooter && (
         <div style={{
-          position: 'absolute', bottom: 0,
-          left: `${screen.footer_margin_left ?? 0}px`,
-          right: `${screen.footer_margin_right ?? 0}px`,
+          position: 'absolute',
+          top: `calc(100% - ${footerH + (effectiveFooter.margin_bottom ?? 0)}px)`,
+          left: `${effectiveFooter.margin_left ?? 0}px`,
+          right: `${effectiveFooter.margin_right ?? 0}px`,
           height: footerH,
         }}>
           <Footer config={effectiveFooter} scale={vScale} />
