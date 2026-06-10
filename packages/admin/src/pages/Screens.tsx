@@ -164,9 +164,9 @@ export default function Screens() {
               <div className="flex items-center justify-between py-1.5">
                 <span className="text-xs font-medium text-gray-500">Barra de progresso</span>
                 <button type="button" onClick={() => setNewShowProgress(v => !v)}
-                  className={`relative w-11 h-6 rounded-full transition-colors ${newShowProgress ? 'bg-brand-600' : 'bg-gray-200'}`}>
-                  <span style={{ transform: newShowProgress ? 'translateX(22px)' : 'translateX(2px)' }}
-                    className="absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform" />
+                  className={`relative w-14 h-8 rounded-full transition-colors ${newShowProgress ? 'bg-brand-600' : 'bg-gray-300'}`}>
+                  <span style={{ transform: newShowProgress ? 'translateX(28px)' : 'translateX(2px)' }}
+                    className="absolute top-1 w-6 h-6 bg-white rounded-full shadow-md transition-transform" />
                 </button>
               </div>
 

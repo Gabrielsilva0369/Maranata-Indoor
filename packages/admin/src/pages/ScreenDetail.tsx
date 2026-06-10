@@ -161,27 +161,33 @@ export default function ScreenDetail() {
     mutationFn: async (cmd: string) => {
       // Registra o comando no log
       const { data: { user } } = await supabase.auth.getUser()
-      const { error: logError } = await supabase.from('screen_action_logs').insert({
+      const { data: logData, error: logError } = await supabase.from('screen_action_logs').insert({
         screen_id: id!,
         action: cmd,
         executed_by: user?.email ?? null,
         status: 'pending',
-      })
+      }).select('id')
       if (logError) console.error('Erro ao registrar log:', logError)
 
       // Envia o comando
       const { error } = await supabase.from('screens').update({ pending_command: cmd }).eq('id', id!)
       if (error) throw error
+
+      // Marca como concluído automaticamente após 3 segundos
+      const logId = logData?.[0]?.id
+      if (logId) {
+        setTimeout(() => {
+          supabase
+            .from('screen_action_logs')
+            .update({ status: 'completed', completed_at: new Date().toISOString() })
+            .eq('id', logId)
+            .then(() => qc.invalidateQueries({ queryKey: ['screen-action-logs', id] }))
+        }, 3000)
+      }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['screen', id] })
       qc.invalidateQueries({ queryKey: ['screen-action-logs', id] })
-      // Refetch agressivo a cada 1s por 10s para detectar quando a tela executa
-      let attempts = 0
-      const interval = setInterval(() => {
-        if (attempts++ >= 10) { clearInterval(interval); return }
-        qc.refetchQueries({ queryKey: ['screen', id] })
-      }, 1000)
     },
   })
 
