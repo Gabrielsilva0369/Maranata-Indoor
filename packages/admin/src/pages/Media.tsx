@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import type { Media, MediaType, ClockConfig, WeatherConfig, QuotesConfig, MediaFolder } from '../lib/database.types'
-import { Upload, Trash2, Plus, Image, Film, Code, Clock, Cloud, Search, MapPin, Pencil, Folder, FolderPlus, Layers, Youtube, Radio, Quote, Images, X } from 'lucide-react'
+import { Upload, Trash2, Plus, Image, Film, Code, Clock, Cloud, Search, MapPin, Pencil, FolderPlus, Youtube, Radio, Quote, Images, X } from 'lucide-react'
 import { transcodeVideoRenditions } from '../lib/videoTranscode'
 import { uploadToSpaces, deleteFromSpaces, mediaUrl } from '../lib/spaces'
 import { putAsset, releaseAsset, retainAsset } from '../lib/assets'
@@ -251,21 +251,21 @@ function QuotesForm({ cfg, onChange, bgUrl, onBgFileChange, onOpenPicker }: {
       </div>
 
       {/* Cor + tamanho da fonte */}
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
-          <label className="block text-sm font-medium mb-1">Cor da fonte</label>
+          <label className="block text-sm font-medium mb-2">Cor da fonte</label>
           <div className="flex gap-2">
             <input type="color" value={cfg.font_color} onChange={e => set({ font_color: e.target.value })}
-              className="w-10 h-9 rounded border cursor-pointer" />
+              className="w-14 h-10 rounded border cursor-pointer" />
             <input value={cfg.font_color} onChange={e => set({ font_color: e.target.value })}
-              className="flex-1 border rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-brand-500" />
+              className="flex-1 border rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-brand-500 min-h-[40px]" />
           </div>
         </div>
         <div>
-          <label className="block text-sm font-medium mb-1">Tamanho: <span className="text-brand-600">{cfg.font_size}px</span></label>
+          <label className="block text-sm font-medium mb-2">Tamanho: <span className="text-brand-600">{cfg.font_size}px</span></label>
           <input type="range" min={24} max={140} step={2} value={cfg.font_size}
             onChange={e => set({ font_size: parseInt(e.target.value, 10) })}
-            className="w-full accent-brand-600 mt-2" />
+            className="w-full accent-brand-600 h-2 rounded-lg" />
         </div>
       </div>
 
@@ -631,24 +631,24 @@ function ClockForm({ cfg, onChange, bgUrl, onBgFileChange, onOpenPicker }: {
           </select>
         </div>
         <div>
-          <label className="block text-sm font-medium mb-1">Cor da fonte</label>
+          <label className="block text-sm font-medium mb-2">Cor da fonte</label>
           <div className="flex gap-2">
             <input type="color" value={cfg.font_color} onChange={e => set({ font_color: e.target.value })}
-              className="w-10 h-9 rounded border cursor-pointer" />
+              className="w-14 h-10 rounded border cursor-pointer" />
             <input value={cfg.font_color} onChange={e => set({ font_color: e.target.value })}
-              className="flex-1 border rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-brand-500" />
+              className="flex-1 border rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-brand-500 min-h-[40px]" />
           </div>
         </div>
       </div>
 
       {/* Tamanho da fonte */}
       <div>
-        <label className="block text-sm font-medium mb-1">
+        <label className="block text-sm font-medium mb-2">
           Tamanho da fonte: <span className="text-brand-600">{Math.round((cfg.font_scale ?? 1) * 100)}%</span>
         </label>
         <input type="range" min={0.5} max={2.5} step={0.05} value={cfg.font_scale ?? 1}
           onChange={e => set({ font_scale: parseFloat(e.target.value) })}
-          className="w-full accent-brand-600" />
+          className="w-full accent-brand-600 h-2 rounded-lg" />
       </div>
 
       {/* Fundo */}
@@ -1020,36 +1020,34 @@ export default function MediaPage() {
         </div>
       </div>
 
-      {/* Barra de pastas */}
-      <div className="flex items-center gap-2 mb-6 overflow-x-auto pb-2">
-        <button onClick={() => setSelectedFolder('all')}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${selectedFolder === 'all' ? 'bg-brand-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
-          <Layers size={14} /> Todas
-          <span className="text-xs opacity-70">({mediaList.length})</span>
-        </button>
-        <button onClick={() => setSelectedFolder(null)}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${selectedFolder === null ? 'bg-brand-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
-          Sem pasta
-          <span className="text-xs opacity-70">({mediaList.filter(m => !m.folder_id).length})</span>
-        </button>
-        {folders.map(f => {
-          const count = mediaList.filter(m => m.folder_id === f.id).length
-          const active = selectedFolder === f.id
-          return (
-            <div key={f.id} className={`group flex items-center gap-1.5 pl-3 pr-2 py-1.5 rounded-lg text-sm font-medium transition-colors ${active ? 'bg-brand-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
-              <button onClick={() => setSelectedFolder(f.id)} className="flex items-center gap-1.5">
-                <Folder size={14} /> {f.name}
-                <span className="text-xs opacity-70">({count})</span>
-              </button>
-              <button
-                onClick={() => { if (confirm(`Remover pasta "${f.name}"? As mídias voltam para "Sem pasta".`)) deleteFolder.mutate(f.id) }}
-                className={`ml-1 opacity-0 group-hover:opacity-100 transition-opacity ${active ? 'hover:text-red-200' : 'hover:text-red-600'}`}
-                title="Remover pasta">
-                <Trash2 size={12} />
-              </button>
-            </div>
-          )
-        })}
+      {/* Seleção de pasta com dropdown */}
+      <div className="mb-6 flex items-center gap-4">
+        <select value={selectedFolder === 'all' ? 'all' : (selectedFolder === null ? 'none' : selectedFolder)}
+          onChange={e => {
+            if (e.target.value === 'all') setSelectedFolder('all')
+            else if (e.target.value === 'none') setSelectedFolder(null)
+            else setSelectedFolder(e.target.value)
+          }}
+          className="border rounded-lg px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand-500 min-h-[44px]">
+          <option value="all">Todas ({mediaList.length})</option>
+          <option value="none">Sem pasta ({mediaList.filter(m => !m.folder_id).length})</option>
+          {folders.map(f => {
+            const count = mediaList.filter(m => m.folder_id === f.id).length
+            return <option key={f.id} value={f.id}>{f.name} ({count})</option>
+          })}
+        </select>
+        {selectedFolder !== 'all' && selectedFolder !== null && (
+          <button
+            onClick={() => {
+              const folder = folders.find(f => f.id === selectedFolder)
+              if (confirm(`Remover pasta "${folder?.name}"? As mídias voltam para "Sem pasta".`))
+                deleteFolder.mutate(selectedFolder as string)
+            }}
+            className="p-2 text-gray-400 hover:text-red-600 transition-colors"
+            title="Remover pasta">
+            <Trash2 size={16} />
+          </button>
+        )}
       </div>
 
       {/* Modal nova pasta */}
@@ -1270,7 +1268,7 @@ export default function MediaPage() {
       )}
 
       {/* Grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
         {visibleMedia.map(item => (
           <div key={item.id} className="bg-white border rounded-xl overflow-hidden group">
             <div className="aspect-video bg-gray-100 relative flex items-center justify-center overflow-hidden">
