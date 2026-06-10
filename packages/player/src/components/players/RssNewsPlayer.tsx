@@ -12,27 +12,20 @@ interface Article {
   source_logo: string | null
   source_name: string | null
   pub_date: string | null
-}
-
-function shuffle<T>(arr: T[]): T[] {
-  const pool = [...arr]
-  for (let i = pool.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1))
-    ;[pool[i], pool[j]] = [pool[j], pool[i]]
-  }
-  return pool
+  link: string | null
 }
 
 interface Props {
   feedId: string
   duration: number       // segundos por artigo
-  articleCount: number   // quantas notícias exibir
+  articleCount: number   // quantas notícias exibir (modo automático)
+  articleLinks?: string[] | null  // notícias escolhidas (por link); null = automático
   quality?: VideoQuality
   showProgress?: boolean
   onEnd: () => void
 }
 
-export default function RssNewsPlayer({ feedId, duration, articleCount, quality = 'fhd', showProgress = true, onEnd }: Props) {
+export default function RssNewsPlayer({ feedId, duration, articleCount, articleLinks, quality = 'fhd', showProgress = true, onEnd }: Props) {
   const [articles, setArticles] = useState<Article[]>([])
   const [index, setIndex] = useState(0)
   const [progress, setProgress] = useState(0)
@@ -43,11 +36,20 @@ export default function RssNewsPlayer({ feedId, duration, articleCount, quality 
     setLoading(true)
     setIndex(0)
 
-    // 1º: usa os artigos já pré-carregados (preload) — instantâneo e offline,
-    // e com as imagens já aquecidas no cache. Sorteia entre eles.
-    const cached = getCachedArticles(feedId)
+    // Seleção determinística: se há notícias ESCOLHIDAS, exibe só elas (na ordem
+    // escolhida); senão, as N mais recentes (a lista já vem por data desc).
+    const pick = (list: Article[]): Article[] => {
+      if (articleLinks && articleLinks.length) {
+        const byLink = new Map(list.filter(a => a.link).map(a => [a.link as string, a]))
+        return articleLinks.map(l => byLink.get(l)).filter(Boolean) as Article[]
+      }
+      return list.slice(0, articleCount)
+    }
+
+    // 1º: usa os artigos já pré-carregados (preload) — instantâneo e offline.
+    const cached = getCachedArticles(feedId) as Article[]
     if (cached.length > 0) {
-      setArticles(shuffle(cached).slice(0, articleCount))
+      setArticles(pick(cached))
       setLoading(false)
       return
     }
@@ -55,16 +57,16 @@ export default function RssNewsPlayer({ feedId, duration, articleCount, quality 
     // Fallback (feed novo / preload não rodou): busca direto da rede.
     supabase
       .from('rss_articles')
-      .select('id, title, description, image_url, source_logo, source_name, pub_date')
+      .select('id, title, description, image_url, source_logo, source_name, pub_date, link')
       .eq('feed_id', feedId)
       .eq('active', true)
       .order('pub_date', { ascending: false })
       .limit(20)
       .then(({ data }) => {
-        setArticles(shuffle(data ?? []).slice(0, articleCount))
+        setArticles(pick((data ?? []) as Article[]))
         setLoading(false)
       })
-  }, [feedId, articleCount])
+  }, [feedId, articleCount, articleLinks])
 
   const advance = useCallback(() => {
     setIndex(prev => {

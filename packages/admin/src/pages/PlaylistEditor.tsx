@@ -377,8 +377,117 @@ function PreviewModal({ item, onClose }: { item: RichItem; onClose: () => void }
   )
 }
 
+// ── Modal de seleção de notícias (RSS) ────────────────────────────────────────
+function ArticleSelectionModal({ item, onClose, onSave }: {
+  item: RichItem
+  onClose: () => void
+  onSave: (links: string[]) => void
+}) {
+  const feedId = item.rss_feed_id
+  const feedName = item.rss_feed?.name ?? 'Feed'
+  const currentLinks = item.rss_article_links ?? []
+
+  const { data: articles = [] } = useQuery<{ id: string; link: string | null; title: string; pub_date: string | null }[]>({
+    queryKey: ['rss-articles-select', feedId],
+    queryFn: async () => {
+      if (!feedId) return []
+      const { data, error } = await supabase
+        .from('rss_articles')
+        .select('id, link, title, pub_date')
+        .eq('feed_id', feedId)
+        .eq('active', true)
+        .order('pub_date', { ascending: false })
+        .limit(20)
+      if (error) throw error
+      return data ?? []
+    },
+    enabled: !!feedId,
+  })
+
+  const [selected, setSelected] = useState<Set<string>>(new Set(currentLinks.filter(l => !!l)))
+
+  const toggle = (link: string) => {
+    setSelected(prev => {
+      const next = new Set(prev)
+      if (next.has(link)) next.delete(link)
+      else next.add(link)
+      return next
+    })
+  }
+
+  const selectAll = () => {
+    const all = articles.filter(a => a.link).map(a => a.link as string)
+    setSelected(new Set(all))
+  }
+
+  const clearAll = () => {
+    setSelected(new Set())
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[80vh] flex flex-col">
+        <div className="flex items-center justify-between p-6 border-b">
+          <div>
+            <h3 className="text-lg font-semibold">Escolher notícias</h3>
+            <p className="text-xs text-gray-400 mt-0.5">{feedName}</p>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-6 space-y-2">
+          {articles.length === 0 ? (
+            <p className="text-sm text-gray-400 text-center py-8">Nenhuma notícia disponível. Sincronize o feed primeiro.</p>
+          ) : (
+            articles.map(a => (
+              <label key={a.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={a.link ? selected.has(a.link) : false}
+                  onChange={() => a.link && toggle(a.link)}
+                  className="w-4 h-4 rounded border-gray-300 text-brand-600 focus:ring-brand-500"
+                />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-gray-800 line-clamp-2">{a.title}</p>
+                  {a.pub_date && (
+                    <p className="text-xs text-gray-400">{new Date(a.pub_date).toLocaleString('pt-BR')}</p>
+                  )}
+                </div>
+              </label>
+            ))
+          )}
+        </div>
+
+        <div className="flex gap-2 px-6 py-4 border-t bg-gray-50 rounded-b-2xl">
+          <div className="flex gap-1.5">
+            {articles.length > 0 && (
+              <>
+                <button onClick={selectAll}
+                  className="text-xs text-brand-600 hover:underline">Marcar tudo</button>
+                {selected.size > 0 && (
+                  <>
+                    <span className="text-xs text-gray-300">·</span>
+                    <button onClick={clearAll}
+                      className="text-xs text-gray-400 hover:underline">Limpar</button>
+                  </>
+                )}
+              </>
+            )}
+          </div>
+          <div className="flex-1" />
+          <button onClick={onClose} className="border rounded-lg px-4 py-2 text-sm">Cancelar</button>
+          <button onClick={() => onSave(Array.from(selected))}
+            className="bg-brand-600 hover:bg-brand-700 text-white rounded-lg px-4 py-2 text-sm font-medium transition-colors">
+            Salvar
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Item sortável da playlist ─────────────────────────────────────────────────
-function PlaylistCard({ item, index, onDelete, onDuplicate, onUpdateDuration, onUpdateArticleCount, onUpdateAudio, onUpdateFooter, onOpenSchedule, onPreview }: {
+function PlaylistCard({ item, index, onDelete, onDuplicate, onUpdateDuration, onUpdateArticleCount, onUpdateAudio, onUpdateFooter, onOpenSchedule, onOpenArticleSelection, onPreview }: {
   item: RichItem
   index: number
   onDelete: () => void
@@ -388,6 +497,7 @@ function PlaylistCard({ item, index, onDelete, onDuplicate, onUpdateDuration, on
   onUpdateAudio: (value: boolean | null) => void
   onUpdateFooter: (value: PlaylistItemFooter | null) => void
   onOpenSchedule: () => void
+  onOpenArticleSelection: () => void
   onPreview: () => void
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: item.id })
@@ -424,7 +534,7 @@ function PlaylistCard({ item, index, onDelete, onDuplicate, onUpdateDuration, on
       )}
 
       {/* controles de tempo */}
-      <div className="flex items-center gap-1 shrink-0">
+      <div className="flex items-center gap-1.5 shrink-0">
         {isRss && (
           <>
             <Newspaper size={11} className="text-gray-300" />
@@ -435,6 +545,10 @@ function PlaylistCard({ item, index, onDelete, onDuplicate, onUpdateDuration, on
               max={50}
               suffix=" notícias"
             />
+            <button onClick={onOpenArticleSelection} title="Escolher quais notícias exibir"
+              className="text-xs px-1.5 py-0.5 rounded border border-gray-200 hover:border-orange-400 text-gray-500 hover:text-orange-600 transition-colors">
+              Escolher
+            </button>
             <span className="text-gray-200 text-xs">·</span>
           </>
         )}
@@ -524,6 +638,7 @@ export default function PlaylistEditor() {
   const [localItems, setLocalItems] = useState<RichItem[]>([])
   const [scheduleItem, setScheduleItem] = useState<RichItem | null>(null)
   const [previewItem, setPreviewItem] = useState<RichItem | null>(null)
+  const [articleSelectionItem, setArticleSelectionItem] = useState<RichItem | null>(null)
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
@@ -653,6 +768,7 @@ export default function PlaylistEditor() {
       playlist_id: id!, media_id: mediaId ?? null, rss_feed_id: feedId ?? null,
       order_index: insertAt, duration_override: null,
       rss_article_count: feedId ? 5 : null,
+      rss_article_links: null,
       audio_enabled: null,
       footer_override: null,
       schedule: null,
@@ -876,6 +992,7 @@ export default function PlaylistEditor() {
                       onUpdateAudio={v => handleUpdateAudio(item, v)}
                       onUpdateFooter={v => handleUpdateFooter(item, v)}
                       onOpenSchedule={() => setScheduleItem(item)}
+                      onOpenArticleSelection={() => setArticleSelectionItem(item)}
                       onPreview={() => setPreviewItem(item)}
                     />
                   ))}
@@ -905,6 +1022,18 @@ export default function PlaylistEditor() {
 
       {previewItem && (
         <PreviewModal item={previewItem} onClose={() => setPreviewItem(null)} />
+      )}
+
+      {articleSelectionItem && (
+        <ArticleSelectionModal
+          item={articleSelectionItem}
+          onClose={() => setArticleSelectionItem(null)}
+          onSave={links => {
+            setLocalItems(prev => prev.map(i => i.id === articleSelectionItem.id ? { ...i, rss_article_links: links } : i))
+            updateItem.mutate({ itemId: articleSelectionItem.id, patch: { rss_article_links: links } })
+            setArticleSelectionItem(null)
+          }}
+        />
       )}
     </div>
   )

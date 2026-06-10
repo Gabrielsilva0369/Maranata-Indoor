@@ -180,7 +180,8 @@ export default function PlaylistPlayer({ items, screen, onMediaChange, forceMute
   const renderPlayer = () => {
     if (rss_feed_id && rss_feed) {
       return <RssNewsPlayer key={current.id} feedId={rss_feed_id} duration={duration}
-        articleCount={current.rss_article_count ?? 5} quality={screen.video_quality} showProgress={showProgress} onEnd={advance} />
+        articleCount={current.rss_article_count ?? 5} articleLinks={current.rss_article_links}
+        quality={screen.video_quality} showProgress={showProgress} onEnd={advance} />
     }
     if (media) {
       if (media.type === 'image' && media.storage_path)

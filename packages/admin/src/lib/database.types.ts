@@ -162,6 +162,7 @@ export interface PlaylistItem {
   order_index: number
   duration_override: number | null
   rss_article_count: number | null
+  rss_article_links: string[] | null   // notícias escolhidas (por link); null = automático
   audio_enabled: boolean | null
   footer_override: PlaylistItemFooter | null
   schedule: ItemSchedule | null

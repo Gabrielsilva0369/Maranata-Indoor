@@ -321,14 +321,28 @@ export async function syncMediaCache(
   }
   const activePaths = Array.from(pathSet)
 
-  // ── 2. Notícias (RSS): baixa os artigos por feed e coleta imagens externas ──
-  // Feeds usados nos itens da playlist + o feed do rodapé (se for do tipo RSS).
-  const feedIds = new Set<string>()
+  // ── 2. Notícias (RSS): guarda/aquece SÓ o que cada feed vai exibir ──
+  // Por feed: as notícias ESCOLHIDAS (rss_article_links) ∪ as `cap` mais recentes
+  // (rss_article_count dos itens automáticos). Feed usado só no rodapé guarda os
+  // títulos mas NÃO baixa imagens (warm=false).
+  const feedReq = new Map<string, { cap: number; links: Set<string>; warm: boolean }>()
+  const getReq = (fid: string) => {
+    let r = feedReq.get(fid)
+    if (!r) { r = { cap: 0, links: new Set(), warm: false }; feedReq.set(fid, r) }
+    return r
+  }
   for (const item of items) {
     const fid = item.rss_feed_id || item.rss_feed?.id
-    if (fid) feedIds.add(fid)
+    if (!fid) continue
+    const r = getReq(fid)
+    r.warm = true   // item de notícia exibe imagens
+    const sel: string[] | null = item.rss_article_links
+    if (sel && sel.length) sel.forEach(l => r.links.add(l))
+    else r.cap = Math.max(r.cap, item.rss_article_count ?? 5)
   }
-  if (footer?.type === 'rss' && footer.rss_feed_id) feedIds.add(footer.rss_feed_id)
+  if (footer?.type === 'rss' && footer.rss_feed_id) {
+    getReq(footer.rss_feed_id).cap = Math.max(getReq(footer.rss_feed_id).cap, 8)  // rodapé rola várias
+  }
 
   // URLs externas para "aquecer" no Service Worker (imagens de notícia + logo do
   // rodapé). Set p/ não aquecer a mesma imagem duas vezes (notícia repetida etc.).
@@ -337,7 +351,10 @@ export async function syncMediaCache(
   // Busca os feeds EM PARALELO e cada um já tem timeout — offline isto resolve
   // rápido (não pendura o boot) e a reprodução cai pro cache.
   const perFeed = await Promise.all(
-    Array.from(feedIds).map(fid => refreshFeedArticles(fid, 20, quality).catch(() => [] as string[]))
+    Array.from(feedReq.entries()).map(([fid, r]) =>
+      refreshFeedArticles(fid, { cap: r.cap, links: Array.from(r.links), quality, warmImages: r.warm })
+        .catch(() => [] as string[])
+    )
   )
   for (const imgs of perFeed) for (const u of imgs) warmSet.add(u)
   const warmUrls = Array.from(warmSet)
