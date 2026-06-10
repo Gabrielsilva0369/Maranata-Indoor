@@ -216,14 +216,14 @@ export default function PlaylistPlayer({ items, screen, onMediaChange, forceMute
         position: 'absolute',
         top: 0, left: 0,
         width: '100%',
-        height: footerH > 0 ? `calc(100% - ${footerH + (effectiveFooter?.margin_top ?? 0) + (effectiveFooter?.margin_bottom ?? 0)}px)` : '100%',
+        height: footerH > 0 ? `calc(100% - ${footerH + (preview ? 0 : (effectiveFooter?.margin_top ?? 0)) + (preview ? 0 : (effectiveFooter?.margin_bottom ?? 0))}px)` : '100%',
         overflow: 'hidden',
       }}>
         {renderPlayer()}
       </div>
 
-      {/* Espaço entre mídia e rodapé */}
-      {effectiveFooter && (effectiveFooter.margin_top ?? 0) > 0 && (
+      {/* Espaço entre mídia e rodapé (apenas fora do preview) */}
+      {!preview && effectiveFooter && (effectiveFooter.margin_top ?? 0) > 0 && (
         <div style={{
           position: 'absolute',
           top: footerH > 0 ? `calc(100% - ${footerH + (effectiveFooter.margin_top ?? 0) + (effectiveFooter.margin_bottom ?? 0)}px)` : 'auto',
@@ -236,7 +236,7 @@ export default function PlaylistPlayer({ items, screen, onMediaChange, forceMute
       {effectiveFooter && (
         <div style={{
           position: 'absolute',
-          bottom: `${effectiveFooter.margin_bottom ?? 0}px`,
+          bottom: preview ? 0 : `${effectiveFooter.margin_bottom ?? 0}px`,
           left: 0, right: 0,
           height: footerH,
           display: 'flex',
