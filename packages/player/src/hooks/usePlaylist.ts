@@ -118,6 +118,10 @@ export interface ScreenConfig {
   playlist_id: string | null
   footer_config: FooterConfig | null
   orientation: ScreenOrientation
+  margin_top: number
+  margin_right: number
+  margin_bottom: number
+  margin_left: number
 }
 
 // Assinatura do conteúdo que afeta a reprodução (ignora campos voláteis como o
@@ -214,7 +218,7 @@ export function usePlaylist(token: string) {
       // o limite faz falhar rápido e cair pro cache offline em vez de travar.
       let screenQ = supabase
         .from('screens')
-        .select('id, name, sound_enabled, video_quality, show_progress, playlist_id, footer_config, orientation')
+        .select('id, name, sound_enabled, video_quality, show_progress, playlist_id, footer_config, orientation, margin_top, margin_right, margin_bottom, margin_left')
         .eq('token', code)
       const sig1 = timeoutSignal(10000)
       if (sig1) screenQ = screenQ.abortSignal(sig1)

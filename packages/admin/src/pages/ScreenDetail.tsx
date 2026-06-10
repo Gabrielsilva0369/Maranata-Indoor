@@ -530,6 +530,38 @@ export default function ScreenDetail() {
         )}
       </section>
 
+      {/* Ajuste de Margens (Overscan) */}
+      <section className="bg-white rounded-2xl border shadow-sm p-6 mb-6">
+        <h2 className="text-base font-bold text-slate-700 mb-4">Ajuste de Overscan</h2>
+        <p className="text-xs text-gray-400 mb-4">Se a imagem está cortada nas bordas, ajuste as margens (em pixels). As mudanças são aplicadas em tempo real no preview.</p>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Topo (px)</label>
+            <input type="number" min="0" max="100" value={screen.margin_top ?? 0}
+              onChange={e => updateScreen.mutate({ id: screen.id, margin_top: Number(e.target.value) })}
+              className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Direita (px)</label>
+            <input type="number" min="0" max="100" value={screen.margin_right ?? 0}
+              onChange={e => updateScreen.mutate({ id: screen.id, margin_right: Number(e.target.value) })}
+              className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Fundo (px)</label>
+            <input type="number" min="0" max="100" value={screen.margin_bottom ?? 0}
+              onChange={e => updateScreen.mutate({ id: screen.id, margin_bottom: Number(e.target.value) })}
+              className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Esquerda (px)</label>
+            <input type="number" min="0" max="100" value={screen.margin_left ?? 0}
+              onChange={e => updateScreen.mutate({ id: screen.id, margin_left: Number(e.target.value) })}
+              className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
+          </div>
+        </div>
+      </section>
+
       {/* Log de ações */}
       <section className="bg-white rounded-2xl border shadow-sm p-6 mb-6">
         <h2 className="text-base font-bold text-slate-700 mb-4">Log de Ações</h2>
