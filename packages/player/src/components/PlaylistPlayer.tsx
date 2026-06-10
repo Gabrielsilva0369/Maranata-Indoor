@@ -224,7 +224,11 @@ export default function PlaylistPlayer({ items, screen, onMediaChange, forceMute
 
       {/* Rodapé — largura total no rodapé da tela real */}
       {effectiveFooter && (
-        <div style={{ position: 'absolute', bottom: 0, left: 0, width: '100%', height: footerH }}>
+        <div style={{
+          position: 'absolute', bottom: 0, left: 0, width: '100%', height: footerH,
+          marginLeft: `${screen.footer_margin_left ?? 0}px`,
+          marginRight: `${screen.footer_margin_right ?? 0}px`,
+        }}>
           <Footer config={effectiveFooter} scale={vScale} />
         </div>
       )}

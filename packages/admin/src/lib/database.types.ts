@@ -86,6 +86,8 @@ export interface Screen {
   last_seen: string | null
   last_screenshot: string | null
   last_screenshot_at: string | null
+  footer_margin_left: number
+  footer_margin_right: number
   created_at: string
 }
 
