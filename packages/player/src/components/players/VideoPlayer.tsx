@@ -71,7 +71,7 @@ export default function VideoPlayer({ storagePath, muted, quality = 'fhd', onEnd
             // Blur ASSADO no canvas (uma vez só). Assim o fundo é uma imagem
             // estática barata — sem filtro CSS recalculado a cada frame pela GPU,
             // que era o que causava as micro-travadas no box fraco.
-            try { ctx.filter = 'blur(4px) brightness(0.5)' } catch { /* WebView sem canvas filter */ }
+            try { ctx.filter = 'blur(2px) brightness(0.5)' } catch { /* WebView sem canvas filter */ }
             ctx.drawImage(v, 0, 0, c.width, c.height)
             setPoster(c.toDataURL('image/jpeg', 0.6))
           }
