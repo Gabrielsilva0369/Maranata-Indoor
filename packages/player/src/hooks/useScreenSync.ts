@@ -180,6 +180,20 @@ export function useScreenSync({ screenId, currentMedia, currentItemId = '', orie
   useEffect(() => {
     if (!screenId || disabled) return
 
+    // Marca o(s) log(s) pendente(s) desta ação como concluído/falhou no Supabase.
+    // O player é quem executa, então é a fonte da verdade — o admin só reflete.
+    const markLog = async (action: string, status: 'completed' | 'failed', errorMessage?: string) => {
+      try {
+        await supabase.from('screen_action_logs')
+          .update({ status, completed_at: new Date().toISOString(), error_message: errorMessage ?? null })
+          .eq('screen_id', screenId)
+          .eq('action', action)
+          .eq('status', 'pending')
+      } catch (e) {
+        console.error('[Comando] Falha ao atualizar o log:', e)
+      }
+    }
+
     const checkCommand = async () => {
       const { data } = await supabase.from('screens').select('pending_command').eq('id', screenId).maybeSingle()
       const cmd = data?.pending_command
@@ -188,25 +202,36 @@ export function useScreenSync({ screenId, currentMedia, currentItemId = '', orie
       // Limpa o comando antes de executar
       await supabase.from('screens').update({ pending_command: null }).eq('id', screenId)
 
-      if (cmd === 'refresh') {
-        // Refresh SUAVE: re-busca playlist/config e reinicia a reprodução,
-        // atualizando a tela SEM recarregar o navegador (ideal pro kiosk).
-        onRefreshRef.current?.()
-      } else if (cmd === 'reload') {
-        // Reload "duro": recarrega o navegador (força nova versão do app, etc.).
-        location.reload()
-      } else if (cmd === 'clear_cache') {
-        // Limpeza TOTAL forçada: vídeos/imagens (IndexedDB), TODOS os caches do SW
-        // (inclui o precache do app), notícias e a playlist offline. Depois recarrega
-        // e baixa tudo do zero.
-        await clearAllCache({ full: true })
-        location.reload()
-      } else if (cmd === 'screenshot') {
-        // Tira um print da tela atual e sobe pro admin.
-        await captureAndUpload(screenId)
-      } else if (cmd === 'update') {
-        // Atualizar app: mostra a tela "Atualizando app" e busca a versão nova.
-        onUpdateRef.current?.()
+      try {
+        if (cmd === 'refresh') {
+          // Refresh SUAVE: re-busca playlist/config e reinicia a reprodução,
+          // atualizando a tela SEM recarregar o navegador (ideal pro kiosk).
+          onRefreshRef.current?.()
+          await markLog(cmd, 'completed')
+        } else if (cmd === 'reload') {
+          // Reload "duro": recarrega o navegador (força nova versão do app, etc.).
+          // Marca ANTES do reload — depois dele o contexto JS é destruído.
+          await markLog(cmd, 'completed')
+          location.reload()
+        } else if (cmd === 'clear_cache') {
+          // Limpeza TOTAL forçada: vídeos/imagens (IndexedDB), TODOS os caches do SW
+          // (inclui o precache do app), notícias e a playlist offline. Depois recarrega
+          // e baixa tudo do zero.
+          await clearAllCache({ full: true })
+          await markLog(cmd, 'completed')
+          location.reload()
+        } else if (cmd === 'screenshot') {
+          // Tira um print da tela atual e sobe pro admin.
+          const ok = await captureAndUpload(screenId)
+          await markLog(cmd, ok ? 'completed' : 'failed', ok ? undefined : 'Falha ao capturar ou enviar o print')
+        } else if (cmd === 'update') {
+          // Atualizar app: mostra a tela "Atualizando app" e busca a versão nova.
+          // Marca ANTES — onUpdate recarrega a página.
+          await markLog(cmd, 'completed')
+          onUpdateRef.current?.()
+        }
+      } catch (e) {
+        await markLog(cmd, 'failed', String(e))
       }
     }
 

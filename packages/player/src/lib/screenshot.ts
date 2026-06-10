@@ -10,7 +10,7 @@ import { supabase } from './supabase'
  * camada que o html2canvas não enxerga. Imagens, notícias, relógio, clima,
  * rodapé e vídeo em cache (blob) saem normalmente.
  */
-export async function captureAndUpload(screenId: string): Promise<void> {
+export async function captureAndUpload(screenId: string): Promise<boolean> {
   try {
     const target = document.getElementById('root') || document.body
     const canvas = await html2canvas(target, {
@@ -28,7 +28,7 @@ export async function captureAndUpload(screenId: string): Promise<void> {
     const blob: Blob | null = await new Promise(res =>
       canvas.toBlob(b => res(b), 'image/jpeg', 0.7),
     )
-    if (!blob) return
+    if (!blob) return false
 
     const file = `${screenId}.jpg`
     const { error } = await supabase.storage
@@ -36,7 +36,7 @@ export async function captureAndUpload(screenId: string): Promise<void> {
       .upload(file, blob, { upsert: true, contentType: 'image/jpeg' })
     if (error) {
       console.error('[Print] Falha no upload:', error)
-      return
+      return false
     }
 
     const { data } = supabase.storage.from('screenshots').getPublicUrl(file)
@@ -47,7 +47,9 @@ export async function captureAndUpload(screenId: string): Promise<void> {
       .from('screens')
       .update({ last_screenshot: url, last_screenshot_at: new Date().toISOString() })
       .eq('id', screenId)
+    return true
   } catch (e) {
     console.error('[Print] Falha ao capturar a tela:', e)
+    return false
   }
 }
