@@ -211,7 +211,7 @@ export default function PlaylistPlayer({ items, screen, onMediaChange, forceMute
 
   return (
     <div ref={rootRef} style={{ position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, background: '#000', overflow: 'hidden' }}>
-      {/* Área da mídia — ocupa a tela toda menos o rodapé (sem sobreposição) */}
+      {/* Área da mídia — ocupa a tela toda menos o rodapé e seu espaço superior */}
       <div style={{
         position: 'absolute',
         top: 0, left: 0,
@@ -221,6 +221,16 @@ export default function PlaylistPlayer({ items, screen, onMediaChange, forceMute
       }}>
         {renderPlayer()}
       </div>
+
+      {/* Espaço entre mídia e rodapé */}
+      {effectiveFooter && (effectiveFooter.margin_top ?? 0) > 0 && (
+        <div style={{
+          position: 'absolute',
+          top: footerH > 0 ? `calc(100% - ${footerH + (effectiveFooter.margin_top ?? 0) + (effectiveFooter.margin_bottom ?? 0)}px)` : 'auto',
+          height: `${effectiveFooter.margin_top}px`,
+          left: 0, right: 0,
+        }} />
+      )}
 
       {/* Rodapé — com margens internas */}
       {effectiveFooter && (
