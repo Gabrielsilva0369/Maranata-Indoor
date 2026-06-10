@@ -202,7 +202,7 @@ export default function ScreenDetail() {
     },
   })
 
-  // Marca os logs pendentes como concluídos quando a tela executa o comando
+  // Marca os logs pendentes como concluídos ou falhados
   useEffect(() => {
     if (!screen || !id) return
 
@@ -222,40 +222,75 @@ export default function ScreenDetail() {
       qc.invalidateQueries({ queryKey: ['screen-action-logs', id] })
     }
 
+    const markAsFailed = async (logIds: string[], errorMsg?: string) => {
+      for (const logId of logIds) {
+        clearTimeout(commandTimeoutRef.current[logId])
+        delete commandTimeoutRef.current[logId]
+        await supabase
+          .from('screen_action_logs')
+          .update({ status: 'failed', completed_at: now, error_message: errorMsg ?? 'Tempo limite excedido ou tela offline' })
+          .eq('id', logId)
+      }
+      qc.invalidateQueries({ queryKey: ['screen-action-logs', id] })
+    }
+
     const completedLogIds: string[] = []
+    const failedLogIds: string[] = []
 
     for (const log of pendingLogs) {
+      const ageMs = Date.now() - new Date(log.created_at).getTime()
+
       // screenshot: detecta pelo last_screenshot_at recente (< 5 segundos atrás)
-      if (log.action === 'screenshot' && screen.last_screenshot_at) {
-        const timeSince = Date.now() - new Date(screen.last_screenshot_at).getTime()
-        if (timeSince < 5000 && prevScreenshotAtRef.current !== screen.last_screenshot_at) {
-          completedLogIds.push(log.id)
+      if (log.action === 'screenshot') {
+        if (screen.last_screenshot_at && prevScreenshotAtRef.current !== screen.last_screenshot_at) {
+          const timeSince = Date.now() - new Date(screen.last_screenshot_at).getTime()
+          if (timeSince < 5000) {
+            completedLogIds.push(log.id)
+          }
+        }
+        // Falha: timeout de 60s ou tela offline
+        else if (ageMs > 60_000 || !isOnline(screen.last_seen)) {
+          failedLogIds.push(log.id)
         }
       }
 
-      // update: detecta pela mudança em session_started_at ou app_version (recente)
-      if (log.action === 'update' && screen.session_started_at) {
-        const timeSince = Date.now() - new Date(screen.session_started_at).getTime()
-        if (timeSince < 30000 && prevSessionStartAtRef.current !== screen.session_started_at) {
-          completedLogIds.push(log.id)
+      // update: detecta pela mudança em session_started_at (recente)
+      else if (log.action === 'update') {
+        if (screen.session_started_at && prevSessionStartAtRef.current !== screen.session_started_at) {
+          const timeSince = Date.now() - new Date(screen.session_started_at).getTime()
+          if (timeSince < 30000) {
+            completedLogIds.push(log.id)
+          }
+        }
+        // Falha: timeout de 90s ou tela offline
+        else if (ageMs > 90_000 || !isOnline(screen.last_seen)) {
+          failedLogIds.push(log.id)
         }
       }
 
-      // clear_cache ou reload/refresh: quando pending_command foi limpo
-      if ((log.action === 'clear_cache' || log.action === 'reload' || log.action === 'refresh') &&
-          prevCommandRef.current && !screen.pending_command) {
-        completedLogIds.push(log.id)
+      // clear_cache, reload, refresh: quando pending_command foi limpo
+      else if (log.action === 'clear_cache' || log.action === 'reload' || log.action === 'refresh') {
+        if (prevCommandRef.current && !screen.pending_command) {
+          completedLogIds.push(log.id)
+        }
+        // Falha: timeout de 60s ou tela offline
+        else if (ageMs > 60_000 || !isOnline(screen.last_seen)) {
+          failedLogIds.push(log.id)
+        }
       }
     }
 
     if (completedLogIds.length > 0) {
       markAsCompleted(completedLogIds)
     }
+    if (failedLogIds.length > 0) {
+      markAsFailed(failedLogIds)
+    }
 
     prevCommandRef.current = screen.pending_command
     prevScreenshotAtRef.current = screen.last_screenshot_at ?? null
     prevSessionStartAtRef.current = screen.session_started_at ?? null
-  }, [screen?.pending_command, screen?.last_screenshot_at, screen?.session_started_at, id, actionLogs, qc])
+  }, [screen?.pending_command, screen?.last_screenshot_at, screen?.session_started_at, screen?.last_seen, id, actionLogs, qc])
 
   if (!screen) {
     return (
