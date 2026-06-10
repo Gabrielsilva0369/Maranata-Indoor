@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import type { Screen, Playlist, RssFeed, FooterConfig } from '../lib/database.types'
-import { Plus, Trash2, Volume2, VolumeX, PanelBottom, Pencil, Monitor } from 'lucide-react'
+import { Plus, Trash2, Volume2, VolumeX, PanelBottom, Pencil, Monitor, Camera, DownloadCloud } from 'lucide-react'
 import { FooterModal, EditScreenModal, uploadFooterLogo } from '../components/screenSettings'
 
 const PLAYER_URL =
@@ -285,6 +285,37 @@ export default function Screens() {
           <Monitor size={36} className="mx-auto text-gray-300 mb-3" />
           <p className="text-gray-500 font-medium">Nenhuma tela cadastrada</p>
           <p className="text-sm text-gray-400 mt-1">Clique em "Adicionar Tela" e use o código que aparece no player.</p>
+        </div>
+      )}
+
+      {/* Ações rápidas */}
+      {screens.length > 0 && (
+        <div className="bg-white rounded-lg sm:rounded-2xl border shadow-sm p-4 sm:p-6 mt-8">
+          <h3 className="text-sm sm:text-base font-semibold text-slate-700 mb-4">Ações rápidas para todas as telas</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+            <button onClick={() => { if (confirm('Tirar print de qual tela? (Essa ação enviará o comando para TODAS as telas. Prefira fazer isso individualmente na página de detalhes.)')) {} }}
+              className="flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-3 sm:py-2.5 rounded-lg text-sm font-medium transition-colors min-h-[44px] sm:min-h-auto">
+              <Camera size={16} />
+              <span className="hidden sm:inline">Tirar Print</span>
+              <span className="sm:hidden">Print</span>
+            </button>
+            <button onClick={() => { if (confirm('Limpar cache de TODAS as telas? Elas vão re-baixar as mídias.')) {
+              screens.forEach(s => updateScreen.mutate({ id: s.id, pending_command: 'clear_cache' }))
+            }}}
+              className="flex items-center justify-center gap-2 bg-teal-600 hover:bg-teal-700 text-white px-4 py-3 sm:py-2.5 rounded-lg text-sm font-medium transition-colors min-h-[44px] sm:min-h-auto">
+              <Trash2 size={16} />
+              <span>Limpar Cache</span>
+            </button>
+            <button onClick={() => { if (confirm('Atualizar app de TODAS as telas? Elas vão recarregar a versão nova.')) {
+              screens.forEach(s => updateScreen.mutate({ id: s.id, pending_command: 'update' }))
+            }}}
+              className="flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-3 sm:py-2.5 rounded-lg text-sm font-medium transition-colors min-h-[44px] sm:min-h-auto">
+              <DownloadCloud size={16} />
+              <span className="hidden sm:inline">Atualizar App</span>
+              <span className="sm:hidden">Atualizar</span>
+            </button>
+          </div>
+          <p className="text-xs text-gray-400 mt-3">Para ações em telas específicas, acesse a página de detalhes.</p>
         </div>
       )}
     </div>

@@ -101,17 +101,17 @@ export function FooterModal({ screen, feeds, onClose, onSave }: {
     : (cfg.text ?? '')
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
-      <div className="bg-white rounded-xl sm:rounded-2xl shadow-xl w-full max-w-lg my-4 sm:max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between p-6 border-b">
-          <div>
-            <h3 className="text-lg font-semibold">Rodapé — {screen.name}</h3>
-            <p className="text-xs text-gray-400 mt-0.5">Overlay fixo na parte inferior da tela</p>
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-3 sm:p-4">
+      <div className="bg-white rounded-lg sm:rounded-2xl shadow-xl w-full max-w-lg max-h-[95vh] sm:max-h-[90vh] flex flex-col">
+        <div className="flex items-center justify-between p-4 sm:p-6 border-b flex-shrink-0">
+          <div className="min-w-0">
+            <h3 className="text-base sm:text-lg font-semibold truncate">Rodapé — {screen.name}</h3>
+            <p className="text-xs text-gray-400 mt-0.5">Overlay fixo na parte inferior</p>
           </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 flex-shrink-0 ml-4"><X size={20} /></button>
         </div>
 
-        <div className="p-6 space-y-5">
+        <div className="p-4 sm:p-6 space-y-4 sm:space-y-5 overflow-y-auto flex-1 min-h-0">
           <div className="flex items-center justify-between py-2 px-4 bg-gray-50 rounded-xl">
             <div>
               <p className="text-sm font-medium">Ativar rodapé</p>
@@ -260,19 +260,21 @@ export function FooterModal({ screen, feeds, onClose, onSave }: {
           </div>
         </div>
 
-        <div className="flex gap-2 px-6 py-4 border-t bg-gray-50 rounded-b-2xl">
+        <div className="flex flex-col sm:flex-row gap-2 px-4 sm:px-6 py-3 sm:py-4 border-t bg-gray-50 flex-shrink-0">
           {screen.footer_config && (
             <button onClick={() => onSave(null, null, true)}
-              className="border border-red-200 text-red-600 hover:bg-red-50 rounded-lg px-4 py-2 text-sm transition-colors">
+              className="border border-red-200 text-red-600 hover:bg-red-50 rounded-lg px-4 py-2.5 text-sm transition-colors min-h-[40px] sm:w-auto w-full">
               Remover
             </button>
           )}
-          <div className="flex-1" />
-          <button onClick={onClose} className="border rounded-lg px-4 py-2 text-sm">Cancelar</button>
-          <button onClick={() => onSave(cfg, logoFile, removeLogo)}
-            className="bg-brand-600 hover:bg-brand-700 text-white rounded-lg px-4 py-2 text-sm font-medium transition-colors">
-            Salvar
-          </button>
+          <div className="flex-1 hidden sm:block" />
+          <div className="flex gap-2 w-full sm:w-auto">
+            <button onClick={onClose} className="border rounded-lg px-4 py-2.5 text-sm flex-1 sm:flex-none min-h-[40px]">Cancelar</button>
+            <button onClick={() => onSave(cfg, logoFile, removeLogo)}
+              className="bg-brand-600 hover:bg-brand-700 text-white rounded-lg px-4 py-2.5 text-sm font-medium transition-colors flex-1 sm:flex-none min-h-[40px]">
+              Salvar
+            </button>
+          </div>
         </div>
       </div>
     </div>
