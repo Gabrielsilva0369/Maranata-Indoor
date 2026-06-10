@@ -54,6 +54,10 @@ export default function ScreenDetail() {
   const [editOpen, setEditOpen] = useState(false)
   const [footerOpen, setFooterOpen] = useState(false)
   const prevCommandRef = useRef<string | null>(null)
+  const prevScreenshotAtRef = useRef<string | null>(null)
+  const prevSessionStartAtRef = useRef<string | null>(null)
+  const commandTimeoutRef = useRef<{ [key: string]: NodeJS.Timeout }>({})
+  const lastPendingLogRef = useRef<ScreenActionLog | null>(null)
 
   const { data: screen } = useQuery<Screen>({
     queryKey: ['screen', id],
@@ -166,23 +170,30 @@ export default function ScreenDetail() {
         action: cmd,
         executed_by: user?.email ?? null,
         status: 'pending',
-      }).select('id')
+      }).select('*')
       if (logError) console.error('Erro ao registrar log:', logError)
 
       // Envia o comando
       const { error } = await supabase.from('screens').update({ pending_command: cmd }).eq('id', id!)
       if (error) throw error
 
-      // Marca como concluído automaticamente após 3 segundos
-      const logId = logData?.[0]?.id
-      if (logId) {
-        setTimeout(() => {
-          supabase
-            .from('screen_action_logs')
-            .update({ status: 'completed', completed_at: new Date().toISOString() })
-            .eq('id', logId)
-            .then(() => qc.invalidateQueries({ queryKey: ['screen-action-logs', id] }))
-        }, 3000)
+      // Armazena o log pendente para rastrear conclusão
+      if (logData?.[0]) {
+        lastPendingLogRef.current = logData[0]
+
+        // Fallback: marca como concluído após 120 segundos se não conseguir detectar
+        const timeoutId = setTimeout(() => {
+          const logId = logData[0]?.id
+          if (logId) {
+            supabase
+              .from('screen_action_logs')
+              .update({ status: 'completed', completed_at: new Date().toISOString() })
+              .eq('id', logId)
+              .then(() => qc.invalidateQueries({ queryKey: ['screen-action-logs', id] }))
+          }
+        }, 120_000)
+
+        commandTimeoutRef.current[logData[0].id] = timeoutId
       }
     },
     onSuccess: () => {
@@ -195,25 +206,56 @@ export default function ScreenDetail() {
   useEffect(() => {
     if (!screen || !id) return
 
-    // Detecta quando pending_command foi limpo (comando executado)
-    if (prevCommandRef.current && !screen.pending_command) {
-      const markAsCompleted = async () => {
-        const now = new Date().toISOString()
-        const pendingLogs = actionLogs.filter(log => log.status === 'pending')
+    const now = new Date().toISOString()
+    const pendingLogs = actionLogs.filter(log => log.status === 'pending')
+    if (pendingLogs.length === 0) return
 
-        for (const log of pendingLogs) {
-          await supabase
-            .from('screen_action_logs')
-            .update({ status: 'completed', completed_at: now })
-            .eq('id', log.id)
-        }
-        qc.invalidateQueries({ queryKey: ['screen-action-logs', id] })
+    const markAsCompleted = async (logIds: string[]) => {
+      for (const logId of logIds) {
+        clearTimeout(commandTimeoutRef.current[logId])
+        delete commandTimeoutRef.current[logId]
+        await supabase
+          .from('screen_action_logs')
+          .update({ status: 'completed', completed_at: now })
+          .eq('id', logId)
       }
-      markAsCompleted()
+      qc.invalidateQueries({ queryKey: ['screen-action-logs', id] })
+    }
+
+    const completedLogIds: string[] = []
+
+    for (const log of pendingLogs) {
+      // screenshot: detecta pelo last_screenshot_at recente (< 5 segundos atrás)
+      if (log.action === 'screenshot' && screen.last_screenshot_at) {
+        const timeSince = Date.now() - new Date(screen.last_screenshot_at).getTime()
+        if (timeSince < 5000 && prevScreenshotAtRef.current !== screen.last_screenshot_at) {
+          completedLogIds.push(log.id)
+        }
+      }
+
+      // update: detecta pela mudança em session_started_at ou app_version (recente)
+      if (log.action === 'update' && screen.session_started_at) {
+        const timeSince = Date.now() - new Date(screen.session_started_at).getTime()
+        if (timeSince < 30000 && prevSessionStartAtRef.current !== screen.session_started_at) {
+          completedLogIds.push(log.id)
+        }
+      }
+
+      // clear_cache ou reload/refresh: quando pending_command foi limpo
+      if ((log.action === 'clear_cache' || log.action === 'reload' || log.action === 'refresh') &&
+          prevCommandRef.current && !screen.pending_command) {
+        completedLogIds.push(log.id)
+      }
+    }
+
+    if (completedLogIds.length > 0) {
+      markAsCompleted(completedLogIds)
     }
 
     prevCommandRef.current = screen.pending_command
-  }, [screen?.pending_command, id, actionLogs, qc])
+    prevScreenshotAtRef.current = screen.last_screenshot_at ?? null
+    prevSessionStartAtRef.current = screen.session_started_at ?? null
+  }, [screen?.pending_command, screen?.last_screenshot_at, screen?.session_started_at, id, actionLogs, qc])
 
   if (!screen) {
     return (
