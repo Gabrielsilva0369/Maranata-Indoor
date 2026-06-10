@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
@@ -53,6 +53,7 @@ export default function ScreenDetail() {
   const [previewKey, setPreviewKey] = useState(0)
   const [editOpen, setEditOpen] = useState(false)
   const [footerOpen, setFooterOpen] = useState(false)
+  const prevCommandRef = useRef<string | null>(null)
 
   const { data: screen } = useQuery<Screen>({
     queryKey: ['screen', id],
@@ -180,23 +181,26 @@ export default function ScreenDetail() {
 
   // Marca os logs pendentes como concluídos quando a tela executa o comando
   useEffect(() => {
-    if (!screen || screen.pending_command || !actionLogs.length) return
+    if (!screen || !id) return
 
-    const markAsCompleted = async () => {
-      const pendingLogs = actionLogs.filter(log => log.status === 'pending')
-      if (!pendingLogs.length) return
+    // Detecta quando pending_command foi limpo (comando executado)
+    if (prevCommandRef.current && !screen.pending_command) {
+      const markAsCompleted = async () => {
+        const now = new Date().toISOString()
+        const pendingLogs = actionLogs.filter(log => log.status === 'pending')
 
-      const now = new Date().toISOString()
-      for (const log of pendingLogs) {
-        await supabase
-          .from('screen_action_logs')
-          .update({ status: 'completed', completed_at: now })
-          .eq('id', log.id)
+        for (const log of pendingLogs) {
+          await supabase
+            .from('screen_action_logs')
+            .update({ status: 'completed', completed_at: now })
+            .eq('id', log.id)
+        }
+        qc.invalidateQueries({ queryKey: ['screen-action-logs', id] })
       }
-      qc.invalidateQueries({ queryKey: ['screen-action-logs', id] })
+      markAsCompleted()
     }
 
-    markAsCompleted()
+    prevCommandRef.current = screen.pending_command
   }, [screen?.pending_command, id, actionLogs, qc])
 
   if (!screen) {
