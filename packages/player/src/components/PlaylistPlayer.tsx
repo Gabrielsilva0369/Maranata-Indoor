@@ -232,7 +232,7 @@ export default function PlaylistPlayer({ items, screen, onMediaChange, forceMute
         }} />
       )}
 
-      {/* Rodapé — com margens internas */}
+      {/* Rodapé — com margens internas (exceto no preview) */}
       {effectiveFooter && (
         <div style={{
           position: 'absolute',
@@ -240,8 +240,8 @@ export default function PlaylistPlayer({ items, screen, onMediaChange, forceMute
           left: 0, right: 0,
           height: footerH,
           display: 'flex',
-          paddingLeft: `${effectiveFooter.margin_left ?? 0}px`,
-          paddingRight: `${effectiveFooter.margin_right ?? 0}px`,
+          paddingLeft: preview ? 0 : `${effectiveFooter.margin_left ?? 0}px`,
+          paddingRight: preview ? 0 : `${effectiveFooter.margin_right ?? 0}px`,
           boxSizing: 'border-box',
         }}>
           <div style={{ flex: 1 }}>
