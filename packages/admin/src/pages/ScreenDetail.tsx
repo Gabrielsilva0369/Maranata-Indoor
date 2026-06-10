@@ -176,6 +176,12 @@ export default function ScreenDetail() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['screen', id] })
       qc.invalidateQueries({ queryKey: ['screen-action-logs', id] })
+      // Refetch agressivo a cada 1s por 10s para detectar quando a tela executa
+      let attempts = 0
+      const interval = setInterval(() => {
+        if (attempts++ >= 10) { clearInterval(interval); return }
+        qc.refetchQueries({ queryKey: ['screen', id] })
+      }, 1000)
     },
   })
 
