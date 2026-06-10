@@ -260,19 +260,43 @@ export default function Screens() {
                 </select>
 
                 {/* Controles */}
-                <div className="flex items-center gap-2 mt-auto pt-3 border-t">
-                  <button onClick={() => updateScreen.mutate({ id: screen.id, sound_enabled: !screen.sound_enabled })}
-                    title={screen.sound_enabled ? 'Som ativo' : 'Sem som'}
-                    className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors min-h-[40px] ${screen.sound_enabled ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>
-                    {screen.sound_enabled ? <Volume2 size={16} /> : <VolumeX size={16} />}
-                    <span className="hidden sm:inline">Som</span>
-                  </button>
-                  <button onClick={() => setFooterScreen(screen)} title="Configurar rodapé"
-                    className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors min-h-[40px] ${hasFooter ? 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>
-                    <PanelBottom size={16} />
-                    <span className="hidden sm:inline">Rodapé{hasFooter ? ' ✓' : ''}</span>
-                    {hasFooter && <span className="sm:hidden">✓</span>}
-                  </button>
+                <div className="flex flex-col gap-3 sm:gap-2 mt-auto pt-3 border-t">
+                  <div className="flex items-center gap-2">
+                    <button onClick={() => updateScreen.mutate({ id: screen.id, sound_enabled: !screen.sound_enabled })}
+                      title={screen.sound_enabled ? 'Som ativo' : 'Sem som'}
+                      className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors min-h-[40px] ${screen.sound_enabled ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>
+                      {screen.sound_enabled ? <Volume2 size={16} /> : <VolumeX size={16} />}
+                      <span className="hidden sm:inline">Som</span>
+                    </button>
+                    <button onClick={() => setFooterScreen(screen)} title="Configurar rodapé"
+                      className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors min-h-[40px] ${hasFooter ? 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>
+                      <PanelBottom size={16} />
+                      <span className="hidden sm:inline">Rodapé{hasFooter ? ' ✓' : ''}</span>
+                      {hasFooter && <span className="sm:hidden">✓</span>}
+                    </button>
+                  </div>
+
+                  {/* Ações rápidas */}
+                  <div className="grid grid-cols-3 gap-2">
+                    <button onClick={() => { if (confirm(`Tirar print de "${screen.name}"?`)) updateScreen.mutate({ id: screen.id, pending_command: 'screenshot' }) }}
+                      title="Tirar print"
+                      className="flex items-center justify-center gap-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 px-2 py-2 rounded-lg text-xs font-medium transition-colors">
+                      <Camera size={14} />
+                      <span className="hidden sm:inline">Print</span>
+                    </button>
+                    <button onClick={() => { if (confirm(`Limpar cache de "${screen.name}"? Ela vai re-baixar as mídias.`)) updateScreen.mutate({ id: screen.id, pending_command: 'clear_cache' }) }}
+                      title="Limpar cache"
+                      className="flex items-center justify-center gap-1 bg-teal-50 hover:bg-teal-100 text-teal-600 px-2 py-2 rounded-lg text-xs font-medium transition-colors">
+                      <Trash2 size={14} />
+                      <span className="hidden sm:inline">Cache</span>
+                    </button>
+                    <button onClick={() => { if (confirm(`Atualizar app de "${screen.name}"? Ela vai recarregar a versão nova.`)) updateScreen.mutate({ id: screen.id, pending_command: 'update' }) }}
+                      title="Atualizar app"
+                      className="flex items-center justify-center gap-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 px-2 py-2 rounded-lg text-xs font-medium transition-colors">
+                      <DownloadCloud size={14} />
+                      <span className="hidden sm:inline">Atualizar</span>
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -288,36 +312,6 @@ export default function Screens() {
         </div>
       )}
 
-      {/* Ações rápidas */}
-      {screens.length > 0 && (
-        <div className="bg-white rounded-lg sm:rounded-2xl border shadow-sm p-4 sm:p-6 mt-8">
-          <h3 className="text-sm sm:text-base font-semibold text-slate-700 mb-4">Ações rápidas para todas as telas</h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-            <button onClick={() => { if (confirm('Tirar print de qual tela? (Essa ação enviará o comando para TODAS as telas. Prefira fazer isso individualmente na página de detalhes.)')) {} }}
-              className="flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-3 sm:py-2.5 rounded-lg text-sm font-medium transition-colors min-h-[44px] sm:min-h-auto">
-              <Camera size={16} />
-              <span className="hidden sm:inline">Tirar Print</span>
-              <span className="sm:hidden">Print</span>
-            </button>
-            <button onClick={() => { if (confirm('Limpar cache de TODAS as telas? Elas vão re-baixar as mídias.')) {
-              screens.forEach(s => updateScreen.mutate({ id: s.id, pending_command: 'clear_cache' }))
-            }}}
-              className="flex items-center justify-center gap-2 bg-teal-600 hover:bg-teal-700 text-white px-4 py-3 sm:py-2.5 rounded-lg text-sm font-medium transition-colors min-h-[44px] sm:min-h-auto">
-              <Trash2 size={16} />
-              <span>Limpar Cache</span>
-            </button>
-            <button onClick={() => { if (confirm('Atualizar app de TODAS as telas? Elas vão recarregar a versão nova.')) {
-              screens.forEach(s => updateScreen.mutate({ id: s.id, pending_command: 'update' }))
-            }}}
-              className="flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-3 sm:py-2.5 rounded-lg text-sm font-medium transition-colors min-h-[44px] sm:min-h-auto">
-              <DownloadCloud size={16} />
-              <span className="hidden sm:inline">Atualizar App</span>
-              <span className="sm:hidden">Atualizar</span>
-            </button>
-          </div>
-          <p className="text-xs text-gray-400 mt-3">Para ações em telas específicas, acesse a página de detalhes.</p>
-        </div>
-      )}
     </div>
   )
 }

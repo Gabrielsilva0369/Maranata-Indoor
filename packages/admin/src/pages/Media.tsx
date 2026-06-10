@@ -1299,13 +1299,13 @@ export default function MediaPage() {
                   bgUrl={item.quotes_config.bg_image_path ? getPublicUrl(item.quotes_config.bg_image_path) : undefined}
                 />
               )}
-              <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+              <div className="absolute top-2 right-2 flex gap-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                 <button onClick={() => openEdit(item)} title="Editar"
-                  className="bg-white/90 text-gray-700 hover:bg-white p-1 rounded-lg shadow"
-                ><Pencil size={14} /></button>
+                  className="bg-white/95 text-gray-700 hover:bg-white p-2 sm:p-1.5 rounded-lg shadow-md sm:shadow"
+                ><Pencil size={18} className="sm:hidden" /> <Pencil size={14} className="hidden sm:block" /></button>
                 <button onClick={() => { if (confirm('Remover mídia?')) deleteMedia.mutate(item) }} title="Remover"
-                  className="bg-red-600 text-white p-1 rounded-lg shadow"
-                ><Trash2 size={14} /></button>
+                  className="bg-red-600 text-white p-2 sm:p-1.5 rounded-lg shadow-md sm:shadow hover:bg-red-700"
+                ><Trash2 size={18} className="sm:hidden" /> <Trash2 size={14} className="hidden sm:block" /></button>
               </div>
             </div>
             <div className="p-3">

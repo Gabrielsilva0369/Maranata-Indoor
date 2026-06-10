@@ -300,7 +300,7 @@ export default function ScreenDetail() {
         <h2 className="flex items-center gap-2 text-sm sm:text-base font-bold text-slate-700 mb-4">
           <Settings size={18} className="text-brand-600" /> Configurações básicas
         </h2>
-        <dl className="space-y-3 text-sm">
+        <dl className="space-y-3 sm:space-y-4">
           <Row label="Nome"><span className="text-brand-600 font-medium">{screen.name}</span></Row>
 
           {/* Playlist — troca inline */}
@@ -628,9 +628,9 @@ export default function ScreenDetail() {
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="flex gap-4">
-      <dt className="w-44 text-right text-gray-500 shrink-0">{label}:</dt>
-      <dd>{children}</dd>
+    <div className="flex flex-col sm:flex-row sm:gap-4 gap-1.5">
+      <dt className="text-sm sm:text-base sm:w-44 sm:text-right text-gray-500 shrink-0 font-medium sm:font-normal">{label}:</dt>
+      <dd className="text-sm sm:text-base">{children}</dd>
     </div>
   )
 }
