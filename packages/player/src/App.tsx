@@ -136,12 +136,14 @@ export default function App() {
     <>
       {/* Overlay "tap to start" que libera o áudio do autoplay (auto-clique no load) */}
       <AudioUnlock />
-      <OrientationWrapper orientation={screen!.orientation ?? 'landscape'}>
       <div style={{
         position: 'absolute', top: 0, right: 0, bottom: 0, left: 0,
-        inset: `${screen?.margin_top ?? 0}px ${screen?.margin_right ?? 0}px ${screen?.margin_bottom ?? 0}px ${screen?.margin_left ?? 0}px`,
+        margin: `${screen?.margin_top ?? 0}px ${screen?.margin_right ?? 0}px ${screen?.margin_bottom ?? 0}px ${screen?.margin_left ?? 0}px`,
+        display: 'flex', flexDirection: 'column',
       }}>
+        <OrientationWrapper orientation={screen!.orientation ?? 'landscape'}>
         <PlaylistPlayer items={items} screen={screen!} onMediaChange={handleMediaChange} forceMuted={preview} preview={preview} />
+        </OrientationWrapper>
       </div>
 
       {/* Indicador de sincronização local de mídias em background */}
@@ -166,7 +168,6 @@ export default function App() {
           <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
         </div>
       )}
-      </OrientationWrapper>
     </>
   )
 }
