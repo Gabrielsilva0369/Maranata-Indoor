@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
@@ -177,6 +177,27 @@ export default function ScreenDetail() {
       qc.invalidateQueries({ queryKey: ['screen-action-logs', id] })
     },
   })
+
+  // Marca os logs pendentes como concluídos quando a tela executa o comando
+  useEffect(() => {
+    if (!screen || screen.pending_command || !actionLogs.length) return
+
+    const markAsCompleted = async () => {
+      const pendingLogs = actionLogs.filter(log => log.status === 'pending')
+      if (!pendingLogs.length) return
+
+      const now = new Date().toISOString()
+      for (const log of pendingLogs) {
+        await supabase
+          .from('screen_action_logs')
+          .update({ status: 'completed', completed_at: now })
+          .eq('id', log.id)
+      }
+      qc.invalidateQueries({ queryKey: ['screen-action-logs', id] })
+    }
+
+    markAsCompleted()
+  }, [screen?.pending_command, id, actionLogs, qc])
 
   if (!screen) {
     return (
