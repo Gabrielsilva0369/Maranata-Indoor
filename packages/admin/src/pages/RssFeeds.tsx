@@ -221,7 +221,7 @@ function FeedRow({ feed, expanded, onToggle, onDelete }: {
         </div>
         <div className="flex-1 min-w-0">
           <p className="font-semibold">{feed.name}</p>
-          <p className="text-xs text-gray-400 truncate">{feed.url}</p>
+          <p className="text-xs text-gray-400">{feed.url}</p>
         </div>
         <div className="text-right shrink-0">
           {feed.last_synced_at ? (
@@ -262,7 +262,7 @@ function FeedRow({ feed, expanded, onToggle, onDelete }: {
 
               {/* Conteúdo */}
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium leading-snug line-clamp-1">{article.title}</p>
+                <p className="text-sm font-medium leading-snug">{article.title}</p>
                 {article.pub_date && (
                   <p className="text-xs text-gray-400 mt-0.5">{new Date(article.pub_date).toLocaleString('pt-BR')}</p>
                 )}

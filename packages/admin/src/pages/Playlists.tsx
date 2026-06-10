@@ -41,14 +41,14 @@ export default function Playlists() {
   })
 
   return (
-    <div className="p-8">
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-bold">Playlists</h2>
+    <div className="p-4 sm:p-6 md:p-8 bg-gray-50 min-h-screen">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 mb-6">
+        <h2 className="text-2xl sm:text-3xl font-bold">Playlists</h2>
         <button
           onClick={() => setShowAdd(true)}
-          className="flex items-center gap-2 bg-brand-600 hover:bg-brand-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+          className="flex items-center justify-center gap-2 bg-brand-600 hover:bg-brand-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors w-full sm:w-auto"
         >
-          <Plus size={16} /> Nova Playlist
+          <Plus size={16} /> Nova
         </button>
       </div>
 

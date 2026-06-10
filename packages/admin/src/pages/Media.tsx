@@ -1003,25 +1003,25 @@ export default function MediaPage() {
   const isSaveDisabled = !!saveBlockReason || uploading || addMedia.isPending || updateMedia.isPending
 
   return (
-    <div className="p-8">
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-bold">Mídias</h2>
-        <div className="flex items-center gap-2">
+    <div className="p-4 sm:p-6 md:p-8 bg-gray-50 min-h-screen">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 mb-6">
+        <h2 className="text-2xl sm:text-3xl font-bold">Mídias</h2>
+        <div className="flex items-center gap-2 flex-wrap">
           <button onClick={() => { setShowNewFolder(true); setNewFolderName('') }}
-            className="flex items-center gap-2 border px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors"
+            className="flex items-center justify-center gap-2 border px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium hover:bg-gray-50 transition-colors flex-1 sm:flex-none"
           >
-            <FolderPlus size={16} /> Nova Pasta
+            <FolderPlus size={16} /> <span className="hidden sm:inline">Nova</span> Pasta
           </button>
           <button onClick={openCreate}
-            className="flex items-center gap-2 bg-brand-600 hover:bg-brand-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+            className="flex items-center justify-center gap-2 bg-brand-600 hover:bg-brand-700 text-white px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition-colors flex-1 sm:flex-none"
           >
-            <Plus size={16} /> Nova Mídia
+            <Plus size={16} /> <span className="hidden sm:inline">Nova</span> Mídia
           </button>
         </div>
       </div>
 
       {/* Barra de pastas */}
-      <div className="flex items-center gap-2 mb-6 flex-wrap">
+      <div className="flex items-center gap-2 mb-6 overflow-x-auto pb-2">
         <button onClick={() => setSelectedFolder('all')}
           className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${selectedFolder === 'all' ? 'bg-brand-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
           <Layers size={14} /> Todas
@@ -1311,7 +1311,7 @@ export default function MediaPage() {
               </div>
             </div>
             <div className="p-3">
-              <p className="text-sm font-medium truncate">{item.name}</p>
+              <p className="text-sm font-medium">{item.name}</p>
               <div className="flex items-center justify-between mt-1">
                 <span className="inline-flex items-center gap-1 text-xs text-gray-500">
                   {TYPE_ICONS[item.type]} {TYPE_LABELS[item.type]}

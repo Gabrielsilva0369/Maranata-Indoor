@@ -274,30 +274,30 @@ export default function ScreenDetail() {
   const QUALITY_LABEL: Record<string, string> = { sd: 'SD', qhd: '540p', hd: 'HD', fhd: 'Full HD' }
 
   return (
-    <div className="p-8 max-w-5xl">
+    <div className="p-4 sm:p-6 md:p-8 bg-gray-50 min-h-screen">
       <button onClick={() => navigate('/screens')}
-        className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-800 mb-4">
+        className="flex items-center gap-1 text-xs sm:text-sm text-gray-500 hover:text-gray-800 mb-4">
         <ChevronLeft size={16} /> Voltar
       </button>
 
       {/* Cabeçalho da tela */}
-      <div className="flex items-center justify-between gap-4 flex-wrap mb-6">
-        <div className="flex items-center gap-3">
-          <h1 className="text-2xl font-bold text-slate-800">{screen.name}</h1>
-          <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full ${online ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 mb-6">
+        <div className="flex items-start sm:items-center gap-3 flex-1 min-w-0">
+          <h1 className="text-2xl sm:text-3xl font-bold text-slate-800">{screen.name}</h1>
+          <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full whitespace-nowrap flex-shrink-0 ${online ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
             <span className={`w-1.5 h-1.5 rounded-full ${online ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`} />
-            {online ? 'Online' : 'Offline'}
+            {online ? 'On' : 'Off'}
           </span>
         </div>
         <button onClick={() => setEditOpen(true)}
-          className="flex items-center gap-1.5 text-sm bg-brand-600 hover:bg-brand-700 text-white px-4 py-2 rounded-xl font-medium transition-colors shadow-sm">
-          <Pencil size={14} /> Editar tela
+          className="flex items-center justify-center gap-1.5 text-sm bg-brand-600 hover:bg-brand-700 text-white px-4 py-2 rounded-xl font-medium transition-colors shadow-sm w-full sm:w-auto">
+          <Pencil size={14} /> Editar
         </button>
       </div>
 
       {/* Configurações básicas */}
-      <section className="bg-white rounded-2xl border shadow-sm p-6 mb-6">
-        <h2 className="flex items-center gap-2 text-base font-bold text-slate-700 mb-4">
+      <section className="bg-white rounded-lg sm:rounded-2xl border shadow-sm p-4 sm:p-6 mb-6">
+        <h2 className="flex items-center gap-2 text-sm sm:text-base font-bold text-slate-700 mb-4">
           <Settings size={18} className="text-brand-600" /> Configurações básicas
         </h2>
         <dl className="space-y-3 text-sm">
@@ -343,7 +343,7 @@ export default function ScreenDetail() {
 
       {/* Status e Informações */}
       <section className="bg-white rounded-2xl border shadow-sm p-6 mb-6">
-        <h2 className="flex items-center gap-2 text-base font-bold text-slate-700 mb-4">
+        <h2 className="flex items-center gap-2 text-sm sm:text-base font-bold text-slate-700 mb-4">
           <BarChart3 size={18} className="text-green-600" /> Status e Informações
         </h2>
 
@@ -502,7 +502,7 @@ export default function ScreenDetail() {
 
       {/* Comandos */}
       <section className="bg-white rounded-2xl border shadow-sm p-6 mb-6">
-        <h2 className="flex items-center gap-2 text-base font-bold text-slate-700 mb-4">
+        <h2 className="flex items-center gap-2 text-sm sm:text-base font-bold text-slate-700 mb-4">
           <Clock size={18} className="text-purple-600" /> Comandos
         </h2>
         {!online && (
@@ -534,7 +534,7 @@ export default function ScreenDetail() {
 
       {/* Print da tela */}
       <section className="bg-white rounded-2xl border shadow-sm p-6 mb-6">
-        <h2 className="flex items-center gap-2 text-base font-bold text-slate-700 mb-4">
+        <h2 className="flex items-center gap-2 text-sm sm:text-base font-bold text-slate-700 mb-4">
           <Camera size={18} className="text-indigo-600" /> Print da Tela
         </h2>
         {screen.last_screenshot ? (

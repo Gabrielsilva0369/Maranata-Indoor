@@ -102,11 +102,11 @@ export default function Screens() {
   const onlineCount = screens.filter(s => isOnline(s.last_seen)).length
 
   return (
-    <div className="p-8">
-      <div className="flex items-end justify-between mb-6 gap-4 flex-wrap">
+    <div className="p-4 sm:p-6 md:p-8 bg-gray-50 min-h-screen">
+      <div className="flex flex-col sm:flex-row sm:items-end justify-between mb-6 gap-3 sm:gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-slate-800">Telas</h2>
-          <p className="text-sm text-gray-500 mt-0.5">
+          <h2 className="text-2xl sm:text-3xl font-bold text-slate-800">Telas</h2>
+          <p className="text-xs sm:text-sm text-gray-500 mt-0.5">
             {screens.length} {screens.length === 1 ? 'tela' : 'telas'}
             {screens.length > 0 && (
               <> · <span className="text-green-600 font-medium">{onlineCount} online</span></>
@@ -114,9 +114,9 @@ export default function Screens() {
           </p>
         </div>
         <button onClick={() => setShowAdd(true)}
-          className="flex items-center gap-2 bg-brand-600 hover:bg-brand-700 text-white px-4 py-2.5 rounded-xl text-sm font-medium transition-colors shadow-sm"
+          className="flex items-center justify-center gap-2 bg-brand-600 hover:bg-brand-700 text-white px-4 py-2.5 rounded-xl text-sm font-medium transition-colors shadow-sm w-full sm:w-auto"
         >
-          <Plus size={16} /> Adicionar Tela
+          <Plus size={16} /> <span className="hidden sm:inline">Adicionar</span><span className="sm:hidden">Novo</span>
         </button>
       </div>
 
@@ -235,7 +235,7 @@ export default function Screens() {
               <div className="p-4 flex flex-col gap-3 flex-1">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
-                    <Link to={`/screens/${screen.id}`} className="font-semibold text-slate-800 hover:text-brand-600 truncate block">
+                    <Link to={`/screens/${screen.id}`} className="font-semibold text-slate-800 hover:text-brand-600 block">
                       {screen.name}
                     </Link>
                     <span className="text-xs font-mono text-gray-400 tracking-wider">{screen.token.slice(0, 6).toUpperCase()}</span>

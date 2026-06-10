@@ -204,7 +204,7 @@ export default function AppUpdates() {
                     </span>
                   )}
                 </td>
-                <td className="px-4 py-3 text-gray-600 max-w-xs truncate">{b.notes || '—'}</td>
+                <td className="px-4 py-3 text-gray-600 max-w-xs">{b.notes || '—'}</td>
                 <td className="px-4 py-3 text-gray-400">
                   {new Date(b.created_at).toLocaleString('pt-BR')}
                 </td>

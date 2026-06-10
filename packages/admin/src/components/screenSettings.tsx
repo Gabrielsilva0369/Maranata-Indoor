@@ -102,7 +102,7 @@ export function FooterModal({ screen, feeds, onClose, onSave }: {
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg my-4">
+      <div className="bg-white rounded-xl sm:rounded-2xl shadow-xl w-full max-w-lg my-4 sm:max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between p-6 border-b">
           <div>
             <h3 className="text-lg font-semibold">Rodapé — {screen.name}</h3>
@@ -142,7 +142,7 @@ export function FooterModal({ screen, feeds, onClose, onSave }: {
                 <label className="block text-sm font-medium mb-1">Texto</label>
                 <input value={cfg.text ?? ''} onChange={e => set({ text: e.target.value })}
                   placeholder="Seu texto aqui..."
-                  className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
+                  className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 min-h-[40px]" />
               </div>
             )}
 

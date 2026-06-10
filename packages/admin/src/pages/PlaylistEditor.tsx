@@ -125,7 +125,7 @@ function AvailableMediaCard({ media, onAdd }: { media: Media; onAdd?: () => void
       className="flex items-center gap-2 bg-white border rounded-lg px-3 py-2.5 select-none hover:border-brand-400 hover:shadow-sm transition-all group/card"
     >
       <span {...attributes} {...listeners} className="text-gray-400 shrink-0 cursor-grab active:cursor-grabbing">{MEDIA_ICONS[media.type]}</span>
-      <span {...attributes} {...listeners} className="text-sm font-medium truncate flex-1 cursor-grab active:cursor-grabbing">{media.name}</span>
+      <span {...attributes} {...listeners} className="text-sm font-medium flex-1 cursor-grab active:cursor-grabbing">{media.name}</span>
       <span className="text-xs text-gray-400 shrink-0">{media.duration}s</span>
       {onAdd && (
         <button onClick={onAdd} title="Adicionar à playlist"
@@ -146,7 +146,7 @@ function AvailableRssCard({ feed, onAdd }: { feed: RssFeed; onAdd?: () => void }
       className="flex items-center gap-2 bg-white border rounded-lg px-3 py-2.5 select-none hover:border-orange-400 hover:shadow-sm transition-all group/card"
     >
       <span {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing shrink-0"><Rss size={12} className="text-orange-400" /></span>
-      <span {...attributes} {...listeners} className="text-sm font-medium truncate flex-1 cursor-grab active:cursor-grabbing">{feed.name}</span>
+      <span {...attributes} {...listeners} className="text-sm font-medium flex-1 cursor-grab active:cursor-grabbing">{feed.name}</span>
       <span className="text-xs text-gray-400 shrink-0">RSS</span>
       {onAdd && (
         <button onClick={onAdd} title="Adicionar à playlist"
@@ -216,7 +216,7 @@ function ScheduleModal({ item, onClose, onSave }: {
         <div className="flex items-center justify-between p-6 border-b">
           <div>
             <h3 className="text-lg font-semibold">Agendamento</h3>
-            <p className="text-xs text-gray-400 mt-0.5 truncate max-w-xs">{label}</p>
+            <p className="text-xs text-gray-400 mt-0.5 max-w-xs">{label}</p>
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
         </div>
@@ -368,7 +368,7 @@ function PreviewModal({ item, onClose }: { item: RichItem; onClose: () => void }
     <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-6" onClick={onClose}>
       <div className="bg-gray-900 rounded-2xl shadow-2xl w-full max-w-3xl overflow-hidden" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-5 py-3 border-b border-white/10">
-          <h3 className="text-white font-semibold truncate">{feed?.name ?? m?.name ?? 'Preview'}</h3>
+          <h3 className="text-white font-semibold">{feed?.name ?? m?.name ?? 'Preview'}</h3>
           <button onClick={onClose} className="text-gray-400 hover:text-white"><X size={20} /></button>
         </div>
         <div className="p-4 bg-black flex items-center justify-center min-h-[240px]">{body}</div>
@@ -448,7 +448,7 @@ function ArticleSelectionModal({ item, onClose, onSave }: {
                   className="w-4 h-4 rounded border-gray-300 text-brand-600 focus:ring-brand-500"
                 />
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-800 line-clamp-2">{a.title}</p>
+                  <p className="text-sm font-medium text-gray-800">{a.title}</p>
                   {a.pub_date && (
                     <p className="text-xs text-gray-400">{new Date(a.pub_date).toLocaleString('pt-BR')}</p>
                   )}
@@ -526,7 +526,7 @@ function PlaylistCard({ item, index, onDelete, onDuplicate, onUpdateDuration, on
 
       {/* ícone + nome */}
       <span className="text-gray-400 shrink-0">{icon}</span>
-      <span className="text-sm font-medium truncate flex-1 min-w-0">{label}</span>
+      <span className="text-sm font-medium flex-1 min-w-0">{label}</span>
 
       {/* toggle de áudio (só para vídeo) */}
       {isVideo && (
@@ -872,19 +872,19 @@ export default function PlaylistEditor() {
   const { setNodeRef: plRef,   isOver: isOverPl    } = useDroppable({ id: 'playlist-drop' })
 
   return (
-    <div className="p-6 flex flex-col h-full overflow-hidden">
+    <div className="p-3 sm:p-6 flex flex-col h-full overflow-hidden bg-gray-50">
       <button onClick={() => navigate('/playlists')}
-        className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-800 mb-3 w-fit"
+        className="flex items-center gap-1 text-xs sm:text-sm text-gray-500 hover:text-gray-800 mb-3 w-fit"
       >
         <ChevronLeft size={16} /> Voltar
       </button>
-      <h2 className="text-xl font-bold mb-4">{playlist?.name ?? 'Playlist'}</h2>
+      <h2 className="text-lg sm:text-xl font-bold mb-4">{playlist?.name ?? 'Playlist'}</h2>
 
       <DndContext sensors={sensors} collisionDetection={customCollision} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-        <div className="flex gap-5 flex-1 min-h-0">
+        <div className="flex flex-col lg:flex-row gap-3 lg:gap-5 flex-1 min-h-0">
 
           {/* Esquerda: Biblioteca */}
-          <div className="flex flex-col w-72 shrink-0">
+          <div className="flex flex-col w-full lg:w-72 lg:shrink-0 min-h-0">
             <div className="flex gap-1 mb-2 bg-gray-100 rounded-lg p-1">
               {(['media', 'rss'] as const).map(t => (
                 <button key={t} onClick={() => setTab(t)}
