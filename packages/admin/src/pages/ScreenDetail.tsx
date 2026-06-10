@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
@@ -53,11 +53,6 @@ export default function ScreenDetail() {
   const [previewKey, setPreviewKey] = useState(0)
   const [editOpen, setEditOpen] = useState(false)
   const [footerOpen, setFooterOpen] = useState(false)
-  const prevCommandRef = useRef<string | null>(null)
-  const prevScreenshotAtRef = useRef<string | null>(null)
-  const prevSessionStartAtRef = useRef<string | null>(null)
-  const commandTimeoutRef = useRef<{ [key: string]: NodeJS.Timeout }>({})
-  const lastPendingLogRef = useRef<ScreenActionLog | null>(null)
 
   const { data: screen } = useQuery<Screen>({
     queryKey: ['screen', id],
@@ -165,36 +160,18 @@ export default function ScreenDetail() {
     mutationFn: async (cmd: string) => {
       // Registra o comando no log
       const { data: { user } } = await supabase.auth.getUser()
-      const { data: logData, error: logError } = await supabase.from('screen_action_logs').insert({
+      const { error: logError } = await supabase.from('screen_action_logs').insert({
         screen_id: id!,
         action: cmd,
         executed_by: user?.email ?? null,
         status: 'pending',
-      }).select('*')
+      })
       if (logError) console.error('Erro ao registrar log:', logError)
 
-      // Envia o comando
+      // Envia o comando. A conclusão/falha é detectada pelo efeito de polling
+      // (compara os sinais da tela contra created_at do log).
       const { error } = await supabase.from('screens').update({ pending_command: cmd }).eq('id', id!)
       if (error) throw error
-
-      // Armazena o log pendente para rastrear conclusão
-      if (logData?.[0]) {
-        lastPendingLogRef.current = logData[0]
-
-        // Fallback: marca como concluído após 120 segundos se não conseguir detectar
-        const timeoutId = setTimeout(() => {
-          const logId = logData[0]?.id
-          if (logId) {
-            supabase
-              .from('screen_action_logs')
-              .update({ status: 'completed', completed_at: new Date().toISOString() })
-              .eq('id', logId)
-              .then(() => qc.invalidateQueries({ queryKey: ['screen-action-logs', id] }))
-          }
-        }, 120_000)
-
-        commandTimeoutRef.current[logData[0].id] = timeoutId
-      }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['screen', id] })
@@ -202,94 +179,71 @@ export default function ScreenDetail() {
     },
   })
 
-  // Marca os logs pendentes como concluídos ou falhados
+  // Marca os logs pendentes como concluídos ou falhados.
+  //
+  // Sinais de conclusão (comparados contra log.created_at, robustos a polling):
+  //  • screenshot         → last_screenshot_at fica mais novo que o comando
+  //  • update/clear_cache/reload → recarregam o navegador → session_started_at reseta
+  //  • refresh (suave)    → não recarrega; conclui após a tela ter um heartbeat pós-comando
+  // Falha: passou do tempo limite sem o sinal aparecer (tela offline ou travada).
   useEffect(() => {
     if (!screen || !id) return
 
-    const now = new Date().toISOString()
     const pendingLogs = actionLogs.filter(log => log.status === 'pending')
     if (pendingLogs.length === 0) return
 
-    const markAsCompleted = async (logIds: string[]) => {
-      for (const logId of logIds) {
-        clearTimeout(commandTimeoutRef.current[logId])
-        delete commandTimeoutRef.current[logId]
-        await supabase
-          .from('screen_action_logs')
-          .update({ status: 'completed', completed_at: now })
-          .eq('id', logId)
-      }
-      qc.invalidateQueries({ queryKey: ['screen-action-logs', id] })
+    const ms = (s: string | null | undefined) => (s ? new Date(s).getTime() : 0)
+
+    // Tempo limite por ação (após isso, marca falha se não houve sinal).
+    const TIMEOUT: Record<string, number> = {
+      screenshot: 60_000,
+      update: 120_000,
+      clear_cache: 120_000,
+      reload: 120_000,
+      refresh: 60_000,
     }
 
-    const markAsFailed = async (logIds: string[], errorMsg?: string) => {
-      for (const logId of logIds) {
-        clearTimeout(commandTimeoutRef.current[logId])
-        delete commandTimeoutRef.current[logId]
-        await supabase
-          .from('screen_action_logs')
-          .update({ status: 'failed', completed_at: now, error_message: errorMsg ?? 'Tempo limite excedido ou tela offline' })
-          .eq('id', logId)
-      }
-      qc.invalidateQueries({ queryKey: ['screen-action-logs', id] })
-    }
-
-    const completedLogIds: string[] = []
-    const failedLogIds: string[] = []
+    const completedIds: string[] = []
+    const failedIds: string[] = []
 
     for (const log of pendingLogs) {
-      const ageMs = Date.now() - new Date(log.created_at).getTime()
+      const createdMs = ms(log.created_at)
+      const ageMs = Date.now() - createdMs
+      let done = false
 
-      // screenshot: detecta pelo last_screenshot_at recente (< 5 segundos atrás)
       if (log.action === 'screenshot') {
-        if (screen.last_screenshot_at && prevScreenshotAtRef.current !== screen.last_screenshot_at) {
-          const timeSince = Date.now() - new Date(screen.last_screenshot_at).getTime()
-          if (timeSince < 5000) {
-            completedLogIds.push(log.id)
-          }
-        }
-        // Falha: timeout de 60s ou tela offline
-        else if (ageMs > 60_000 || !isOnline(screen.last_seen)) {
-          failedLogIds.push(log.id)
-        }
+        done = ms(screen.last_screenshot_at) > createdMs
+      } else if (log.action === 'update' || log.action === 'clear_cache' || log.action === 'reload') {
+        // Recarregam o app → nova sessão (session_started_at) depois do comando.
+        done = ms(screen.session_started_at) > createdMs
+      } else if (log.action === 'refresh') {
+        // Refresh suave não recarrega: conclui quando a tela deu sinal de vida
+        // depois do comando (o player já buscou playlist/config novas).
+        done = isOnline(screen.last_seen) && ms(screen.last_seen) > createdMs && ageMs > 18_000
       }
 
-      // update: detecta pela mudança em session_started_at (recente)
-      else if (log.action === 'update') {
-        if (screen.session_started_at && prevSessionStartAtRef.current !== screen.session_started_at) {
-          const timeSince = Date.now() - new Date(screen.session_started_at).getTime()
-          if (timeSince < 30000) {
-            completedLogIds.push(log.id)
-          }
-        }
-        // Falha: timeout de 90s ou tela offline
-        else if (ageMs > 90_000 || !isOnline(screen.last_seen)) {
-          failedLogIds.push(log.id)
-        }
-      }
-
-      // clear_cache, reload, refresh: quando pending_command foi limpo
-      else if (log.action === 'clear_cache' || log.action === 'reload' || log.action === 'refresh') {
-        if (prevCommandRef.current && !screen.pending_command) {
-          completedLogIds.push(log.id)
-        }
-        // Falha: timeout de 60s ou tela offline
-        else if (ageMs > 60_000 || !isOnline(screen.last_seen)) {
-          failedLogIds.push(log.id)
-        }
+      if (done) {
+        completedIds.push(log.id)
+      } else if (ageMs > (TIMEOUT[log.action] ?? 90_000)) {
+        failedIds.push(log.id)
       }
     }
 
-    if (completedLogIds.length > 0) {
-      markAsCompleted(completedLogIds)
-    }
-    if (failedLogIds.length > 0) {
-      markAsFailed(failedLogIds)
-    }
+    if (completedIds.length === 0 && failedIds.length === 0) return
 
-    prevCommandRef.current = screen.pending_command
-    prevScreenshotAtRef.current = screen.last_screenshot_at ?? null
-    prevSessionStartAtRef.current = screen.session_started_at ?? null
+    ;(async () => {
+      const now = new Date().toISOString()
+      for (const logId of completedIds) {
+        await supabase.from('screen_action_logs')
+          .update({ status: 'completed', completed_at: now }).eq('id', logId)
+      }
+      for (const logId of failedIds) {
+        await supabase.from('screen_action_logs')
+          .update({ status: 'failed', completed_at: now, error_message: 'Tempo limite excedido — a tela pode estar offline.' })
+          .eq('id', logId)
+      }
+      qc.invalidateQueries({ queryKey: ['screen-action-logs', id] })
+    })()
   }, [screen?.pending_command, screen?.last_screenshot_at, screen?.session_started_at, screen?.last_seen, id, actionLogs, qc])
 
   if (!screen) {
