@@ -205,14 +205,14 @@ export default function Screens() {
       )}
 
       {/* Grid de cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
         {screens.map(screen => {
           const online = isOnline(screen.last_seen)
           const hasFooter = !!screen.footer_config?.enabled
           return (
-            <div key={screen.id} className="bg-white rounded-2xl border shadow-sm hover:shadow-md transition-shadow overflow-hidden flex flex-col">
+            <div key={screen.id} className="bg-white rounded-xl sm:rounded-2xl border shadow-sm hover:shadow-lg transition-shadow overflow-hidden flex flex-col h-full">
               {/* Preview ao vivo (online) ou placeholder (offline) */}
-              <div className="relative aspect-video bg-slate-900 overflow-hidden group">
+              <div className="relative aspect-video bg-slate-900 overflow-hidden group flex-shrink-0">
                 {online ? (
                   <iframe
                     src={`${PLAYER_URL}/?preview=${screen.token}`}
@@ -232,45 +232,46 @@ export default function Screens() {
               </div>
 
               {/* Corpo */}
-              <div className="p-4 flex flex-col gap-3 flex-1">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <Link to={`/screens/${screen.id}`} className="font-semibold text-slate-800 hover:text-brand-600 block">
+              <div className="p-4 sm:p-5 flex flex-col gap-3 sm:gap-4 flex-1">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <Link to={`/screens/${screen.id}`} className="font-semibold text-base sm:text-lg text-slate-800 hover:text-brand-600 block">
                       {screen.name}
                     </Link>
                     <span className="text-xs font-mono text-gray-400 tracking-wider">{screen.token.slice(0, 6).toUpperCase()}</span>
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
                     <button onClick={() => setEditScreen(screen)} title="Editar tela"
-                      className="p-1.5 text-gray-400 hover:text-brand-600 hover:bg-brand-50 rounded-lg transition-colors">
-                      <Pencil size={15} />
+                      className="p-2 text-gray-400 hover:text-brand-600 hover:bg-brand-50 rounded-lg transition-colors">
+                      <Pencil size={16} />
                     </button>
                     <button onClick={() => { if (confirm('Remover tela?')) deleteScreen.mutate(screen.id) }} title="Remover tela"
-                      className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
-                      <Trash2 size={15} />
+                      className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
+                      <Trash2 size={16} />
                     </button>
                   </div>
                 </div>
 
                 {/* Playlist */}
                 <select value={screen.playlist_id ?? ''} onChange={e => updateScreen.mutate({ id: screen.id, playlist_id: e.target.value || null })}
-                  className="w-full border rounded-lg px-3 py-2 text-sm bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-500 transition-colors">
+                  className="w-full border rounded-lg px-3 py-2.5 text-sm bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-500 transition-colors min-h-[44px]">
                   <option value="">— Sem playlist —</option>
                   {playlists.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                 </select>
 
                 {/* Controles */}
-                <div className="flex items-center gap-2 mt-auto pt-1">
+                <div className="flex items-center gap-2 mt-auto pt-3 border-t">
                   <button onClick={() => updateScreen.mutate({ id: screen.id, sound_enabled: !screen.sound_enabled })}
                     title={screen.sound_enabled ? 'Som ativo' : 'Sem som'}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${screen.sound_enabled ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>
-                    {screen.sound_enabled ? <Volume2 size={14} /> : <VolumeX size={14} />}
-                    Som
+                    className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors min-h-[40px] ${screen.sound_enabled ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>
+                    {screen.sound_enabled ? <Volume2 size={16} /> : <VolumeX size={16} />}
+                    <span className="hidden sm:inline">Som</span>
                   </button>
                   <button onClick={() => setFooterScreen(screen)} title="Configurar rodapé"
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${hasFooter ? 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>
-                    <PanelBottom size={14} />
-                    Rodapé{hasFooter ? ' ✓' : ''}
+                    className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors min-h-[40px] ${hasFooter ? 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>
+                    <PanelBottom size={16} />
+                    <span className="hidden sm:inline">Rodapé{hasFooter ? ' ✓' : ''}</span>
+                    {hasFooter && <span className="sm:hidden">✓</span>}
                   </button>
                 </div>
               </div>

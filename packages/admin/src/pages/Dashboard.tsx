@@ -62,7 +62,7 @@ export default function Dashboard() {
       </div>
 
       <h3 className="text-lg sm:text-xl font-semibold mb-4">Status das Telas</h3>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
         {screens.map(screen => (
           <ScreenCard key={screen.id} screen={screen} />
         ))}
@@ -97,10 +97,10 @@ function ScreenCard({ screen }: { screen: Screen }) {
   return (
     <button
       onClick={() => navigate(`/screens/${screen.id}`)}
-      className="bg-white rounded-lg sm:rounded-xl border p-3 sm:p-5 hover:border-brand-400 hover:shadow-md transition-all text-left cursor-pointer group active:bg-gray-50"
+      className="bg-white rounded-lg sm:rounded-xl border p-4 sm:p-5 hover:border-brand-400 hover:shadow-lg transition-all text-left cursor-pointer group active:bg-gray-50"
     >
-      <div className="flex items-start justify-between gap-2 mb-2">
-        <span className="font-semibold text-sm sm:text-base group-hover:text-brand-600 transition-colors flex-1">{screen.name}</span>
+      <div className="flex items-start justify-between gap-2 mb-3">
+        <span className="font-semibold text-base sm:text-lg group-hover:text-brand-600 transition-colors flex-1">{screen.name}</span>
         <div className="flex items-center gap-1 flex-shrink-0">
           <span className={`text-xs font-medium px-2 py-0.5 rounded-full whitespace-nowrap ${online ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
             {online ? 'On' : 'Off'}
