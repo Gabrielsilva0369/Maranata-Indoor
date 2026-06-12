@@ -3,6 +3,7 @@ import { uploadToSpaces, deleteFromSpaces, mediaUrl } from '../lib/spaces'
 import type { Screen, Playlist, RssFeed, FooterConfig, ScreenOrientation, ScreenProfile } from '../lib/database.types'
 import { X, Upload, ImageOff, Info, MapPin, BarChart3, Settings, ExternalLink, Search, Loader2 } from 'lucide-react'
 import LocationMap from './LocationMap'
+import PhoneField from './PhoneField'
 
 const TIMEZONES = [
   { label: 'Brasília (UTC-3)',            value: 'America/Sao_Paulo' },
@@ -430,13 +431,11 @@ export function EditScreenModal({ screen, playlists, onClose, onSave }: {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className={lbl}>Telefone #1</label>
-                  <input value={p.phone1 ?? ''} onChange={e => setP({ phone1: e.target.value })}
-                    className={field} placeholder="(00) 00000-0000" />
+                  <PhoneField value={p.phone1} onChange={v => setP({ phone1: v })} placeholder="(00) 00000-0000" />
                 </div>
                 <div>
                   <label className={lbl}>Telefone #2</label>
-                  <input value={p.phone2 ?? ''} onChange={e => setP({ phone2: e.target.value })}
-                    className={field} placeholder="(00) 00000-0000" />
+                  <PhoneField value={p.phone2} onChange={v => setP({ phone2: v })} placeholder="(00) 00000-0000" />
                 </div>
               </div>
               <div>

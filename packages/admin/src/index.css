@@ -7,3 +7,15 @@
     @apply bg-gray-50 text-gray-900 antialiased;
   }
 }
+
+/* react-phone-number-input: integra ao visual dos inputs do app
+   (o wrapper PhoneField já dá borda/anel; aqui o input interno fica limpo). */
+.PhoneInputInput {
+  border: none;
+  outline: none;
+  background: transparent;
+  font-size: 0.875rem;
+}
+.PhoneInputCountrySelectArrow {
+  opacity: 0.5;
+}
