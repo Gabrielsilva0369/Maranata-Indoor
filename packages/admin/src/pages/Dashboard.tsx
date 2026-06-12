@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import type { Screen } from '../lib/database.types'
 import { Monitor, Wifi, WifiOff, DownloadCloud, Loader2, ChevronRight } from 'lucide-react'
+import DashboardCharts from '../components/DashboardCharts'
 
 function isOnline(lastSeen: string | null) {
   if (!lastSeen) return false
@@ -60,6 +61,8 @@ export default function Dashboard() {
         <StatCard label="Online agora" value={online} icon={<Wifi size={24} />} color="green" />
         <StatCard label="Offline" value={screens.length - online} icon={<WifiOff size={24} />} color="red" />
       </div>
+
+      <DashboardCharts screens={screens} />
 
       <h3 className="text-lg sm:text-xl font-semibold mb-4">Status das Telas</h3>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
