@@ -57,6 +57,34 @@ export interface FooterConfig {
 
 export type ScreenOrientation = 'landscape' | 'landscape-reverse' | 'portrait' | 'portrait-reverse'
 
+// Cadastro do ponto onde a tela fica — usado para catalogar e vender mídia.
+// Guardado em screens.profile (jsonb); todos os campos são opcionais.
+export interface ScreenProfile {
+  // Info / contato
+  place_name?: string          // nome do estabelecimento (ex.: "Academia Mais Músculo")
+  phone1?: string
+  phone2?: string
+  // Localização
+  lat?: number | null
+  lng?: number | null
+  address?: string             // logradouro
+  number?: string
+  complement?: string
+  district?: string            // bairro
+  zip?: string                 // CEP
+  state?: string               // UF (sigla)
+  city?: string
+  // Métricas de público
+  segment?: string             // segmento (ex.: Academia, Padaria…)
+  open_time?: string           // "HH:MM"
+  close_time?: string          // "HH:MM"
+  weekdays?: number[]          // 0=Dom … 6=Sáb
+  foot_traffic?: number | null // fluxo médio de pessoas/dia
+  social_classes?: string[]    // ['A','B','C','D']
+  // Configurações
+  timezone?: string
+}
+
 export interface ScreenTelemetry {
   current_media?: string
   current_item_id?: string   // id do item no ar — o preview do admin segue este id
@@ -92,6 +120,7 @@ export interface Screen {
   last_screenshot_at: string | null
   footer_margin_left: number
   footer_margin_right: number
+  profile: ScreenProfile | null
   created_at: string
 }
 

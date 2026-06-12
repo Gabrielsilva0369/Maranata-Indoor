@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect } from 'react'
 import { uploadToSpaces, deleteFromSpaces, mediaUrl } from '../lib/spaces'
-import type { Screen, Playlist, RssFeed, FooterConfig, ScreenOrientation } from '../lib/database.types'
-import { X, Upload, ImageOff } from 'lucide-react'
+import type { Screen, Playlist, RssFeed, FooterConfig, ScreenOrientation, ScreenProfile } from '../lib/database.types'
+import { X, Upload, ImageOff, Info, MapPin, BarChart3, Settings, ExternalLink, Search, Loader2 } from 'lucide-react'
+import LocationMap from './LocationMap'
 
 const TIMEZONES = [
   { label: 'Brasília (UTC-3)',            value: 'America/Sao_Paulo' },
@@ -282,18 +283,80 @@ export function FooterModal({ screen, feeds, onClose, onSave }: {
 }
 
 // ── Modal de edição dos detalhes da tela ──────────────────────────────────────
+const SEGMENTS = [
+  'Academia', 'Padaria', 'Restaurante', 'Lanchonete', 'Farmácia', 'Supermercado/Mercado',
+  'Clínica/Consultório', 'Salão/Barbearia', 'Posto de combustível', 'Loja/Varejo',
+  'Escritório/Coworking', 'Hotel/Pousada', 'Pet shop', 'Outro',
+]
+const WEEKDAYS = [
+  { i: 0, l: 'Dom' }, { i: 1, l: 'Seg' }, { i: 2, l: 'Ter' }, { i: 3, l: 'Qua' },
+  { i: 4, l: 'Qui' }, { i: 5, l: 'Sex' }, { i: 6, l: 'Sáb' },
+]
+const SOCIAL_CLASSES = ['A', 'B', 'C', 'D']
+
+interface IbgeState { id: number; sigla: string; nome: string }
+interface IbgeCity { id: number; nome: string }
+
+type TabKey = 'info' | 'local' | 'metrics' | 'config'
+
 export function EditScreenModal({ screen, playlists, onClose, onSave }: {
   screen: Screen
   playlists: Playlist[]
   onClose: () => void
   onSave: (patch: Partial<Screen>) => void
 }) {
+  const [tab, setTab] = useState<TabKey>('info')
+
+  // Configurações técnicas da tela (já existiam).
   const [name, setName] = useState(screen.name)
   const [playlistId, setPlaylistId] = useState(screen.playlist_id ?? '')
   const [soundEnabled, setSoundEnabled] = useState(screen.sound_enabled)
   const [showProgress, setShowProgress] = useState(screen.show_progress !== false)
   const [videoQuality, setVideoQuality] = useState<'sd' | 'qhd' | 'hd' | 'fhd'>(screen.video_quality ?? 'hd')
   const [orientation, setOrientation] = useState<ScreenOrientation>(screen.orientation ?? 'landscape')
+
+  // Cadastro do ponto (novo — em screens.profile).
+  const [p, setProfile] = useState<ScreenProfile>(screen.profile ?? {})
+  const setP = (patch: Partial<ScreenProfile>) => setProfile(prev => ({ ...prev, ...patch }))
+
+  // IBGE: estados (uma vez) e cidades (ao trocar de estado).
+  const [states, setStates] = useState<IbgeState[]>([])
+  const [cities, setCities] = useState<IbgeCity[]>([])
+  const [loadingCities, setLoadingCities] = useState(false)
+  const [geocoding, setGeocoding] = useState(false)
+
+  useEffect(() => {
+    fetch('https://servicodados.ibge.gov.br/api/v1/localidades/estados?orderBy=nome')
+      .then(r => r.json()).then(setStates).catch(() => { /* offline: estado vira texto livre */ })
+  }, [])
+
+  useEffect(() => {
+    if (!p.state) { setCities([]); return }
+    setLoadingCities(true)
+    fetch(`https://servicodados.ibge.gov.br/api/v1/localidades/estados/${p.state}/municipios`)
+      .then(r => r.json())
+      .then((data: IbgeCity[]) => setCities(data))
+      .catch(() => setCities([]))
+      .finally(() => setLoadingCities(false))
+  }, [p.state])
+
+  // Geocodifica os campos de endereço (Nominatim/OSM, grátis) e move o pino.
+  const geocode = async () => {
+    const parts = [p.address, p.number, p.district, p.city, p.state, p.zip, 'Brasil'].filter(Boolean)
+    if (parts.length <= 1) return
+    setGeocoding(true)
+    try {
+      const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(parts.join(', '))}`
+      const res = await fetch(url, { headers: { 'Accept-Language': 'pt-BR' } })
+      const data = await res.json()
+      if (data?.[0]) setP({ lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) })
+      else alert('Endereço não encontrado. Arraste o pino manualmente no mapa.')
+    } catch {
+      alert('Não foi possível buscar o endereço agora.')
+    } finally {
+      setGeocoding(false)
+    }
+  }
 
   const ORIENTATIONS: { value: ScreenOrientation; label: string; hint: string }[] = [
     { value: 'landscape', label: 'Horizontal', hint: 'TV deitada (padrão)' },
@@ -302,100 +365,289 @@ export function EditScreenModal({ screen, playlists, onClose, onSave }: {
     { value: 'portrait-reverse', label: 'Vertical ↺', hint: 'TV em pé, girar 90° anti-horário' },
   ]
 
+  const toggleArr = <T,>(arr: T[] | undefined, v: T): T[] => {
+    const a = arr ?? []
+    return a.includes(v) ? a.filter(x => x !== v) : [...a, v]
+  }
+
+  const mapsUrl = (p.lat != null && p.lng != null)
+    ? `https://www.google.com/maps?q=${p.lat},${p.lng}`
+    : `https://www.google.com/maps/search/${encodeURIComponent([p.address, p.number, p.city, p.state].filter(Boolean).join(' '))}`
+
+  const TABS: { key: TabKey; label: string; icon: React.ReactNode }[] = [
+    { key: 'info', label: 'Info', icon: <Info size={15} /> },
+    { key: 'local', label: 'Localização', icon: <MapPin size={15} /> },
+    { key: 'metrics', label: 'Métricas', icon: <BarChart3 size={15} /> },
+    { key: 'config', label: 'Configurações', icon: <Settings size={15} /> },
+  ]
+
+  const field = 'w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500'
+  const lbl = 'block text-sm font-medium mb-1'
+
+  const save = () => onSave({
+    name: name.trim(),
+    playlist_id: playlistId || null,
+    sound_enabled: soundEnabled,
+    video_quality: videoQuality,
+    show_progress: showProgress,
+    orientation,
+    profile: p,
+  })
+
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md my-4">
-        <div className="flex items-center justify-between p-6 border-b">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-3 sm:p-4">
+      <div className="bg-white rounded-xl sm:rounded-2xl shadow-xl w-full max-w-2xl my-4 flex flex-col max-h-[92vh]">
+        {/* Header + abas */}
+        <div className="flex items-center justify-between px-4 sm:px-6 pt-4 sm:pt-5">
           <h3 className="text-lg font-semibold">Editar Tela</h3>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
         </div>
-
-        <div className="p-6 space-y-4">
-          <div>
-            <label className="block text-sm font-medium mb-1">Nome da tela</label>
-            <input value={name} onChange={e => setName(e.target.value)}
-              className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium mb-1">Código de pareamento</label>
-            <input value={screen.token.slice(0, 6).toUpperCase()} disabled
-              className="w-full border rounded-lg px-3 py-2 text-sm font-mono bg-gray-50 text-gray-400" />
-            <p className="text-xs text-gray-400 mt-1">O código é fixo, gerado pelo dispositivo.</p>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium mb-1">Playlist</label>
-            <select value={playlistId} onChange={e => setPlaylistId(e.target.value)}
-              className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500">
-              <option value="">— Sem playlist —</option>
-              {playlists.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium mb-1">Orientação</label>
-            <div className="grid grid-cols-2 gap-2">
-              {ORIENTATIONS.map(o => (
-                <button key={o.value} onClick={() => setOrientation(o.value)}
-                  className={`py-2 px-1 rounded-lg border text-xs font-medium transition-colors ${orientation === o.value ? 'bg-brand-600 text-white border-brand-600' : 'border-gray-200 hover:border-brand-300'}`}
-                  title={o.hint}>
-                  {o.label}
-                </button>
-              ))}
-            </div>
-            <p className="text-xs text-gray-400 mt-1">{ORIENTATIONS.find(o => o.value === orientation)?.hint}</p>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium mb-1">Qualidade de vídeo</label>
-            <div className="grid grid-cols-4 gap-2">
-              {([
-                { value: 'sd', label: 'SD', hint: '480p — box fraco' },
-                { value: 'qhd', label: '540p', hint: '960×540 — box de 540p' },
-                { value: 'hd', label: 'HD', hint: '720p — equilíbrio' },
-                { value: 'fhd', label: 'Full HD', hint: '1080p — TV boa' },
-              ] as const).map(q => (
-                <button key={q.value} onClick={() => setVideoQuality(q.value)}
-                  className={`py-2 px-1 rounded-lg border text-xs font-medium transition-colors ${videoQuality === q.value ? 'bg-brand-600 text-white border-brand-600' : 'border-gray-200 hover:border-brand-300'}`}
-                  title={q.hint}>
-                  {q.label}
-                </button>
-              ))}
-            </div>
-            <p className="text-xs text-gray-400 mt-1">SD/540p em box fraco (roda liso) e Full HD em TV boa. <b>540p</b> casa exato com box 960×540.</p>
-          </div>
-
-          <div className="flex items-center justify-between py-2 px-4 bg-gray-50 rounded-xl">
-            <div>
-              <p className="text-sm font-medium">Som</p>
-              <p className="text-xs text-gray-400">Habilita áudio nos vídeos (padrão da tela)</p>
-            </div>
-            <button onClick={() => setSoundEnabled(v => !v)}
-              className={`relative w-14 h-8 rounded-full transition-colors ${soundEnabled ? 'bg-brand-600' : 'bg-gray-300'}`}>
-              <span style={{ transform: soundEnabled ? 'translateX(28px)' : 'translateX(2px)' }}
-                className="absolute top-1 w-6 h-6 bg-white rounded-full shadow-md transition-transform" />
+        <div className="flex gap-1 px-2 sm:px-4 pt-3 overflow-x-auto">
+          {TABS.map(t => (
+            <button key={t.key} onClick={() => setTab(t.key)}
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-t-lg text-sm font-medium whitespace-nowrap transition-colors border-b-2 ${
+                tab === t.key ? 'text-brand-600 border-brand-600' : 'text-slate-500 border-transparent hover:text-slate-700'
+              }`}>
+              {t.icon} {t.label}
             </button>
-          </div>
-
-          <div className="flex items-center justify-between py-2 px-4 bg-gray-50 rounded-xl">
-            <div>
-              <p className="text-sm font-medium">Barra de progresso</p>
-              <p className="text-xs text-gray-400">A barrinha de tempo no rodapé da mídia</p>
-            </div>
-            <button onClick={() => setShowProgress(v => !v)}
-              className={`relative w-11 h-6 rounded-full transition-colors ${showProgress ? 'bg-brand-600' : 'bg-gray-200'}`}>
-              <span style={{ transform: showProgress ? 'translateX(22px)' : 'translateX(2px)' }}
-                className="absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform" />
-            </button>
-          </div>
+          ))}
         </div>
 
-        <div className="flex gap-2 px-6 py-4 border-t bg-gray-50 rounded-b-2xl justify-end">
+        {/* Conteúdo rolável */}
+        <div className="p-4 sm:p-6 space-y-4 overflow-y-auto flex-1 border-t">
+          {/* ── INFO ── */}
+          {tab === 'info' && (
+            <>
+              <div>
+                <label className={lbl}>Nome da tela</label>
+                <input value={name} onChange={e => setName(e.target.value)} className={field} placeholder="Ex: Recepção" />
+              </div>
+              <div>
+                <label className={lbl}>Nome do estabelecimento</label>
+                <input value={p.place_name ?? ''} onChange={e => setP({ place_name: e.target.value })}
+                  className={field} placeholder="Ex: Academia Mais Músculo" />
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className={lbl}>Telefone #1</label>
+                  <input value={p.phone1 ?? ''} onChange={e => setP({ phone1: e.target.value })}
+                    className={field} placeholder="(00) 00000-0000" />
+                </div>
+                <div>
+                  <label className={lbl}>Telefone #2</label>
+                  <input value={p.phone2 ?? ''} onChange={e => setP({ phone2: e.target.value })}
+                    className={field} placeholder="(00) 00000-0000" />
+                </div>
+              </div>
+              <div>
+                <label className={lbl}>Código de pareamento</label>
+                <input value={screen.token.slice(0, 6).toUpperCase()} disabled
+                  className={`${field} font-mono bg-gray-50 text-gray-400`} />
+                <p className="text-xs text-gray-400 mt-1">O código é fixo, gerado pelo dispositivo.</p>
+              </div>
+            </>
+          )}
+
+          {/* ── LOCALIZAÇÃO ── */}
+          {tab === 'local' && (
+            <>
+              <div className="rounded-xl overflow-hidden border h-56 sm:h-64 relative">
+                <LocationMap lat={p.lat} lng={p.lng} onChange={(lat, lng) => setP({ lat, lng })} />
+                <a href={mapsUrl} target="_blank" rel="noreferrer"
+                  className="absolute top-2 left-2 z-[1000] inline-flex items-center gap-1.5 bg-white/95 hover:bg-white text-brand-600 text-xs font-medium px-2.5 py-1.5 rounded-lg shadow">
+                  <ExternalLink size={13} /> Abrir no Maps
+                </a>
+              </div>
+              <p className="text-xs text-gray-400 -mt-1">Arraste o pino ou clique no mapa para ajustar a posição exata.</p>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="sm:col-span-2">
+                  <label className={lbl}>Endereço</label>
+                  <input value={p.address ?? ''} onChange={e => setP({ address: e.target.value })}
+                    className={field} placeholder="Ex: Avenida Brasil" />
+                </div>
+                <div>
+                  <label className={lbl}>Número</label>
+                  <input value={p.number ?? ''} onChange={e => setP({ number: e.target.value })}
+                    className={field} placeholder="Nº 123" />
+                </div>
+              </div>
+              <div>
+                <label className={lbl}>Complemento</label>
+                <input value={p.complement ?? ''} onChange={e => setP({ complement: e.target.value })}
+                  className={field} placeholder="Sala, andar, ponto de referência…" />
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className={lbl}>Bairro</label>
+                  <input value={p.district ?? ''} onChange={e => setP({ district: e.target.value })} className={field} />
+                </div>
+                <div>
+                  <label className={lbl}>CEP</label>
+                  <input value={p.zip ?? ''} onChange={e => setP({ zip: e.target.value })}
+                    className={field} placeholder="00000-000" />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className={lbl}>Estado</label>
+                  <select value={p.state ?? ''} onChange={e => setP({ state: e.target.value, city: '' })} className={field}>
+                    <option value="">Selecione</option>
+                    {states.map(s => <option key={s.id} value={s.sigla}>{s.nome}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className={lbl}>Cidade</label>
+                  <select value={p.city ?? ''} onChange={e => setP({ city: e.target.value })} disabled={!p.state || loadingCities}
+                    className={`${field} disabled:bg-gray-50 disabled:text-gray-400`}>
+                    <option value="">{loadingCities ? 'Carregando…' : 'Selecione'}</option>
+                    {cities.map(c => <option key={c.id} value={c.nome}>{c.nome}</option>)}
+                  </select>
+                </div>
+              </div>
+              <button onClick={geocode} disabled={geocoding}
+                className="w-full flex items-center justify-center gap-2 border border-brand-200 text-brand-600 hover:bg-brand-50 rounded-lg py-2 text-sm font-medium transition-colors disabled:opacity-50">
+                {geocoding ? <Loader2 size={15} className="animate-spin" /> : <Search size={15} />}
+                Localizar endereço no mapa
+              </button>
+            </>
+          )}
+
+          {/* ── MÉTRICAS ── */}
+          {tab === 'metrics' && (
+            <>
+              <div>
+                <label className={lbl}>Segmento</label>
+                <select value={p.segment ?? ''} onChange={e => setP({ segment: e.target.value })} className={field}>
+                  <option value="">Selecione</option>
+                  {SEGMENTS.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className={lbl}>Horário de funcionamento</label>
+                <div className="grid grid-cols-2 gap-3">
+                  <input type="time" value={p.open_time ?? ''} onChange={e => setP({ open_time: e.target.value })} className={field} />
+                  <input type="time" value={p.close_time ?? ''} onChange={e => setP({ close_time: e.target.value })} className={field} />
+                </div>
+              </div>
+              <div>
+                <label className={lbl}>Dias da semana</label>
+                <div className="flex flex-wrap gap-2">
+                  {WEEKDAYS.map(d => {
+                    const on = (p.weekdays ?? []).includes(d.i)
+                    return (
+                      <button key={d.i} onClick={() => setP({ weekdays: toggleArr(p.weekdays, d.i) })}
+                        className={`px-3 py-2 rounded-lg border text-xs font-medium transition-colors ${on ? 'bg-brand-600 text-white border-brand-600' : 'border-gray-200 hover:border-brand-300 text-slate-600'}`}>
+                        {d.l}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className={lbl}>Fluxo de pessoas</label>
+                  <input type="number" min={0} value={p.foot_traffic ?? ''}
+                    onChange={e => setP({ foot_traffic: e.target.value === '' ? null : Number(e.target.value) })}
+                    className={field} placeholder="Ex: 500" />
+                  <p className="text-xs text-gray-400 mt-1">Média de pessoas que circulam no local por dia.</p>
+                </div>
+                <div>
+                  <label className={lbl}>Classes sociais</label>
+                  <div className="grid grid-cols-4 gap-2">
+                    {SOCIAL_CLASSES.map(c => {
+                      const on = (p.social_classes ?? []).includes(c)
+                      return (
+                        <button key={c} onClick={() => setP({ social_classes: toggleArr(p.social_classes, c) })}
+                          className={`py-2 rounded-lg border text-sm font-semibold transition-colors ${on ? 'bg-brand-600 text-white border-brand-600' : 'border-gray-200 hover:border-brand-300 text-slate-600'}`}>
+                          {c}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* ── CONFIGURAÇÕES (técnicas) ── */}
+          {tab === 'config' && (
+            <>
+              <div>
+                <label className={lbl}>Playlist</label>
+                <select value={playlistId} onChange={e => setPlaylistId(e.target.value)} className={field}>
+                  <option value="">— Sem playlist —</option>
+                  {playlists.map(pl => <option key={pl.id} value={pl.id}>{pl.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className={lbl}>Fuso horário</label>
+                <select value={p.timezone ?? ''} onChange={e => setP({ timezone: e.target.value })} className={field}>
+                  <option value="">Selecione</option>
+                  {TIMEZONES.map(tz => <option key={tz.value} value={tz.value}>{tz.label}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className={lbl}>Orientação</label>
+                <div className="grid grid-cols-2 gap-2">
+                  {ORIENTATIONS.map(o => (
+                    <button key={o.value} onClick={() => setOrientation(o.value)}
+                      className={`py-2 px-1 rounded-lg border text-xs font-medium transition-colors ${orientation === o.value ? 'bg-brand-600 text-white border-brand-600' : 'border-gray-200 hover:border-brand-300'}`}
+                      title={o.hint}>
+                      {o.label}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-xs text-gray-400 mt-1">{ORIENTATIONS.find(o => o.value === orientation)?.hint}</p>
+              </div>
+              <div>
+                <label className={lbl}>Qualidade de vídeo</label>
+                <div className="grid grid-cols-4 gap-2">
+                  {([
+                    { value: 'sd', label: 'SD', hint: '480p — box fraco' },
+                    { value: 'qhd', label: '540p', hint: '960×540 — box de 540p' },
+                    { value: 'hd', label: 'HD', hint: '720p — equilíbrio' },
+                    { value: 'fhd', label: 'Full HD', hint: '1080p — TV boa' },
+                  ] as const).map(q => (
+                    <button key={q.value} onClick={() => setVideoQuality(q.value)}
+                      className={`py-2 px-1 rounded-lg border text-xs font-medium transition-colors ${videoQuality === q.value ? 'bg-brand-600 text-white border-brand-600' : 'border-gray-200 hover:border-brand-300'}`}
+                      title={q.hint}>
+                      {q.label}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-xs text-gray-400 mt-1">SD/540p em box fraco (roda liso) e Full HD em TV boa. <b>540p</b> casa exato com box 960×540.</p>
+              </div>
+              <div className="flex items-center justify-between py-2 px-4 bg-gray-50 rounded-xl">
+                <div>
+                  <p className="text-sm font-medium">Som</p>
+                  <p className="text-xs text-gray-400">Habilita áudio nos vídeos (padrão da tela)</p>
+                </div>
+                <button onClick={() => setSoundEnabled(v => !v)}
+                  className={`relative w-14 h-8 rounded-full transition-colors ${soundEnabled ? 'bg-brand-600' : 'bg-gray-300'}`}>
+                  <span style={{ transform: soundEnabled ? 'translateX(28px)' : 'translateX(2px)' }}
+                    className="absolute top-1 w-6 h-6 bg-white rounded-full shadow-md transition-transform" />
+                </button>
+              </div>
+              <div className="flex items-center justify-between py-2 px-4 bg-gray-50 rounded-xl">
+                <div>
+                  <p className="text-sm font-medium">Barra de progresso</p>
+                  <p className="text-xs text-gray-400">A barrinha de tempo no rodapé da mídia</p>
+                </div>
+                <button onClick={() => setShowProgress(v => !v)}
+                  className={`relative w-11 h-6 rounded-full transition-colors ${showProgress ? 'bg-brand-600' : 'bg-gray-200'}`}>
+                  <span style={{ transform: showProgress ? 'translateX(22px)' : 'translateX(2px)' }}
+                    className="absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform" />
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* Rodapé fixo */}
+        <div className="flex gap-2 px-4 sm:px-6 py-4 border-t bg-gray-50 rounded-b-2xl justify-end">
           <button onClick={onClose} className="border rounded-lg px-4 py-2 text-sm">Cancelar</button>
-          <button
-            onClick={() => onSave({ name: name.trim(), playlist_id: playlistId || null, sound_enabled: soundEnabled, video_quality: videoQuality, show_progress: showProgress, orientation })}
-            disabled={!name.trim()}
+          <button onClick={save} disabled={!name.trim()}
             className="bg-brand-600 hover:bg-brand-700 text-white rounded-lg px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50">
             Salvar
           </button>
