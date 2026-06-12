@@ -8,8 +8,10 @@ import {
   RefreshCw, Trash2, Monitor, Cpu, MonitorPlay, HardDrive, Clock,
   MemoryStick, Database, Server, Camera, DownloadCloud,
   Pencil, Volume2, VolumeX, PanelBottom,
+  MapPin, Phone, Eye, ExternalLink, Building2, CalendarDays, Store, Footprints, Globe,
 } from 'lucide-react'
 import { FooterModal, EditScreenModal, uploadFooterLogo } from '../components/screenSettings'
+import { countryName } from '../lib/countries'
 
 function isOnline(lastSeen: string | null) {
   if (!lastSeen) return false
@@ -305,6 +307,9 @@ export default function ScreenDetail() {
           <Row label="Código"><span className="font-mono text-gray-500">{screen.token.slice(0, 6).toUpperCase()}</span></Row>
         </dl>
       </section>
+
+      {/* Cadastro do ponto (contato, localização, métricas) */}
+      <ProfileSection profile={screen.profile} onEdit={() => setEditOpen(true)} />
 
       {/* Status e Informações */}
       <section className="bg-white rounded-2xl border shadow-sm p-6 mb-6">
@@ -606,5 +611,118 @@ function Info({ label, children }: { label: string; children: React.ReactNode })
       <span className="text-gray-500">{label}:</span>
       <span className="text-gray-800 text-right">{children}</span>
     </div>
+  )
+}
+
+// ── Mapa + Street View (somente leitura) na página de detalhes ────────────────
+function LocationView({ lat, lng }: { lat: number; lng: number }) {
+  const [sv, setSv] = useState(false)
+  const d = 0.006
+  const osm = `https://www.openstreetmap.org/export/embed.html?bbox=${lng - d}%2C${lat - d}%2C${lng + d}%2C${lat + d}&layer=mapnik&marker=${lat}%2C${lng}`
+  const svSrc = `https://maps.google.com/maps?q=&layer=c&cbll=${lat},${lng}&cbp=11,0,0,0,0&output=svembed`
+  const mapsUrl = `https://www.google.com/maps?q=${lat},${lng}`
+  return (
+    <div className="rounded-xl overflow-hidden border h-56 relative">
+      <iframe title={sv ? 'Street View' : 'Mapa'} src={sv ? svSrc : osm}
+        className="w-full h-full border-0" loading="lazy" allowFullScreen
+        referrerPolicy="no-referrer-when-downgrade" />
+      {!sv && (
+        <a href={mapsUrl} target="_blank" rel="noreferrer"
+          className="absolute top-2 left-2 z-[1000] inline-flex items-center gap-1.5 bg-white/95 hover:bg-white text-brand-600 text-xs font-medium px-2.5 py-1.5 rounded-lg shadow">
+          <ExternalLink size={13} /> Abrir no Maps
+        </a>
+      )}
+      <button type="button" onClick={() => setSv(v => !v)}
+        className="absolute top-2 right-2 z-[1000] inline-flex items-center gap-1.5 bg-white/95 hover:bg-white text-brand-600 text-xs font-medium px-2.5 py-1.5 rounded-lg shadow">
+        {sv ? <><MapPin size={13} /> Mapa</> : <><Eye size={13} /> Street View</>}
+      </button>
+    </div>
+  )
+}
+
+const WEEKDAY_LABELS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
+
+// ── Seção "Cadastro do ponto" na página de detalhes ───────────────────────────
+function ProfileSection({ profile, onEdit }: { profile: Screen['profile']; onEdit: () => void }) {
+  const p = profile ?? {}
+  const has = (v: unknown) => v != null && v !== '' && !(Array.isArray(v) && v.length === 0)
+  const filled = Object.values(p).some(has)
+
+  const addrLine = [p.address, p.number].filter(Boolean).join(', ')
+  const cityLine = [p.city, p.state].filter(Boolean).join(' - ')
+  const hasCoords = p.lat != null && p.lng != null
+  const hours = p.open_24h ? 'Aberto 24h'
+    : (p.open_time && p.close_time) ? `${p.open_time} – ${p.close_time}` : ''
+  const days = (p.weekdays ?? []).slice().sort((a, b) => a - b).map(i => WEEKDAY_LABELS[i]).join(', ')
+
+  // Hora local atual no fuso da tela (snapshot — só para conferência).
+  let tzNow = ''
+  if (p.timezone) {
+    try { tzNow = new Intl.DateTimeFormat('pt-BR', { timeZone: p.timezone, hour: '2-digit', minute: '2-digit' }).format(new Date()) } catch { /* fuso inválido */ }
+  }
+
+  return (
+    <section className="bg-white rounded-2xl border shadow-sm p-4 sm:p-6 mb-6">
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="flex items-center gap-2 text-sm sm:text-base font-bold text-slate-700">
+          <MapPin size={18} className="text-brand-600" /> Cadastro do ponto
+        </h2>
+        <button onClick={onEdit} className="flex items-center gap-1.5 border rounded-lg px-3 py-1.5 text-sm hover:bg-gray-50 transition-colors">
+          <Pencil size={14} /> Editar
+        </button>
+      </div>
+
+      {!filled ? (
+        <p className="text-sm text-gray-400">Nenhuma informação cadastrada ainda. Clique em "Editar" para preencher contato, localização e métricas.</p>
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Coluna esquerda: mapa + endereço */}
+          <div className="space-y-3">
+            {hasCoords && <LocationView lat={p.lat as number} lng={p.lng as number} />}
+            {(addrLine || cityLine || p.district || p.zip || p.country) && (
+              <div className="space-y-1.5">
+                {addrLine && <p className="flex items-start gap-2 text-sm text-gray-700"><MapPin size={14} className="text-gray-400 shrink-0 mt-0.5" /> {addrLine}{p.complement ? ` — ${p.complement}` : ''}</p>}
+                {p.district && <p className="text-sm text-gray-600 pl-6">{p.district}</p>}
+                {(cityLine || p.zip) && <p className="text-sm text-gray-600 pl-6">{[cityLine, p.zip].filter(Boolean).join(' · ')}</p>}
+                {p.country && <p className="flex items-center gap-2 text-sm text-gray-600"><Globe size={14} className="text-gray-400 shrink-0" /> {countryName(p.country)}</p>}
+              </div>
+            )}
+          </div>
+
+          {/* Coluna direita: contato + métricas */}
+          <div className="space-y-4">
+            {(p.place_name || p.phone1 || p.phone2) && (
+              <div className="border-l-4 border-blue-400 pl-4 space-y-2">
+                {p.place_name && <Info label="Estabelecimento"><span className="inline-flex items-center gap-1.5"><Building2 size={14} className="text-gray-400" /> {p.place_name}</span></Info>}
+                {p.phone1 && <Info label="Telefone #1"><span className="inline-flex items-center gap-1.5"><Phone size={14} className="text-gray-400" /> {p.phone1}</span></Info>}
+                {p.phone2 && <Info label="Telefone #2"><span className="inline-flex items-center gap-1.5"><Phone size={14} className="text-gray-400" /> {p.phone2}</span></Info>}
+              </div>
+            )}
+
+            {(p.segment || hours || days || p.foot_traffic != null || (p.social_classes?.length ?? 0) > 0) && (
+              <div className="border-l-4 border-green-400 pl-4 space-y-2">
+                {p.segment && <Info label="Segmento"><span className="inline-flex items-center gap-1.5"><Store size={14} className="text-gray-400" /> {p.segment}</span></Info>}
+                {hours && <Info label="Funcionamento"><span className="inline-flex items-center gap-1.5"><Clock size={14} className="text-gray-400" /> {hours}</span></Info>}
+                {days && <Info label="Dias"><span className="inline-flex items-center gap-1.5"><CalendarDays size={14} className="text-gray-400" /> {days}</span></Info>}
+                {p.foot_traffic != null && <Info label="Fluxo de pessoas"><span className="inline-flex items-center gap-1.5"><Footprints size={14} className="text-gray-400" /> {p.foot_traffic.toLocaleString('pt-BR')}/mês</span></Info>}
+                {(p.social_classes?.length ?? 0) > 0 && (
+                  <Info label="Classes sociais">
+                    <span className="inline-flex gap-1">
+                      {p.social_classes!.map(c => <span key={c} className="inline-flex items-center justify-center w-5 h-5 rounded bg-brand-50 text-brand-600 text-xs font-semibold">{c}</span>)}
+                    </span>
+                  </Info>
+                )}
+              </div>
+            )}
+
+            {p.timezone && (
+              <div className="border-l-4 border-amber-400 pl-4 space-y-2">
+                <Info label="Fuso horário"><span className="inline-flex items-center gap-1.5"><Clock size={14} className="text-gray-400" /> {p.timezone}{tzNow ? ` (agora ${tzNow})` : ''}</span></Info>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </section>
   )
 }
