@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { uploadToSpaces, deleteFromSpaces, mediaUrl } from '../lib/spaces'
 import type { Screen, Playlist, RssFeed, FooterConfig, ScreenOrientation, ScreenProfile } from '../lib/database.types'
-import { X, Upload, ImageOff, Info, MapPin, BarChart3, Settings, ExternalLink, Search, Loader2, Eye } from 'lucide-react'
+import { X, Upload, ImageOff, Info, MapPin, BarChart3, Settings, ExternalLink, Search, Loader2 } from 'lucide-react'
 import LocationMap from './LocationMap'
 import PhoneField from './PhoneField'
 import { COUNTRIES, countryName } from '../lib/countries'
@@ -330,7 +330,6 @@ export function EditScreenModal({ screen, playlists, onClose, onSave }: {
 
   const [geocoding, setGeocoding] = useState(false)
   const [locating, setLocating] = useState(false)
-  const [streetView, setStreetView] = useState(false)   // toggle Mapa ↔ Street View
 
   // Geocodifica os campos de endereço (Nominatim/OSM, grátis, mundial) e move o pino.
   const geocode = async () => {
@@ -379,11 +378,6 @@ export function EditScreenModal({ screen, playlists, onClose, onSave }: {
   // Rótulos que variam por país (alguns não usam "Bairro"/"CEP").
   const districtLabel = p.country === 'PT' ? 'Freguesia' : p.country === 'BR' ? 'Bairro' : 'Bairro / Distrito'
   const zipLabel = p.country === 'BR' ? 'CEP' : 'Código postal'
-  // Street View embutido (sem API key) via modo svembed do Google Maps.
-  const hasPos = p.lat != null && p.lng != null
-  const streetViewSrc = hasPos
-    ? `https://maps.google.com/maps?q=&layer=c&cbll=${p.lat},${p.lng}&cbp=11,0,0,0,0&output=svembed`
-    : ''
 
   const ORIENTATIONS: { value: ScreenOrientation; label: string; hint: string }[] = [
     { value: 'landscape', label: 'Horizontal', hint: 'TV deitada (padrão)' },
@@ -477,41 +471,18 @@ export function EditScreenModal({ screen, playlists, onClose, onSave }: {
           {tab === 'local' && (
             <>
               <div className="rounded-xl overflow-hidden border h-56 sm:h-64 relative">
-                {streetView && hasPos ? (
-                  <iframe title="Street View" src={streetViewSrc}
-                    className="w-full h-full border-0" allowFullScreen loading="lazy"
-                    referrerPolicy="no-referrer-when-downgrade" />
-                ) : (
-                  <LocationMap lat={p.lat} lng={p.lng} onChange={reverseGeocode} />
-                )}
-
-                {/* Abrir no Maps (só no mapa) */}
-                {!streetView && (
-                  <a href={mapsUrl} target="_blank" rel="noreferrer"
-                    className="absolute top-2 left-2 z-[1000] inline-flex items-center gap-1.5 bg-white/95 hover:bg-white text-brand-600 text-xs font-medium px-2.5 py-1.5 rounded-lg shadow">
-                    <ExternalLink size={13} /> Abrir no Maps
-                  </a>
-                )}
-
-                {/* Toggle Mapa ↔ Street View (precisa de posição) */}
-                {hasPos && (
-                  <button type="button" onClick={() => setStreetView(v => !v)}
-                    className="absolute top-2 right-2 z-[1000] inline-flex items-center gap-1.5 bg-white/95 hover:bg-white text-brand-600 text-xs font-medium px-2.5 py-1.5 rounded-lg shadow">
-                    {streetView ? <><MapPin size={13} /> Mapa</> : <><Eye size={13} /> Street View</>}
-                  </button>
-                )}
-
-                {locating && !streetView && (
+                <LocationMap lat={p.lat} lng={p.lng} onChange={reverseGeocode} />
+                <a href={mapsUrl} target="_blank" rel="noreferrer"
+                  className="absolute top-2 left-2 z-[1000] inline-flex items-center gap-1.5 bg-white/95 hover:bg-white text-brand-600 text-xs font-medium px-2.5 py-1.5 rounded-lg shadow">
+                  <ExternalLink size={13} /> Abrir no Maps
+                </a>
+                {locating && (
                   <div className="absolute bottom-2 left-2 z-[1000] inline-flex items-center gap-1.5 bg-white/95 text-slate-600 text-xs font-medium px-2.5 py-1.5 rounded-lg shadow">
                     <Loader2 size={13} className="animate-spin" /> Buscando endereço…
                   </div>
                 )}
               </div>
-              <p className="text-xs text-gray-400 -mt-1">
-                {streetView
-                  ? 'Street View no local. Toque em "Mapa" para voltar e reposicionar.'
-                  : 'Clique no mapa ou arraste o pino — os campos abaixo se preenchem sozinhos.'}
-              </p>
+              <p className="text-xs text-gray-400 -mt-1">Clique no mapa ou arraste o pino — os campos abaixo se preenchem sozinhos.</p>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div className="sm:col-span-2">

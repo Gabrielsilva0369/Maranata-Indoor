@@ -8,7 +8,7 @@ import {
   RefreshCw, Trash2, Monitor, Cpu, MonitorPlay, HardDrive, Clock,
   MemoryStick, Database, Server, Camera, DownloadCloud,
   Pencil, Volume2, VolumeX, PanelBottom,
-  MapPin, Phone, Eye, ExternalLink, Building2, CalendarDays, Store, Footprints, Globe,
+  MapPin, Phone, ExternalLink, Building2, CalendarDays, Store, Footprints, Globe,
 } from 'lucide-react'
 import { FooterModal, EditScreenModal, uploadFooterLogo } from '../components/screenSettings'
 import { countryName } from '../lib/countries'
@@ -614,28 +614,18 @@ function Info({ label, children }: { label: string; children: React.ReactNode })
   )
 }
 
-// ── Mapa + Street View (somente leitura) na página de detalhes ────────────────
+// ── Mapa (somente leitura) na página de detalhes ──────────────────────────────
 function LocationView({ lat, lng }: { lat: number; lng: number }) {
-  const [sv, setSv] = useState(false)
   const d = 0.006
   const osm = `https://www.openstreetmap.org/export/embed.html?bbox=${lng - d}%2C${lat - d}%2C${lng + d}%2C${lat + d}&layer=mapnik&marker=${lat}%2C${lng}`
-  const svSrc = `https://maps.google.com/maps?q=&layer=c&cbll=${lat},${lng}&cbp=11,0,0,0,0&output=svembed`
   const mapsUrl = `https://www.google.com/maps?q=${lat},${lng}`
   return (
     <div className="rounded-xl overflow-hidden border h-56 relative">
-      <iframe title={sv ? 'Street View' : 'Mapa'} src={sv ? svSrc : osm}
-        className="w-full h-full border-0" loading="lazy" allowFullScreen
-        referrerPolicy="no-referrer-when-downgrade" />
-      {!sv && (
-        <a href={mapsUrl} target="_blank" rel="noreferrer"
-          className="absolute top-2 left-2 z-[1000] inline-flex items-center gap-1.5 bg-white/95 hover:bg-white text-brand-600 text-xs font-medium px-2.5 py-1.5 rounded-lg shadow">
-          <ExternalLink size={13} /> Abrir no Maps
-        </a>
-      )}
-      <button type="button" onClick={() => setSv(v => !v)}
-        className="absolute top-2 right-2 z-[1000] inline-flex items-center gap-1.5 bg-white/95 hover:bg-white text-brand-600 text-xs font-medium px-2.5 py-1.5 rounded-lg shadow">
-        {sv ? <><MapPin size={13} /> Mapa</> : <><Eye size={13} /> Street View</>}
-      </button>
+      <iframe title="Mapa" src={osm} className="w-full h-full border-0" loading="lazy" />
+      <a href={mapsUrl} target="_blank" rel="noreferrer"
+        className="absolute top-2 left-2 z-[1000] inline-flex items-center gap-1.5 bg-white/95 hover:bg-white text-brand-600 text-xs font-medium px-2.5 py-1.5 rounded-lg shadow">
+        <ExternalLink size={13} /> Abrir no Maps
+      </a>
     </div>
   )
 }
