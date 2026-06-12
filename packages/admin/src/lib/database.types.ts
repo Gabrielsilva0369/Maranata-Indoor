@@ -76,11 +76,12 @@ export interface ScreenProfile {
   state?: string               // estado/província
   city?: string
   // Métricas de público
-  segment?: string             // segmento (ex.: Academia, Padaria…)
+  segment?: string             // segmento (ex.: Academia, Padaria… ou texto livre)
   open_time?: string           // "HH:MM"
   close_time?: string          // "HH:MM"
+  open_24h?: boolean           // aberto 24 horas
   weekdays?: number[]          // 0=Dom … 6=Sáb
-  foot_traffic?: number | null // fluxo médio de pessoas/dia
+  foot_traffic?: number | null // fluxo médio de pessoas/mês
   social_classes?: string[]    // ['A','B','C','D']
   // Configurações
   timezone?: string

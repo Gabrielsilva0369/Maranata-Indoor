@@ -285,10 +285,16 @@ export function FooterModal({ screen, feeds, onClose, onSave }: {
 }
 
 // ── Modal de edição dos detalhes da tela ──────────────────────────────────────
+// Lista de segmentos (sem "Outro" — esse entra como opção sentinel no JSX e abre
+// um campo de texto livre).
 const SEGMENTS = [
-  'Academia', 'Padaria', 'Restaurante', 'Lanchonete', 'Farmácia', 'Supermercado/Mercado',
-  'Clínica/Consultório', 'Salão/Barbearia', 'Posto de combustível', 'Loja/Varejo',
-  'Escritório/Coworking', 'Hotel/Pousada', 'Pet shop', 'Outro',
+  'Academia', 'Padaria', 'Restaurante', 'Lanchonete', 'Bar', 'Cafeteria',
+  'Supermercado/Mercado', 'Conveniência', 'Açougue', 'Hortifruti',
+  'Farmácia', 'Clínica/Consultório', 'Hospital', 'Laboratório', 'Estética/SPA',
+  'Salão/Barbearia', 'Pet shop', 'Loja/Varejo', 'Shopping', 'Concessionária',
+  'Oficina/Auto center', 'Posto de combustível', 'Banco/Financeira', 'Imobiliária',
+  'Escritório/Coworking', 'Indústria', 'Escola/Faculdade', 'Igreja/Templo',
+  'Hotel/Pousada', 'Clube/Lazer', 'Estádio/Arena', 'Aeroporto', 'Rodoviária',
 ]
 const WEEKDAYS = [
   { i: 0, l: 'Dom' }, { i: 1, l: 'Seg' }, { i: 2, l: 'Ter' }, { i: 3, l: 'Qua' },
@@ -317,6 +323,10 @@ export function EditScreenModal({ screen, playlists, onClose, onSave }: {
   // Cadastro do ponto (novo — em screens.profile).
   const [p, setProfile] = useState<ScreenProfile>(screen.profile ?? {})
   const setP = (patch: Partial<ScreenProfile>) => setProfile(prev => ({ ...prev, ...patch }))
+
+  // Segmento "Outro": ativo quando o valor salvo não está na lista de presets.
+  const initSeg = screen.profile?.segment
+  const [segOther, setSegOther] = useState(!!initSeg && !SEGMENTS.includes(initSeg))
 
   const [geocoding, setGeocoding] = useState(false)
 
@@ -496,17 +506,40 @@ export function EditScreenModal({ screen, playlists, onClose, onSave }: {
             <>
               <div>
                 <label className={lbl}>Segmento</label>
-                <select value={p.segment ?? ''} onChange={e => setP({ segment: e.target.value })} className={field}>
+                <select
+                  value={segOther ? 'Outro' : (p.segment ?? '')}
+                  onChange={e => {
+                    if (e.target.value === 'Outro') { setSegOther(true); setP({ segment: '' }) }
+                    else { setSegOther(false); setP({ segment: e.target.value }) }
+                  }}
+                  className={field}>
                   <option value="">Selecione</option>
                   {SEGMENTS.map(s => <option key={s} value={s}>{s}</option>)}
+                  <option value="Outro">Outro…</option>
                 </select>
+                {segOther && (
+                  <input value={p.segment ?? ''} onChange={e => setP({ segment: e.target.value })}
+                    className={`${field} mt-2`} placeholder="Qual segmento?" autoFocus />
+                )}
               </div>
               <div>
                 <label className={lbl}>Horário de funcionamento</label>
                 <div className="grid grid-cols-2 gap-3">
-                  <input type="time" value={p.open_time ?? ''} onChange={e => setP({ open_time: e.target.value })} className={field} />
-                  <input type="time" value={p.close_time ?? ''} onChange={e => setP({ close_time: e.target.value })} className={field} />
+                  <input type="time" value={p.open_time ?? '00:00'} disabled={p.open_24h}
+                    onChange={e => setP({ open_time: e.target.value })}
+                    className={`${field} disabled:bg-gray-50 disabled:text-gray-400`} />
+                  <input type="time" value={p.open_24h ? '23:59' : (p.close_time ?? '')} disabled={p.open_24h}
+                    onChange={e => setP({ close_time: e.target.value })}
+                    className={`${field} disabled:bg-gray-50 disabled:text-gray-400`} />
                 </div>
+                <label className="flex items-center gap-2 text-sm cursor-pointer mt-2">
+                  <input type="checkbox" checked={!!p.open_24h}
+                    onChange={e => setP(e.target.checked
+                      ? { open_24h: true, open_time: '00:00', close_time: '23:59' }
+                      : { open_24h: false })}
+                    className="w-4 h-4 rounded accent-brand-600" />
+                  Aberto 24 horas
+                </label>
               </div>
               <div>
                 <label className={lbl}>Dias da semana</label>
@@ -524,11 +557,11 @@ export function EditScreenModal({ screen, playlists, onClose, onSave }: {
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className={lbl}>Fluxo de pessoas</label>
+                  <label className={lbl}>Fluxo de pessoas <span className="text-gray-400 font-normal">(por mês)</span></label>
                   <input type="number" min={0} value={p.foot_traffic ?? ''}
                     onChange={e => setP({ foot_traffic: e.target.value === '' ? null : Number(e.target.value) })}
-                    className={field} placeholder="Ex: 500" />
-                  <p className="text-xs text-gray-400 mt-1">Média de pessoas que circulam no local por dia.</p>
+                    className={field} placeholder="Ex: 15000" />
+                  <p className="text-xs text-gray-400 mt-1">Média de pessoas que circulam no local por mês.</p>
                 </div>
                 <div>
                   <label className={lbl}>Classes sociais</label>
