@@ -616,7 +616,7 @@ function Info({ label, children }: { label: string; children: React.ReactNode })
 
 // ── Mapa (somente leitura) na página de detalhes ──────────────────────────────
 function LocationView({ lat, lng }: { lat: number; lng: number }) {
-  const d = 0.006
+  const d = 0.0035
   const osm = `https://www.openstreetmap.org/export/embed.html?bbox=${lng - d}%2C${lat - d}%2C${lng + d}%2C${lat + d}&layer=mapnik&marker=${lat}%2C${lng}`
   const mapsUrl = `https://www.google.com/maps?q=${lat},${lng}`
   return (

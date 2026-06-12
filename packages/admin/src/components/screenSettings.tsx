@@ -331,17 +331,34 @@ export function EditScreenModal({ screen, playlists, onClose, onSave }: {
   const [geocoding, setGeocoding] = useState(false)
   const [locating, setLocating] = useState(false)
 
-  // Geocodifica os campos de endereço (Nominatim/OSM, grátis, mundial) e move o pino.
+  // Busca o endereço digitado e move SÓ o pino (preserva o que o usuário digitou).
+  // Usa a busca ESTRUTURADA do Nominatim (street = "número rua"), que leva o número
+  // da casa em conta — bem mais preciso que jogar tudo num campo livre.
   const geocode = async () => {
-    const parts = [p.address, p.number, p.district, p.city, p.state, countryName(p.country), p.zip].filter(Boolean)
-    if (parts.length === 0) return
     setGeocoding(true)
     try {
-      const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(parts.join(', '))}`
-      const res = await fetch(url, { headers: { 'Accept-Language': 'pt-BR' } })
-      const data = await res.json()
-      if (data?.[0]) await reverseGeocode(parseFloat(data[0].lat), parseFloat(data[0].lon))
-      else alert('Endereço não encontrado. Arraste o pino manualmente no mapa.')
+      const street = [p.number, p.address].filter(Boolean).join(' ')
+      const sp = new URLSearchParams({ format: 'json', addressdetails: '1', limit: '1' })
+      if (street) sp.set('street', street)
+      if (p.city) sp.set('city', p.city)
+      if (p.state) sp.set('state', p.state)
+      if (p.zip) sp.set('postalcode', p.zip)
+      if (p.country) sp.set('countrycodes', p.country.toLowerCase())
+
+      let res = await fetch(`https://nominatim.openstreetmap.org/search?${sp.toString()}`, { headers: { 'Accept-Language': 'pt-BR' } })
+      let data = await res.json()
+
+      // Fallback: se a estruturada não achou, tenta busca livre.
+      if (!data?.[0]) {
+        const q = [p.address, p.number, p.district, p.city, p.state, countryName(p.country), p.zip].filter(Boolean).join(', ')
+        if (q) {
+          res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&limit=1&q=${encodeURIComponent(q)}`, { headers: { 'Accept-Language': 'pt-BR' } })
+          data = await res.json()
+        }
+      }
+
+      if (data?.[0]) setP({ lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) })
+      else alert('Endereço não encontrado. Arraste o pino manualmente no mapa para marcar o ponto exato.')
     } catch {
       alert('Não foi possível buscar o endereço agora.')
     } finally {
