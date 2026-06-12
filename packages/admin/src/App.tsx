@@ -8,6 +8,8 @@ import Dashboard from './pages/Dashboard'
 import Screens from './pages/Screens'
 import ScreenDetail from './pages/ScreenDetail'
 import Media from './pages/Media'
+import Clients from './pages/Clients'
+import ClientDetail from './pages/ClientDetail'
 import RssFeeds from './pages/RssFeeds'
 import Playlists from './pages/Playlists'
 import PlaylistEditor from './pages/PlaylistEditor'
@@ -40,6 +42,8 @@ export default function App() {
             <Route path="screens" element={<Screens />} />
             <Route path="screens/:id" element={<ScreenDetail />} />
             <Route path="media" element={<Media />} />
+            <Route path="clients" element={<Clients />} />
+            <Route path="clients/:id" element={<ClientDetail />} />
             <Route path="rss" element={<RssFeeds />} />
             <Route path="playlists" element={<Playlists />} />
             <Route path="playlists/:id" element={<PlaylistEditor />} />

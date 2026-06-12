@@ -143,7 +143,29 @@ export interface Media {
   size_bytes: number | null
   rendition_sizes: Record<string, number> | null
   folder_id: string | null
+  client_id: string | null
   duration: number
+  created_at: string
+}
+
+export type ClientType = 'fisica' | 'juridica'
+
+export interface Client {
+  id: string
+  name: string
+  type: ClientType
+  document: string | null      // CPF (física) ou CNPJ (jurídica)
+  email: string | null
+  phone1: string | null
+  phone2: string | null
+  image_path: string | null
+  address: string | null
+  number: string | null
+  complement: string | null
+  district: string | null
+  zip: string | null
+  state: string | null
+  city: string | null
   created_at: string
 }
 
@@ -245,6 +267,7 @@ export type Database = {
       rss_articles:   { Row: RssArticle;  Insert: Omit<RssArticle,  'id'>;               Update: Partial<Omit<RssArticle,  'id'>> }
       app_bundles:    { Row: AppBundle;   Insert: Omit<AppBundle,   'id' | 'created_at'>; Update: Partial<Omit<AppBundle,   'id'>> }
       assets:         { Row: Asset;       Insert: Omit<Asset,       'created_at'>;        Update: Partial<Asset> }
+      clients:        { Row: Client;      Insert: Omit<Client,      'id' | 'created_at'>; Update: Partial<Omit<Client,      'id'>> }
     }
   }
 }

@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
-import type { Media, MediaType, ClockConfig, WeatherConfig, QuotesConfig, MediaFolder } from '../lib/database.types'
+import type { Media, MediaType, ClockConfig, WeatherConfig, QuotesConfig, MediaFolder, Client } from '../lib/database.types'
 import { Upload, Trash2, Plus, Image, Film, Code, Clock, Cloud, Search, MapPin, Pencil, FolderPlus, Youtube, Radio, Quote, Images, X } from 'lucide-react'
 import { transcodeVideoRenditions } from '../lib/videoTranscode'
 import { uploadToSpaces, deleteFromSpaces, mediaUrl } from '../lib/spaces'
@@ -728,6 +728,7 @@ export default function MediaPage() {
   // Pastas: 'all' = todas, null = sem pasta, ou um id de pasta
   const [selectedFolder, setSelectedFolder] = useState<string | null | 'all'>('all')
   const [folderId, setFolderId] = useState<string | null>(null)  // pasta no formulário
+  const [clientId, setClientId] = useState<string | null>(null)  // cliente no formulário
   const [showNewFolder, setShowNewFolder] = useState(false)
   const [newFolderName, setNewFolderName] = useState('')
 
@@ -754,6 +755,15 @@ export default function MediaPage() {
     queryKey: ['media-folders'],
     queryFn: async () => {
       const { data, error } = await supabase.from('media_folders').select('*').order('name')
+      if (error) throw error
+      return data
+    },
+  })
+
+  const { data: clients = [] } = useQuery<Client[]>({
+    queryKey: ['clients'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('clients').select('*').order('name')
       if (error) throw error
       return data
     },
@@ -847,12 +857,15 @@ export default function MediaPage() {
         size_bytes: sizeBytes,
         rendition_sizes: renditionSizes,
         folder_id: folderId,
+        client_id: clientId,
         duration,
       })
       if (error) throw error
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['media'] })
+      qc.invalidateQueries({ queryKey: ['client-media-counts'] })
+      qc.invalidateQueries({ queryKey: ['client-media'] })
       resetForm()
     },
     onError: () => setUploading(false),
@@ -869,6 +882,7 @@ export default function MediaPage() {
         html_content: htmlContent.trim() || null,
         weather_config: type === 'weather' ? weatherCfg : null,
         folder_id: folderId,
+        client_id: clientId,
         duration,
       }
 
@@ -929,6 +943,8 @@ export default function MediaPage() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['media'] })
+      qc.invalidateQueries({ queryKey: ['client-media-counts'] })
+      qc.invalidateQueries({ queryKey: ['client-media'] })
       resetForm()
     },
     onError: () => setUploading(false),
@@ -942,7 +958,11 @@ export default function MediaPage() {
       const { error } = await supabase.from('media').delete().eq('id', item.id)
       if (error) throw error
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['media'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['media'] })
+      qc.invalidateQueries({ queryKey: ['client-media-counts'] })
+      qc.invalidateQueries({ queryKey: ['client-media'] })
+    },
   })
 
   const getPublicUrl = (path: string) => mediaUrl(path)
@@ -953,7 +973,7 @@ export default function MediaPage() {
     setQuotesCfg({ ...DEFAULT_QUOTES })
     setBgFile(null); setBgPreviewUrl(undefined); setBgAssetPath(null); setUploading(false)
     setTranscodeStatus(null); setTranscodeProgress(0)
-    setEditingId(null); setFolderId(null); setShowAdd(false)
+    setEditingId(null); setFolderId(null); setClientId(null); setShowAdd(false)
   }
 
   const openCreate = () => {
@@ -971,6 +991,7 @@ export default function MediaPage() {
     setHtmlContent(item.html_content ?? '')
     setDuration(item.duration)
     setFolderId(item.folder_id)
+    setClientId(item.client_id)
     setFile(null)
     setBgFile(null)
     setBgAssetPath(null)
@@ -1101,14 +1122,24 @@ export default function MediaPage() {
                   className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
               </div>
 
-              {/* Pasta */}
-              <div>
-                <label className="block text-sm font-medium mb-1">Pasta</label>
-                <select value={folderId ?? ''} onChange={e => setFolderId(e.target.value || null)}
-                  className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500">
-                  <option value="">— Sem pasta —</option>
-                  {folders.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
-                </select>
+              {/* Pasta + Cliente */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium mb-1">Pasta</label>
+                  <select value={folderId ?? ''} onChange={e => setFolderId(e.target.value || null)}
+                    className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500">
+                    <option value="">— Sem pasta —</option>
+                    {folders.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Cliente</label>
+                  <select value={clientId ?? ''} onChange={e => setClientId(e.target.value || null)}
+                    className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500">
+                    <option value="">— Sem cliente —</option>
+                    {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                </div>
               </div>
 
               {/* Arquivo imagem/vídeo */}

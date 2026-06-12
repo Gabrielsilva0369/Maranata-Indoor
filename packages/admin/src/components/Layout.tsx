@@ -1,12 +1,13 @@
 import { useState } from 'react'
 import { Outlet, NavLink, useNavigate } from 'react-router-dom'
-import { Monitor, Image, ListVideo, LayoutDashboard, LogOut, Rss, FileBarChart, Menu, X } from 'lucide-react'
+import { Monitor, Image, ListVideo, LayoutDashboard, LogOut, Rss, FileBarChart, Users, Menu, X } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 
 const nav = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard', end: true },
   { to: '/screens', icon: Monitor, label: 'Telas' },
   { to: '/media', icon: Image, label: 'Mídias' },
+  { to: '/clients', icon: Users, label: 'Clientes' },
   { to: '/rss', icon: Rss, label: 'RSS' },
   { to: '/playlists', icon: ListVideo, label: 'Playlists' },
   { to: '/reports', icon: FileBarChart, label: 'Relatórios' },
