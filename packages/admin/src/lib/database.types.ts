@@ -72,7 +72,8 @@ export interface ScreenProfile {
   complement?: string
   district?: string            // bairro
   zip?: string                 // CEP
-  state?: string               // UF (sigla)
+  country?: string             // país (ISO alpha-2, ex.: BR)
+  state?: string               // estado/província
   city?: string
   // Métricas de público
   segment?: string             // segmento (ex.: Academia, Padaria…)

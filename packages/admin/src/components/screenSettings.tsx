@@ -4,6 +4,7 @@ import type { Screen, Playlist, RssFeed, FooterConfig, ScreenOrientation, Screen
 import { X, Upload, ImageOff, Info, MapPin, BarChart3, Settings, ExternalLink, Search, Loader2 } from 'lucide-react'
 import LocationMap from './LocationMap'
 import PhoneField from './PhoneField'
+import { COUNTRIES, countryName } from '../lib/countries'
 
 const TIMEZONES = [
   { label: 'Brasília (UTC-3)',            value: 'America/Sao_Paulo' },
@@ -295,9 +296,6 @@ const WEEKDAYS = [
 ]
 const SOCIAL_CLASSES = ['A', 'B', 'C', 'D']
 
-interface IbgeState { id: number; sigla: string; nome: string }
-interface IbgeCity { id: number; nome: string }
-
 type TabKey = 'info' | 'local' | 'metrics' | 'config'
 
 export function EditScreenModal({ screen, playlists, onClose, onSave }: {
@@ -320,31 +318,12 @@ export function EditScreenModal({ screen, playlists, onClose, onSave }: {
   const [p, setProfile] = useState<ScreenProfile>(screen.profile ?? {})
   const setP = (patch: Partial<ScreenProfile>) => setProfile(prev => ({ ...prev, ...patch }))
 
-  // IBGE: estados (uma vez) e cidades (ao trocar de estado).
-  const [states, setStates] = useState<IbgeState[]>([])
-  const [cities, setCities] = useState<IbgeCity[]>([])
-  const [loadingCities, setLoadingCities] = useState(false)
   const [geocoding, setGeocoding] = useState(false)
 
-  useEffect(() => {
-    fetch('https://servicodados.ibge.gov.br/api/v1/localidades/estados?orderBy=nome')
-      .then(r => r.json()).then(setStates).catch(() => { /* offline: estado vira texto livre */ })
-  }, [])
-
-  useEffect(() => {
-    if (!p.state) { setCities([]); return }
-    setLoadingCities(true)
-    fetch(`https://servicodados.ibge.gov.br/api/v1/localidades/estados/${p.state}/municipios`)
-      .then(r => r.json())
-      .then((data: IbgeCity[]) => setCities(data))
-      .catch(() => setCities([]))
-      .finally(() => setLoadingCities(false))
-  }, [p.state])
-
-  // Geocodifica os campos de endereço (Nominatim/OSM, grátis) e move o pino.
+  // Geocodifica os campos de endereço (Nominatim/OSM, grátis, mundial) e move o pino.
   const geocode = async () => {
-    const parts = [p.address, p.number, p.district, p.city, p.state, p.zip, 'Brasil'].filter(Boolean)
-    if (parts.length <= 1) return
+    const parts = [p.address, p.number, p.district, p.city, p.state, countryName(p.country), p.zip].filter(Boolean)
+    if (parts.length === 0) return
     setGeocoding(true)
     try {
       const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(parts.join(', '))}`
@@ -373,7 +352,7 @@ export function EditScreenModal({ screen, playlists, onClose, onSave }: {
 
   const mapsUrl = (p.lat != null && p.lng != null)
     ? `https://www.google.com/maps?q=${p.lat},${p.lng}`
-    : `https://www.google.com/maps/search/${encodeURIComponent([p.address, p.number, p.city, p.state].filter(Boolean).join(' '))}`
+    : `https://www.google.com/maps/search/${encodeURIComponent([p.address, p.number, p.city, p.state, countryName(p.country)].filter(Boolean).join(' '))}`
 
   const TABS: { key: TabKey; label: string; icon: React.ReactNode }[] = [
     { key: 'info', label: 'Info', icon: <Info size={15} /> },
@@ -487,21 +466,21 @@ export function EditScreenModal({ screen, playlists, onClose, onSave }: {
                     className={field} placeholder="00000-000" />
                 </div>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
-                  <label className={lbl}>Estado</label>
-                  <select value={p.state ?? ''} onChange={e => setP({ state: e.target.value, city: '' })} className={field}>
+                  <label className={lbl}>País</label>
+                  <select value={p.country ?? ''} onChange={e => setP({ country: e.target.value })} className={field}>
                     <option value="">Selecione</option>
-                    {states.map(s => <option key={s.id} value={s.sigla}>{s.nome}</option>)}
+                    {COUNTRIES.map(c => <option key={c.code} value={c.code}>{c.name}</option>)}
                   </select>
                 </div>
                 <div>
+                  <label className={lbl}>Estado / Província</label>
+                  <input value={p.state ?? ''} onChange={e => setP({ state: e.target.value })} className={field} />
+                </div>
+                <div>
                   <label className={lbl}>Cidade</label>
-                  <select value={p.city ?? ''} onChange={e => setP({ city: e.target.value })} disabled={!p.state || loadingCities}
-                    className={`${field} disabled:bg-gray-50 disabled:text-gray-400`}>
-                    <option value="">{loadingCities ? 'Carregando…' : 'Selecione'}</option>
-                    {cities.map(c => <option key={c.id} value={c.nome}>{c.nome}</option>)}
-                  </select>
+                  <input value={p.city ?? ''} onChange={e => setP({ city: e.target.value })} className={field} />
                 </div>
               </div>
               <button onClick={geocode} disabled={geocoding}

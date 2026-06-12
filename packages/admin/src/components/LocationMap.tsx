@@ -34,9 +34,10 @@ export default function LocationMap({ lat, lng, onChange }: Props) {
     if (!elRef.current || mapRef.current) return
     const hasPos = lat != null && lng != null
     const start: [number, number] = hasPos ? [lat!, lng!] : BRAZIL_CENTER
-    const map = L.map(elRef.current, { center: start, zoom: hasPos ? 16 : 4, scrollWheelZoom: false })
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '&copy; OpenStreetMap', maxZoom: 19,
+    const map = L.map(elRef.current, { center: start, zoom: hasPos ? 16 : 3, scrollWheelZoom: true })
+    // CARTO Voyager: tiles mais limpos/bonitos que o OSM cru, grátis e mundiais.
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+      attribution: '&copy; OpenStreetMap &copy; CARTO', subdomains: 'abcd', maxZoom: 20, detectRetina: true,
     }).addTo(map)
 
     const marker = L.marker(start, { draggable: true, icon: pinIcon }).addTo(map)
