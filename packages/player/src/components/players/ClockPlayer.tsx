@@ -18,12 +18,16 @@ interface Props {
   duration: number
   quality?: VideoQuality
   showProgress?: boolean
+  /** Fuso da tela — sobrepõe o fuso configurado no relógio quando definido. */
+  timezone?: string | null
   onEnd: () => void
 }
 
 const GOOGLE_FONTS = ['Roboto','Open Sans','Montserrat','Lato','Raleway','Oswald','Poppins','Playfair Display','Bebas Neue','Ubuntu']
 
-export default function ClockPlayer({ config, duration, quality = 'fhd', showProgress = true, onEnd }: Props) {
+export default function ClockPlayer({ config, duration, quality = 'fhd', showProgress = true, timezone, onEnd }: Props) {
+  // Fuso efetivo: o da tela (profile) tem prioridade; senão usa o do próprio relógio.
+  const tz = timezone || config.timezone
   const [now, setNow] = useState(new Date())
   const [progress, setProgress] = useState(0)
 
@@ -59,18 +63,18 @@ export default function ClockPlayer({ config, duration, quality = 'fhd', showPro
   }, [config.font])
 
   const time = new Intl.DateTimeFormat('pt-BR', {
-    timeZone: config.timezone,
+    timeZone: tz,
     hour: '2-digit', minute: '2-digit',
     ...(config.show_seconds ? { second: '2-digit' } : {}),
     hour12: false,
   }).format(now)
 
   const weekday = new Intl.DateTimeFormat('pt-BR', {
-    timeZone: config.timezone, weekday: 'long',
+    timeZone: tz, weekday: 'long',
   }).format(now)
 
   const date = new Intl.DateTimeFormat('pt-BR', {
-    timeZone: config.timezone,
+    timeZone: tz,
     day: '2-digit', month: 'long', year: 'numeric',
   }).format(now)
 

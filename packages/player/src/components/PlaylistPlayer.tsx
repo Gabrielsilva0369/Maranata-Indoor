@@ -191,7 +191,7 @@ export default function PlaylistPlayer({ items, screen, onMediaChange, forceMute
       if (media.type === 'html')
         return <HtmlPlayer key={current.id} url={media.url} htmlContent={media.html_content} duration={duration} showProgress={showProgress} onEnd={advance} />
       if (media.type === 'clock' && media.clock_config)
-        return <ClockPlayer key={current.id} config={media.clock_config} quality={screen.video_quality} duration={duration} showProgress={showProgress} onEnd={advance} />
+        return <ClockPlayer key={current.id} config={media.clock_config} quality={screen.video_quality} duration={duration} showProgress={showProgress} timezone={screen.timezone} onEnd={advance} />
       if (media.type === 'weather' && media.weather_config)
         return <WeatherPlayer key={current.id} config={media.weather_config} duration={duration} showProgress={showProgress} onEnd={advance} />
       if (media.type === 'quotes' && media.quotes_config)
@@ -245,7 +245,7 @@ export default function PlaylistPlayer({ items, screen, onMediaChange, forceMute
           boxSizing: 'border-box',
         }}>
           <div style={{ flex: 1 }}>
-            <Footer config={effectiveFooter} scale={vScale} />
+            <Footer config={effectiveFooter} scale={vScale} timezone={screen.timezone} />
           </div>
         </div>
       )}

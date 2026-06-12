@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { uploadToSpaces, deleteFromSpaces, mediaUrl } from '../lib/spaces'
 import type { Screen, Playlist, RssFeed, FooterConfig, ScreenOrientation, ScreenProfile } from '../lib/database.types'
-import { X, Upload, ImageOff, Info, MapPin, BarChart3, Settings, ExternalLink, Search, Loader2 } from 'lucide-react'
+import { X, Upload, ImageOff, Info, MapPin, BarChart3, Settings, ExternalLink, Search, Loader2, Eye } from 'lucide-react'
 import LocationMap from './LocationMap'
 import PhoneField from './PhoneField'
 import { COUNTRIES, countryName } from '../lib/countries'
@@ -329,6 +329,7 @@ export function EditScreenModal({ screen, playlists, onClose, onSave }: {
   const [segOther, setSegOther] = useState(!!initSeg && !SEGMENTS.includes(initSeg))
 
   const [geocoding, setGeocoding] = useState(false)
+  const [locating, setLocating] = useState(false)
 
   // Geocodifica os campos de endereço (Nominatim/OSM, grátis, mundial) e move o pino.
   const geocode = async () => {
@@ -339,7 +340,7 @@ export function EditScreenModal({ screen, playlists, onClose, onSave }: {
       const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(parts.join(', '))}`
       const res = await fetch(url, { headers: { 'Accept-Language': 'pt-BR' } })
       const data = await res.json()
-      if (data?.[0]) setP({ lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) })
+      if (data?.[0]) await reverseGeocode(parseFloat(data[0].lat), parseFloat(data[0].lon))
       else alert('Endereço não encontrado. Arraste o pino manualmente no mapa.')
     } catch {
       alert('Não foi possível buscar o endereço agora.')
@@ -347,6 +348,39 @@ export function EditScreenModal({ screen, playlists, onClose, onSave }: {
       setGeocoding(false)
     }
   }
+
+  // Reverse geocoding: a partir de um ponto no mapa, preenche TODOS os campos de
+  // endereço automaticamente (Nominatim/OSM, grátis, mundial).
+  const reverseGeocode = async (lat: number, lng: number) => {
+    setLocating(true)
+    try {
+      const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&addressdetails=1&lat=${lat}&lon=${lng}`
+      const res = await fetch(url, { headers: { 'Accept-Language': 'pt-BR' } })
+      const data = await res.json()
+      const a = data?.address ?? {}
+      setP({
+        lat, lng,
+        address: a.road ?? a.pedestrian ?? a.footway ?? a.cycleway ?? a.path ?? '',
+        number: a.house_number ?? '',
+        district: a.suburb ?? a.neighbourhood ?? a.quarter ?? a.city_district ?? a.borough ?? '',
+        zip: a.postcode ?? '',
+        city: a.city ?? a.town ?? a.village ?? a.municipality ?? a.county ?? '',
+        state: a.state ?? a.region ?? a.state_district ?? '',
+        country: (a.country_code ?? '').toUpperCase(),
+      })
+    } catch {
+      setP({ lat, lng })   // ao menos move o pino se a busca falhar
+    } finally {
+      setLocating(false)
+    }
+  }
+
+  // Rótulos que variam por país (alguns não usam "Bairro"/"CEP").
+  const districtLabel = p.country === 'PT' ? 'Freguesia' : p.country === 'BR' ? 'Bairro' : 'Bairro / Distrito'
+  const zipLabel = p.country === 'BR' ? 'CEP' : 'Código postal'
+  const streetViewUrl = (p.lat != null && p.lng != null)
+    ? `https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${p.lat},${p.lng}`
+    : null
 
   const ORIENTATIONS: { value: ScreenOrientation; label: string; hint: string }[] = [
     { value: 'landscape', label: 'Horizontal', hint: 'TV deitada (padrão)' },
@@ -440,13 +474,24 @@ export function EditScreenModal({ screen, playlists, onClose, onSave }: {
           {tab === 'local' && (
             <>
               <div className="rounded-xl overflow-hidden border h-56 sm:h-64 relative">
-                <LocationMap lat={p.lat} lng={p.lng} onChange={(lat, lng) => setP({ lat, lng })} />
+                <LocationMap lat={p.lat} lng={p.lng} onChange={reverseGeocode} />
                 <a href={mapsUrl} target="_blank" rel="noreferrer"
                   className="absolute top-2 left-2 z-[1000] inline-flex items-center gap-1.5 bg-white/95 hover:bg-white text-brand-600 text-xs font-medium px-2.5 py-1.5 rounded-lg shadow">
                   <ExternalLink size={13} /> Abrir no Maps
                 </a>
+                {streetViewUrl && (
+                  <a href={streetViewUrl} target="_blank" rel="noreferrer"
+                    className="absolute top-2 right-2 z-[1000] inline-flex items-center gap-1.5 bg-white/95 hover:bg-white text-brand-600 text-xs font-medium px-2.5 py-1.5 rounded-lg shadow">
+                    <Eye size={13} /> Street View
+                  </a>
+                )}
+                {locating && (
+                  <div className="absolute bottom-2 left-2 z-[1000] inline-flex items-center gap-1.5 bg-white/95 text-slate-600 text-xs font-medium px-2.5 py-1.5 rounded-lg shadow">
+                    <Loader2 size={13} className="animate-spin" /> Buscando endereço…
+                  </div>
+                )}
               </div>
-              <p className="text-xs text-gray-400 -mt-1">Arraste o pino ou clique no mapa para ajustar a posição exata.</p>
+              <p className="text-xs text-gray-400 -mt-1">Clique no mapa ou arraste o pino — os campos abaixo se preenchem sozinhos.</p>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div className="sm:col-span-2">
@@ -467,13 +512,13 @@ export function EditScreenModal({ screen, playlists, onClose, onSave }: {
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className={lbl}>Bairro</label>
+                  <label className={lbl}>{districtLabel}</label>
                   <input value={p.district ?? ''} onChange={e => setP({ district: e.target.value })} className={field} />
                 </div>
                 <div>
-                  <label className={lbl}>CEP</label>
+                  <label className={lbl}>{zipLabel}</label>
                   <input value={p.zip ?? ''} onChange={e => setP({ zip: e.target.value })}
-                    className={field} placeholder="00000-000" />
+                    className={field} placeholder={p.country === 'BR' ? '00000-000' : '0000-000'} />
                 </div>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">

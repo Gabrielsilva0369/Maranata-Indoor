@@ -104,7 +104,7 @@ function FooterClock({ timezone, color, fontSize, height }: {
 }
 
 // ── Footer principal ──────────────────────────────────────────────────────────
-export default function Footer({ config, scale = 1 }: { config: FooterConfig; scale?: number }) {
+export default function Footer({ config, scale = 1, timezone }: { config: FooterConfig; scale?: number; timezone?: string | null }) {
   const [tickerText, setTickerText] = useState('')
 
   // Dimensões escaladas à tela real
@@ -188,9 +188,9 @@ export default function Footer({ config, scale = 1 }: { config: FooterConfig; sc
         <div style={{ flex: 1 }} />
       )}
 
-      {/* Relógio direita */}
+      {/* Relógio direita — fuso da tela (profile) tem prioridade sobre o do rodapé */}
       <FooterClock
-        timezone={config.timezone ?? 'America/Sao_Paulo'}
+        timezone={timezone || config.timezone || 'America/Sao_Paulo'}
         color={config.text_color}
         fontSize={fontSize}
         height={height}

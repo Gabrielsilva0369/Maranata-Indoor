@@ -122,6 +122,8 @@ export interface ScreenConfig {
   playlist_id: string | null
   footer_config: FooterConfig | null
   orientation: ScreenOrientation
+  /** Fuso da tela (de profile.timezone). Sobrepõe o fuso do relógio e do rodapé. */
+  timezone: string | null
 }
 
 // Assinatura do conteúdo que afeta a reprodução (ignora campos voláteis como o
@@ -136,6 +138,7 @@ function computeSig(data: any, items: PlaylistItem[]): string {
       playlist_id: data.playlist_id,
       orientation: data.orientation,
       footer_config: data.footer_config,
+      timezone: data.timezone,
     },
     items: items.map(it => ({
       id: it.id, o: it.order_index, d: it.duration_override, a: it.audio_enabled,
@@ -218,7 +221,7 @@ export function usePlaylist(token: string) {
       // o limite faz falhar rápido e cair pro cache offline em vez de travar.
       let screenQ = supabase
         .from('screens')
-        .select('id, name, sound_enabled, video_quality, show_progress, playlist_id, footer_config, orientation')
+        .select('id, name, sound_enabled, video_quality, show_progress, playlist_id, footer_config, orientation, profile')
         .eq('token', code)
       const sig1 = timeoutSignal(10000)
       if (sig1) screenQ = screenQ.abortSignal(sig1)
@@ -256,7 +259,12 @@ export function usePlaylist(token: string) {
       // Aplica só se mudou de fato (dedupe por assinatura) — no poll de 1 min com
       // conteúdo igual, NÃO reinicia a playlist nem mostra o preload. Se mudou,
       // applyContent redispara o download e a tela de carregamento reaparece.
-      applyContent(data as ScreenConfig, fetchedItems, true)
+      // Extrai o fuso da tela (profile.timezone) para um campo plano no ScreenConfig.
+      const screenData = {
+        ...data,
+        timezone: (data as { profile?: { timezone?: string | null } | null }).profile?.timezone ?? null,
+      }
+      applyContent(screenData as ScreenConfig, fetchedItems, true)
     } catch (e) {
       console.error('Erro ao sincronizar com o Supabase (rodando no modo offline cache):', e)
     } finally {
