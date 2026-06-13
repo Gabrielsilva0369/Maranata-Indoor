@@ -87,6 +87,7 @@ export interface PlaylistItem {
   schedule: ItemSchedule | null
   media_id: string | null
   rss_feed_id: string | null
+  child_playlist_id: string | null
   media: MediaItem | null
   rss_feed: RssFeedItem | null
 }
@@ -235,11 +236,18 @@ export function usePlaylist(token: string) {
         return
       }
 
+      const ITEM_COLS = 'id, order_index, duration_override, rss_article_count, rss_article_links, audio_enabled, footer_override, schedule, media_id, rss_feed_id, child_playlist_id, media(*), rss_feed:rss_feeds(*)'
+      const normItem = (it: any): PlaylistItem => ({
+        ...it,
+        media: Array.isArray(it.media) ? (it.media[0] ?? null) : it.media,
+        rss_feed: Array.isArray(it.rss_feed) ? (it.rss_feed[0] ?? null) : it.rss_feed,
+      })
+
       let fetchedItems: PlaylistItem[] = []
       if (data.playlist_id) {
         let itemsQ = supabase
           .from('playlist_items')
-          .select('id, order_index, duration_override, rss_article_count, rss_article_links, audio_enabled, footer_override, schedule, media_id, rss_feed_id, media(*), rss_feed:rss_feeds(*)')
+          .select(ITEM_COLS)
           .eq('playlist_id', data.playlist_id)
           .order('order_index')
         const sig2 = timeoutSignal(10000)
@@ -248,12 +256,42 @@ export function usePlaylist(token: string) {
 
         if (itemsError) throw itemsError
 
-        // Supabase tipa joins como array; normalizamos media/rss_feed para objeto único
-        fetchedItems = (playlistItems ?? []).map((it: any) => ({
-          ...it,
-          media: Array.isArray(it.media) ? (it.media[0] ?? null) : it.media,
-          rss_feed: Array.isArray(it.rss_feed) ? (it.rss_feed[0] ?? null) : it.rss_feed,
-        })) as PlaylistItem[]
+        const parents = (playlistItems ?? []).map(normItem)
+
+        // ── Playlists aninhadas: busca os itens das playlists-filhas e expande o
+        // bloco em 1 nível. Cada item-filho herda o AGENDAMENTO do bloco (é assim
+        // que se "programa o horário" da sub-playlist). Itens-filhos que também são
+        // playlists são ignorados (evita recursão/ciclos).
+        const childIds = [...new Set(parents.filter(i => i.child_playlist_id).map(i => i.child_playlist_id as string))]
+        const childMap: Record<string, PlaylistItem[]> = {}
+        if (childIds.length) {
+          let cq = supabase
+            .from('playlist_items')
+            .select(`playlist_id, ${ITEM_COLS}`)
+            .in('playlist_id', childIds)
+            .order('order_index')
+          const sig3 = timeoutSignal(10000)
+          if (sig3) cq = cq.abortSignal(sig3)
+          const { data: childRows } = await cq
+          for (const r of (childRows ?? []) as any[]) {
+            ;(childMap[r.playlist_id] ??= []).push(normItem(r))
+          }
+        }
+
+        for (const it of parents) {
+          if (it.child_playlist_id) {
+            for (const kid of (childMap[it.child_playlist_id] ?? [])) {
+              if (kid.child_playlist_id) continue   // só 1 nível
+              fetchedItems.push({
+                ...kid,
+                id: `${it.id}:${kid.id}`,            // id composto p/ key única
+                schedule: it.schedule ?? null,        // o bloco define o horário
+              })
+            }
+          } else {
+            fetchedItems.push(it)
+          }
+        }
       }
 
       // Aplica só se mudou de fato (dedupe por assinatura) — no poll de 1 min com

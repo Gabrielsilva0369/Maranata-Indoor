@@ -13,14 +13,16 @@ import {
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { supabase } from '../lib/supabase'
-import type { PlaylistItem, Media, RssFeed, PlaylistItemFooter, ItemSchedule, MediaFolder } from '../lib/database.types'
-import { GripVertical, Copy, Trash2, ChevronLeft, Image, Film, Code, Rss, Clock, Newspaper, Volume2, VolumeX, Volume1, PanelBottom, PanelBottomClose, PanelBottomOpen, Folder, ChevronDown, ChevronRight, CalendarClock, X, Plus, Eye, Radio, Cloud } from 'lucide-react'
+import type { PlaylistItem, Media, RssFeed, Playlist, PlaylistItemFooter, ItemSchedule, MediaFolder } from '../lib/database.types'
+import { GripVertical, Copy, Trash2, ChevronLeft, Image, Film, Code, Rss, Clock, Newspaper, Volume2, VolumeX, Volume1, PanelBottom, PanelBottomClose, PanelBottomOpen, Folder, ChevronDown, ChevronRight, CalendarClock, X, Plus, Eye, Radio, Cloud, ListVideo } from 'lucide-react'
 import { youtubeId } from './Media'
 
-type RichItem = PlaylistItem & { media?: Media | null; rss_feed?: RssFeed | null }
+type RichItem = PlaylistItem & { media?: Media | null; rss_feed?: RssFeed | null; child_playlist?: Playlist | null }
 
 // Duração efetiva de um item, em segundos. RSS = tempo por notícia × nº de notícias.
-function itemSeconds(it: RichItem): number {
+// Playlist aninhada = duração somada da playlist-filha (via mapa childDurations).
+function itemSeconds(it: RichItem, childDurations?: Record<string, number>): number {
+  if (it.child_playlist_id) return childDurations?.[it.child_playlist_id] ?? 0
   const d = it.duration_override ?? it.media?.duration ?? 10
   return it.rss_feed ? d * (it.rss_article_count ?? 5) : d
 }
@@ -136,6 +138,27 @@ function AvailableMediaCard({ media, onAdd }: { media: Media; onAdd?: () => void
   )
 }
 
+function AvailablePlaylistCard({ playlist, seconds, onAdd }: { playlist: Playlist; seconds?: number; onAdd?: () => void }) {
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+    id: `playlist::${playlist.id}`, data: { kind: 'playlist', playlist },
+  })
+  return (
+    <div ref={setNodeRef}
+      style={{ opacity: isDragging ? 0.4 : 1 }}
+      className="flex items-center gap-2 bg-white border rounded-lg px-3 py-2.5 select-none hover:border-purple-400 hover:shadow-sm transition-all group/card"
+    >
+      <span {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing shrink-0"><ListVideo size={13} className="text-purple-500" /></span>
+      <span {...attributes} {...listeners} className="text-sm font-medium flex-1 cursor-grab active:cursor-grabbing min-w-0 break-words">{playlist.name}</span>
+      <span className="text-xs text-gray-400 shrink-0">{seconds ? formatDuration(seconds) : 'Playlist'}</span>
+      {onAdd && (
+        <button onClick={onAdd} title="Adicionar à playlist"
+          className="p-1 rounded text-gray-300 hover:text-purple-600 hover:bg-purple-50 transition-colors opacity-0 group-hover/card:opacity-100 shrink-0"
+        ><Plus size={14} /></button>
+      )}
+    </div>
+  )
+}
+
 function AvailableRssCard({ feed, onAdd }: { feed: RssFeed; onAdd?: () => void }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: `rss::${feed.id}`, data: { kind: 'rss', feed },
@@ -208,14 +231,14 @@ function ScheduleModal({ item, onClose, onSave }: {
   const toggleDay = (d: number) =>
     setDays(prev => prev.includes(d) ? prev.filter(x => x !== d) : [...prev, d].sort())
 
-  const label = item.rss_feed?.name ?? item.media?.name ?? 'Item'
+  const label = item.child_playlist?.name ?? item.rss_feed?.name ?? item.media?.name ?? 'Item'
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-md">
         <div className="flex items-center justify-between p-6 border-b">
           <div>
-            <h3 className="text-lg font-semibold">Agendamento</h3>
+            <h3 className="text-lg font-semibold">Agendamento{item.child_playlist_id ? ' do bloco' : ''}</h3>
             <p className="text-xs text-gray-400 mt-0.5 max-w-xs">{label}</p>
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
@@ -487,9 +510,10 @@ function ArticleSelectionModal({ item, onClose, onSave }: {
 }
 
 // ── Item sortável da playlist ─────────────────────────────────────────────────
-function PlaylistCard({ item, index, onDelete, onDuplicate, onUpdateDuration, onUpdateArticleCount, onUpdateAudio, onUpdateFooter, onOpenSchedule, onOpenArticleSelection, onPreview }: {
+function PlaylistCard({ item, index, childSeconds, onDelete, onDuplicate, onUpdateDuration, onUpdateArticleCount, onUpdateAudio, onUpdateFooter, onOpenSchedule, onOpenArticleSelection, onPreview }: {
   item: RichItem
   index: number
+  childSeconds?: number
   onDelete: () => void
   onDuplicate: () => void
   onUpdateDuration: (seconds: number) => void
@@ -503,10 +527,11 @@ function PlaylistCard({ item, index, onDelete, onDuplicate, onUpdateDuration, on
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: item.id })
   const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.4 : 1 }
 
+  const isPlaylist = !!item.child_playlist_id
   const isRss   = !!item.rss_feed
   const isVideo = item.media?.type === 'video'
-  const label   = isRss ? item.rss_feed!.name : (item.media?.name ?? '—')
-  const icon    = isRss ? <Rss size={12} className="text-orange-400" /> : MEDIA_ICONS[item.media?.type ?? '']
+  const label   = isPlaylist ? (item.child_playlist?.name ?? 'Playlist') : isRss ? item.rss_feed!.name : (item.media?.name ?? '—')
+  const icon    = isPlaylist ? <ListVideo size={12} className="text-purple-500" /> : isRss ? <Rss size={12} className="text-orange-400" /> : MEDIA_ICONS[item.media?.type ?? '']
 
   const duration     = item.duration_override ?? item.media?.duration ?? 10
   const articleCount = item.rss_article_count ?? 5
@@ -533,37 +558,43 @@ function PlaylistCard({ item, index, onDelete, onDuplicate, onUpdateDuration, on
         <AudioToggle value={item.audio_enabled ?? null} onChange={onUpdateAudio} />
       )}
 
-      {/* controles de tempo */}
-      <div className="flex items-center gap-1.5 shrink-0">
-        {isRss && (
-          <>
-            <Newspaper size={11} className="text-gray-300" />
-            <InlineNumber
-              value={articleCount}
-              onSave={onUpdateArticleCount}
-              min={1}
-              max={50}
-              suffix=" notícias"
-            />
-            <button onClick={onOpenArticleSelection} title="Escolher quais notícias exibir"
-              className="text-xs px-1.5 py-0.5 rounded border border-gray-200 hover:border-orange-400 text-gray-500 hover:text-orange-600 transition-colors">
-              Escolher
-            </button>
-            <span className="text-gray-200 text-xs">·</span>
-          </>
-        )}
-        <Clock size={11} className="text-gray-300" />
-        <InlineNumber
-          value={duration}
-          onSave={onUpdateDuration}
-          min={1}
-          max={3600}
-          suffix="s"
-        />
-      </div>
+      {/* Playlist aninhada: mostra como bloco; mídia/RSS: controles de tempo */}
+      {isPlaylist ? (
+        <span className="flex items-center gap-1 text-xs font-medium text-purple-600 bg-purple-50 px-2 py-0.5 rounded-full shrink-0">
+          <ListVideo size={11} /> Bloco{childSeconds ? ` · ${formatDuration(childSeconds)}` : ''}
+        </span>
+      ) : (
+        <div className="flex items-center gap-1.5 shrink-0">
+          {isRss && (
+            <>
+              <Newspaper size={11} className="text-gray-300" />
+              <InlineNumber
+                value={articleCount}
+                onSave={onUpdateArticleCount}
+                min={1}
+                max={50}
+                suffix=" notícias"
+              />
+              <button onClick={onOpenArticleSelection} title="Escolher quais notícias exibir"
+                className="text-xs px-1.5 py-0.5 rounded border border-gray-200 hover:border-orange-400 text-gray-500 hover:text-orange-600 transition-colors">
+                Escolher
+              </button>
+              <span className="text-gray-200 text-xs">·</span>
+            </>
+          )}
+          <Clock size={11} className="text-gray-300" />
+          <InlineNumber
+            value={duration}
+            onSave={onUpdateDuration}
+            min={1}
+            max={3600}
+            suffix="s"
+          />
+        </div>
+      )}
 
-      {/* toggle rodapé */}
-      <FooterItemControl value={item.footer_override ?? null} onChange={onUpdateFooter} />
+      {/* toggle rodapé (não se aplica a bloco de playlist) */}
+      {!isPlaylist && <FooterItemControl value={item.footer_override ?? null} onChange={onUpdateFooter} />}
 
       {/* agendamento */}
       <button onClick={onOpenSchedule}
@@ -573,9 +604,11 @@ function PlaylistCard({ item, index, onDelete, onDuplicate, onUpdateDuration, on
       </button>
 
       {/* ações */}
-      <button onClick={onPreview} title="Pré-visualizar"
-        className="text-gray-300 hover:text-indigo-500 transition-colors shrink-0 opacity-0 group-hover:opacity-100"
-      ><Eye size={14} /></button>
+      {!isPlaylist && (
+        <button onClick={onPreview} title="Pré-visualizar"
+          className="text-gray-300 hover:text-indigo-500 transition-colors shrink-0 opacity-0 group-hover:opacity-100"
+        ><Eye size={14} /></button>
+      )}
       <button onClick={onDuplicate} title="Duplicar"
         className="text-gray-300 hover:text-brand-500 transition-colors shrink-0 opacity-0 group-hover:opacity-100"
       ><Copy size={14} /></button>
@@ -619,10 +652,11 @@ function PlaylistCard({ item, index, onDelete, onDuplicate, onUpdateDuration, on
 }
 
 // ── Overlay de drag ───────────────────────────────────────────────────────────
-function DragPreview({ label, type }: { label: string; type: 'media' | 'rss' }) {
+function DragPreview({ label, type }: { label: string; type: 'media' | 'rss' | 'playlist' }) {
+  const border = type === 'rss' ? 'border-orange-400' : type === 'playlist' ? 'border-purple-400' : 'border-brand-400'
   return (
-    <div className={`flex items-center gap-2 bg-white border-2 rounded-lg px-3 py-2.5 shadow-xl opacity-95 pointer-events-none ${type === 'rss' ? 'border-orange-400' : 'border-brand-400'}`}>
-      {type === 'rss' ? <Rss size={12} className="text-orange-400" /> : <Image size={12} />}
+    <div className={`flex items-center gap-2 bg-white border-2 rounded-lg px-3 py-2.5 shadow-xl opacity-95 pointer-events-none ${border}`}>
+      {type === 'rss' ? <Rss size={12} className="text-orange-400" /> : type === 'playlist' ? <ListVideo size={12} className="text-purple-500" /> : <Image size={12} />}
       <span className="text-sm font-medium">{label}</span>
     </div>
   )
@@ -633,8 +667,8 @@ export default function PlaylistEditor() {
   const { id } = useParams<{ id: string }>()
   const qc = useQueryClient()
   const navigate = useNavigate()
-  const [tab, setTab] = useState<'media' | 'rss'>('media')
-  const [activeInfo, setActiveInfo] = useState<{ label: string; type: 'media' | 'rss' } | null>(null)
+  const [tab, setTab] = useState<'media' | 'rss' | 'playlist'>('media')
+  const [activeInfo, setActiveInfo] = useState<{ label: string; type: 'media' | 'rss' | 'playlist' } | null>(null)
   const [localItems, setLocalItems] = useState<RichItem[]>([])
   const [scheduleItem, setScheduleItem] = useState<RichItem | null>(null)
   const [previewItem, setPreviewItem] = useState<RichItem | null>(null)
@@ -684,13 +718,45 @@ export default function PlaylistEditor() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('playlist_items')
-        .select('*, media(*), rss_feed:rss_feeds(*)')
+        .select('*, media(*), rss_feed:rss_feeds(*), child_playlist:playlists!playlist_items_child_playlist_id_fkey(*)')
         .eq('playlist_id', id!)
         .order('order_index')
       if (error) throw error
       return data as RichItem[]
     },
   })
+
+  // Outras playlists (exceto a atual) — para aninhar como bloco.
+  const { data: allPlaylists = [] } = useQuery<Playlist[]>({
+    queryKey: ['playlists'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('playlists').select('*').order('name')
+      if (error) throw error
+      return data
+    },
+  })
+
+  // Duração somada por playlist (para mostrar o tamanho do bloco aninhado).
+  const { data: durationRows = [] } = useQuery<any[]>({
+    queryKey: ['playlist-durations'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('playlist_items')
+        .select('playlist_id, duration_override, rss_article_count, rss_feed_id, media(duration)')
+      if (error) throw error
+      return data ?? []
+    },
+  })
+  const childDurations = (() => {
+    const map: Record<string, number> = {}
+    for (const r of durationRows) {
+      const media = Array.isArray(r.media) ? r.media[0] : r.media
+      const d = r.duration_override ?? media?.duration ?? 10
+      const secs = r.rss_feed_id ? d * (r.rss_article_count ?? 5) : d
+      map[r.playlist_id] = (map[r.playlist_id] ?? 0) + secs
+    }
+    return map
+  })()
 
   const { data: allMedia = [] } = useQuery<Media[]>({
     queryKey: ['media'],
@@ -724,11 +790,12 @@ export default function PlaylistEditor() {
 
   // ── Mutations ──────────────────────────────────────────────────────────────
   const addItem = useMutation({
-    mutationFn: async ({ mediaId, feedId, insertAt }: { mediaId?: string; feedId?: string; insertAt: number }) => {
+    mutationFn: async ({ mediaId, feedId, childPlaylistId, insertAt }: { mediaId?: string; feedId?: string; childPlaylistId?: string; insertAt: number }) => {
       const { error } = await supabase.from('playlist_items').insert({
         playlist_id: id!,
         media_id: mediaId ?? null,
         rss_feed_id: feedId ?? null,
+        child_playlist_id: childPlaylistId ?? null,
         order_index: insertAt,
         rss_article_count: feedId ? 5 : null,
       })
@@ -760,24 +827,26 @@ export default function PlaylistEditor() {
   }, [id, qc])
 
   // ── Helpers ────────────────────────────────────────────────────────────────
-  const optimisticAdd = (mediaId: string | undefined, feedId: string | undefined, insertAt: number) => {
+  const optimisticAdd = (mediaId: string | undefined, feedId: string | undefined, insertAt: number, childPlaylistId?: string) => {
     const media = mediaId ? allMedia.find(m => m.id === mediaId) : undefined
     const feed  = feedId  ? allFeeds.find(f => f.id === feedId)  : undefined
+    const child = childPlaylistId ? allPlaylists.find(p => p.id === childPlaylistId) : undefined
     const temp: RichItem = {
       id: `temp::${Date.now()}`,
       playlist_id: id!, media_id: mediaId ?? null, rss_feed_id: feedId ?? null,
+      child_playlist_id: childPlaylistId ?? null,
       order_index: insertAt, duration_override: null,
       rss_article_count: feedId ? 5 : null,
       rss_article_links: null,
       audio_enabled: null,
       footer_override: null,
       schedule: null,
-      media: media ?? null, rss_feed: feed ?? null,
+      media: media ?? null, rss_feed: feed ?? null, child_playlist: child ?? null,
     }
     setLocalItems(prev => {
       const next = [...prev]; next.splice(insertAt, 0, temp); return next
     })
-    addItem.mutate({ mediaId, feedId, insertAt })
+    addItem.mutate({ mediaId, feedId, childPlaylistId, insertAt })
   }
 
   const handleRemove = (itemId: string) => {
@@ -787,7 +856,7 @@ export default function PlaylistEditor() {
 
   const handleDuplicate = (item: RichItem) => {
     const index = localItems.findIndex(i => i.id === item.id)
-    optimisticAdd(item.media_id ?? undefined, item.rss_feed_id ?? undefined, index + 1)
+    optimisticAdd(item.media_id ?? undefined, item.rss_feed_id ?? undefined, index + 1, item.child_playlist_id ?? undefined)
   }
 
   const handleUpdateDuration = (item: RichItem, seconds: number) => {
@@ -835,9 +904,15 @@ export default function PlaylistEditor() {
     } else if (activeId.startsWith('rss::')) {
       const feed = active.data.current?.feed as RssFeed
       setActiveInfo({ label: feed.name, type: 'rss' })
+    } else if (activeId.startsWith('playlist::')) {
+      const pl = active.data.current?.playlist as Playlist
+      setActiveInfo({ label: pl.name, type: 'playlist' })
     } else {
       const item = localItems.find(i => i.id === activeId)
-      if (item) setActiveInfo({ label: item.rss_feed?.name ?? item.media?.name ?? '', type: item.rss_feed ? 'rss' : 'media' })
+      if (item) setActiveInfo({
+        label: item.child_playlist?.name ?? item.rss_feed?.name ?? item.media?.name ?? '',
+        type: item.child_playlist_id ? 'playlist' : item.rss_feed ? 'rss' : 'media',
+      })
     }
   }
 
@@ -847,13 +922,14 @@ export default function PlaylistEditor() {
     const activeId = String(active.id)
     const overId   = String(over.id)
 
-    if (activeId.startsWith('avail::') || activeId.startsWith('rss::')) {
+    if (activeId.startsWith('avail::') || activeId.startsWith('rss::') || activeId.startsWith('playlist::')) {
       const onItem  = localItems.some(i => i.id === overId)
       const onPanel = overId === 'playlist-drop'
       if (!onItem && !onPanel) return
       const insertAt = onItem ? localItems.findIndex(i => i.id === overId) : localItems.length
       if (activeId.startsWith('avail::')) optimisticAdd(activeId.slice(7), undefined, insertAt)
-      else optimisticAdd(undefined, activeId.slice(5), insertAt)
+      else if (activeId.startsWith('rss::')) optimisticAdd(undefined, activeId.slice(5), insertAt)
+      else optimisticAdd(undefined, undefined, insertAt, activeId.slice(10))
       return
     }
 
@@ -886,11 +962,11 @@ export default function PlaylistEditor() {
           {/* Esquerda: Biblioteca */}
           <div className="flex flex-col w-full lg:w-72 lg:shrink-0 min-h-0">
             <div className="flex gap-1 mb-2 bg-gray-100 rounded-lg p-1">
-              {(['media', 'rss'] as const).map(t => (
+              {(['media', 'rss', 'playlist'] as const).map(t => (
                 <button key={t} onClick={() => setTab(t)}
                   className={`flex-1 py-1.5 rounded-md text-xs font-semibold transition-colors ${tab === t ? 'bg-white shadow text-gray-800' : 'text-gray-500 hover:text-gray-700'}`}
                 >
-                  {t === 'media' ? 'Mídias' : 'RSS'}
+                  {t === 'media' ? 'Mídias' : t === 'rss' ? 'RSS' : 'Playlists'}
                 </button>
               ))}
             </div>
@@ -955,6 +1031,18 @@ export default function PlaylistEditor() {
                   )}
                 </>
               )}
+              {tab === 'playlist' && (
+                <>
+                  {allPlaylists.filter(pl => pl.id !== id).map(pl => (
+                    <AvailablePlaylistCard key={pl.id} playlist={pl} seconds={childDurations[pl.id]}
+                      onAdd={() => optimisticAdd(undefined, undefined, localItems.length, pl.id)} />
+                  ))}
+                  {allPlaylists.filter(pl => pl.id !== id).length === 0 && (
+                    <p className="text-xs text-gray-400 text-center py-8">Nenhuma outra playlist para aninhar.</p>
+                  )}
+                  <p className="text-[11px] text-gray-400 text-center pt-2 px-2">A playlist aninhada toca como um bloco. Use o ⏰ para programar o horário dela.</p>
+                </>
+              )}
               {isOverAvail && <p className="text-xs text-red-400 text-center pt-2">Solte para remover</p>}
             </div>
           </div>
@@ -969,7 +1057,7 @@ export default function PlaylistEditor() {
                 {localItems.length > 0 && (
                   <span title="Duração total de uma volta completa da playlist"
                     className="flex items-center gap-1 text-xs font-semibold text-brand-600 bg-brand-50 px-2 py-0.5 rounded-full">
-                    <Clock size={11} /> {formatDuration(localItems.reduce((sum, it) => sum + itemSeconds(it), 0))}
+                    <Clock size={11} /> {formatDuration(localItems.reduce((sum, it) => sum + itemSeconds(it, childDurations), 0))}
                   </span>
                 )}
               </div>
@@ -985,6 +1073,7 @@ export default function PlaylistEditor() {
                       key={item.id}
                       item={item}
                       index={idx}
+                      childSeconds={item.child_playlist_id ? childDurations[item.child_playlist_id] : undefined}
                       onDelete={() => handleRemove(item.id)}
                       onDuplicate={() => handleDuplicate(item)}
                       onUpdateDuration={s => handleUpdateDuration(item, s)}

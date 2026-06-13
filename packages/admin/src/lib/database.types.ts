@@ -218,6 +218,7 @@ export interface PlaylistItem {
   playlist_id: string
   media_id: string | null
   rss_feed_id: string | null
+  child_playlist_id: string | null      // playlist aninhada (bloco agendável)
   order_index: number
   duration_override: number | null
   rss_article_count: number | null
@@ -227,6 +228,7 @@ export interface PlaylistItem {
   schedule: ItemSchedule | null
   media?: Media | null
   rss_feed?: RssFeed | null
+  child_playlist?: Playlist | null
 }
 
 export interface Asset {
