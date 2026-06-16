@@ -26,7 +26,7 @@ async function uploadVideoRenditions(
 
 // Remove da DO. Vídeo novo tem 4 renditions (_sd/_qhd/_hd/_fhd) → remove as 4.
 // Imagem (renditions _fhd.jpg ou legado) passa por releaseAsset (refs/dedup).
-async function removeMediaStorage(storagePath: string | null | undefined) {
+export async function removeMediaStorage(storagePath: string | null | undefined) {
   if (!storagePath) return
   if (/_fhd\.mp4$/.test(storagePath)) {
     const base = storagePath.replace(/_fhd\.mp4$/, '')

@@ -1,13 +1,14 @@
 import { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { mediaUrl } from '../lib/spaces'
+import { releaseAsset } from '../lib/assets'
 import type { Client, Media } from '../lib/database.types'
-import { youtubeId, MediaFormModal } from './Media'
+import { youtubeId, MediaFormModal, removeMediaStorage } from './Media'
 import ClientModal from '../components/ClientModal'
 import {
-  ChevronLeft, Pencil, Plus, Building2, UserRound, Mail, Phone, MapPin, FileText,
+  ChevronLeft, Pencil, Plus, Trash2, Building2, UserRound, Mail, Phone, MapPin, FileText,
   Image as ImageIcon, Film, Code, Clock, Cloud, Youtube, Radio, Quote, Images,
 } from 'lucide-react'
 
@@ -24,8 +25,25 @@ const TYPE_META: Record<string, { label: string; icon: React.ReactNode }> = {
 
 export default function ClientDetail() {
   const { id } = useParams<{ id: string }>()
+  const qc = useQueryClient()
   const [editing, setEditing] = useState(false)
   const [addMediaOpen, setAddMediaOpen] = useState(false)
+  const [editMedia, setEditMedia] = useState<Media | null>(null)
+
+  const deleteMedia = useMutation({
+    mutationFn: async (item: Media) => {
+      await removeMediaStorage(item.storage_path)
+      if (item.clock_config?.bg_image_path) await releaseAsset(item.clock_config.bg_image_path)
+      if (item.quotes_config?.bg_image_path) await releaseAsset(item.quotes_config.bg_image_path)
+      const { error } = await supabase.from('media').delete().eq('id', item.id)
+      if (error) throw error
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['client-media', id] })
+      qc.invalidateQueries({ queryKey: ['client-media-counts'] })
+      qc.invalidateQueries({ queryKey: ['media'] })
+    },
+  })
 
   const { data: client } = useQuery<Client>({
     queryKey: ['client', id],
@@ -65,6 +83,9 @@ export default function ClientDetail() {
       {editing && <ClientModal client={client} onClose={() => setEditing(false)} />}
       {addMediaOpen && (
         <MediaFormModal defaultClientId={client.id} onClose={() => setAddMediaOpen(false)} />
+      )}
+      {editMedia && (
+        <MediaFormModal editing={editMedia} onClose={() => setEditMedia(null)} />
       )}
 
       {/* Cabeçalho do cliente */}
@@ -134,13 +155,23 @@ export default function ClientDetail() {
             const src = thumb(m)
             const meta = TYPE_META[m.type] ?? { label: m.type, icon: null }
             return (
-              <div key={m.id} className="bg-white border rounded-xl overflow-hidden">
+              <div key={m.id} className="bg-white border rounded-xl overflow-hidden group">
                 <div className="aspect-video bg-gray-100 relative flex items-center justify-center overflow-hidden text-gray-400">
                   {src
                     ? <img src={src} alt={m.name} className="w-full h-full object-cover" loading="lazy" />
                     : (m.storage_path && m.type === 'video'
                       ? <video src={mediaUrl(m.storage_path)} className="w-full h-full object-cover" muted />
                       : meta.icon && <div className="scale-[2.2]">{meta.icon}</div>)}
+                  <div className="absolute top-2 right-2 flex gap-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                    <button onClick={() => setEditMedia(m)} title="Editar"
+                      className="bg-white/95 text-gray-700 hover:bg-white p-2 sm:p-1.5 rounded-lg shadow-md sm:shadow">
+                      <Pencil size={18} className="sm:hidden" /> <Pencil size={14} className="hidden sm:block" />
+                    </button>
+                    <button onClick={() => { if (confirm(`Remover a mídia "${m.name}"?`)) deleteMedia.mutate(m) }} title="Remover"
+                      className="bg-red-600 text-white p-2 sm:p-1.5 rounded-lg shadow-md sm:shadow hover:bg-red-700">
+                      <Trash2 size={18} className="sm:hidden" /> <Trash2 size={14} className="hidden sm:block" />
+                    </button>
+                  </div>
                 </div>
                 <div className="p-3">
                   <p className="text-sm font-medium break-words">{m.name}</p>
