@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase'
 import { uploadToSpaces, deleteFromSpaces, mediaUrl } from '../lib/spaces'
 import { useIbgeStates, useIbgeCities } from '../lib/ibge'
 import type { Client, ClientType } from '../lib/database.types'
-import { X, Upload, Loader2, UserRound, DollarSign } from 'lucide-react'
+import { X, Upload, Loader2, UserRound, DollarSign, MapPin } from 'lucide-react'
 import PhoneField from './PhoneField'
 
 const field = 'w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500'
@@ -55,6 +55,8 @@ export default function ClientModal({ client, onClose }: {
   const [costPerMedia, setCostPerMedia] = useState(str(client?.cost_per_media))
   const [startDate, setStartDate] = useState(client?.start_date ?? '')
   const [paymentDay, setPaymentDay] = useState(str(client?.payment_day))
+
+  const [tab, setTab] = useState<'dados' | 'endereco' | 'financeiro'>('dados')
 
   const [imageFile, setImageFile] = useState<File | null>(null)
   const [imagePreview, setImagePreview] = useState<string | undefined>(
@@ -118,12 +120,26 @@ export default function ClientModal({ client, onClose }: {
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-3 sm:p-4">
       <div className="bg-white rounded-xl sm:rounded-2xl shadow-xl w-full max-w-2xl my-4 flex flex-col max-h-[92vh]">
-        <div className="flex items-center justify-between px-4 sm:px-6 py-4 border-b">
+        <div className="flex items-center justify-between px-4 sm:px-6 pt-4 sm:pt-5">
           <h3 className="text-lg font-semibold">{client ? 'Editar Cliente' : 'Novo Cliente'}</h3>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
         </div>
+        <div className="flex gap-1 px-2 sm:px-4 pt-3 overflow-x-auto">
+          {([
+            { key: 'dados', label: 'Dados', icon: <UserRound size={15} /> },
+            { key: 'endereco', label: 'Endereço', icon: <MapPin size={15} /> },
+            { key: 'financeiro', label: 'Financeiro', icon: <DollarSign size={15} /> },
+          ] as const).map(t => (
+            <button key={t.key} onClick={() => setTab(t.key)}
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-t-lg text-sm font-medium whitespace-nowrap transition-colors border-b-2 ${tab === t.key ? 'text-brand-600 border-brand-600' : 'text-slate-500 border-transparent hover:text-slate-700'}`}>
+              {t.icon} {t.label}
+            </button>
+          ))}
+        </div>
 
-        <div className="p-4 sm:p-6 space-y-4 overflow-y-auto flex-1">
+        <div className="p-4 sm:p-6 space-y-4 overflow-y-auto flex-1 border-t">
+          {/* ── DADOS ── */}
+          {tab === 'dados' && (<>
           {/* Imagem */}
           <div>
             <label className={lbl}>Imagem</label>
@@ -187,9 +203,10 @@ export default function ClientModal({ client, onClose }: {
               <PhoneField value={phone2} onChange={setPhone2} placeholder="(00) 00000-0000" />
             </div>
           </div>
+          </>)}
 
-          <hr className="border-gray-100" />
-
+          {/* ── ENDEREÇO ── */}
+          {tab === 'endereco' && (<>
           {/* Endereço + número */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="sm:col-span-2">
@@ -238,15 +255,11 @@ export default function ClientModal({ client, onClose }: {
               </select>
             </div>
           </div>
+          </>)}
 
-          <hr className="border-gray-100" />
-
-          {/* ── Financeiro ── */}
+          {/* ── FINANCEIRO ── */}
+          {tab === 'financeiro' && (
           <div>
-            <h4 className="flex items-center gap-1.5 text-sm font-semibold text-slate-700 mb-3">
-              <DollarSign size={16} className="text-emerald-600" /> Financeiro
-            </h4>
-
             <p className="text-xs font-medium text-gray-500 mb-2">Cobrança</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <MoneyField label="Valor por mês" value={billingMonthly} onChange={setBillingMonthly} />
@@ -279,6 +292,7 @@ export default function ClientModal({ client, onClose }: {
               </div>
             )}
           </div>
+          )}
         </div>
 
         <div className="flex gap-2 px-4 sm:px-6 py-4 border-t bg-gray-50 rounded-b-2xl justify-end">
