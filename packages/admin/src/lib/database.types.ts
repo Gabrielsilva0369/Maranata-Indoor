@@ -151,11 +151,24 @@ export interface Media {
 }
 
 export type ClientType = 'fisica' | 'juridica'
+export type ClientStatus = 'ativo' | 'atraso' | 'cancelado'
+
+export interface ClientPayment {
+  id: string
+  client_id: string
+  period: string          // YYYY-MM-01 (mês de referência)
+  due_date: string | null
+  amount: number | null
+  paid: boolean
+  paid_at: string | null
+  created_at: string
+}
 
 export interface Client {
   id: string
   name: string
   type: ClientType
+  status: ClientStatus
   document: string | null      // CPF (física) ou CNPJ (jurídica)
   email: string | null
   phone1: string | null
@@ -279,6 +292,7 @@ export type Database = {
       app_bundles:    { Row: AppBundle;   Insert: Omit<AppBundle,   'id' | 'created_at'>; Update: Partial<Omit<AppBundle,   'id'>> }
       assets:         { Row: Asset;       Insert: Omit<Asset,       'created_at'>;        Update: Partial<Asset> }
       clients:        { Row: Client;      Insert: Omit<Client,      'id' | 'created_at'>; Update: Partial<Omit<Client,      'id'>> }
+      client_payments: { Row: ClientPayment; Insert: Omit<ClientPayment, 'id' | 'created_at'>; Update: Partial<Omit<ClientPayment, 'id'>> }
     }
   }
 }

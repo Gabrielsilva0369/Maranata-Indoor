@@ -4,19 +4,27 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { mediaUrl } from '../lib/spaces'
 import { releaseAsset } from '../lib/assets'
-import type { Client, Media } from '../lib/database.types'
+import type { Client, ClientPayment, Media } from '../lib/database.types'
 import { youtubeId, MediaFormModal, removeMediaStorage } from './Media'
 import ClientModal from '../components/ClientModal'
 import {
-  ChevronLeft, Pencil, Plus, Trash2, Building2, UserRound, Mail, Phone, MapPin, FileText,
+  ChevronLeft, ChevronRight, Pencil, Plus, Trash2, Building2, UserRound, Mail, Phone, MapPin, FileText,
   Image as ImageIcon, Film, Code, Clock, Cloud, Youtube, Radio, Quote, Images,
-  DollarSign, Wallet, TrendingUp, CalendarDays,
+  DollarSign, Wallet, TrendingUp, CalendarDays, Check,
 } from 'lucide-react'
 
 const brl = (n: number | null | undefined) =>
   n == null ? '—' : n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 const fmtDate = (d: string | null | undefined) =>
   d ? new Date(d + 'T00:00').toLocaleDateString('pt-BR') : '—'
+
+const MONTHS = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
+const STATUS_META: Record<string, { label: string; cls: string }> = {
+  ativo:     { label: 'Ativo',     cls: 'bg-emerald-50 text-emerald-600' },
+  atraso:    { label: 'Em atraso', cls: 'bg-amber-50 text-amber-600' },
+  cancelado: { label: 'Cancelado', cls: 'bg-gray-100 text-gray-500' },
+}
+const pad = (n: number) => String(n).padStart(2, '0')
 
 const TYPE_META: Record<string, { label: string; icon: React.ReactNode }> = {
   image: { label: 'Imagem', icon: <ImageIcon size={13} /> },
@@ -35,6 +43,7 @@ export default function ClientDetail() {
   const [editing, setEditing] = useState(false)
   const [addMediaOpen, setAddMediaOpen] = useState(false)
   const [editMedia, setEditMedia] = useState<Media | null>(null)
+  const [year, setYear] = useState(new Date().getFullYear())
 
   const deleteMedia = useMutation({
     mutationFn: async (item: Media) => {
@@ -68,6 +77,42 @@ export default function ClientDetail() {
       if (error) throw error
       return data
     },
+  })
+
+  // Cobranças do ano selecionado
+  const { data: payments = [] } = useQuery<ClientPayment[]>({
+    queryKey: ['client-payments', id, year],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('client_payments').select('*')
+        .eq('client_id', id!)
+        .gte('period', `${year}-01-01`).lte('period', `${year}-12-01`)
+      if (error) throw error
+      return data
+    },
+  })
+
+  // Marca/desmarca o pagamento de um mês (0–11). Cria a linha na 1ª vez.
+  const togglePayment = useMutation({
+    mutationFn: async (month: number) => {
+      const period = `${year}-${pad(month + 1)}-01`
+      const rec = payments.find(p => p.period === period)
+      if (rec) {
+        const nowPaid = !rec.paid
+        const { error } = await supabase.from('client_payments')
+          .update({ paid: nowPaid, paid_at: nowPaid ? new Date().toISOString() : null })
+          .eq('id', rec.id)
+        if (error) throw error
+      } else {
+        const dim = new Date(year, month + 1, 0).getDate()
+        const day = Math.min(client?.payment_day ?? 1, dim)
+        const { error } = await supabase.from('client_payments').insert({
+          client_id: id!, period, due_date: `${year}-${pad(month + 1)}-${pad(day)}`,
+          amount: client?.billing_monthly ?? null, paid: true, paid_at: new Date().toISOString(),
+        })
+        if (error) throw error
+      }
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['client-payments', id, year] }),
   })
 
   if (!client) {
@@ -110,10 +155,16 @@ export default function ClientDetail() {
                 <Pencil size={14} /> Editar
               </button>
             </div>
-            <span className={`inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full mt-1 ${client.type === 'juridica' ? 'bg-indigo-50 text-indigo-600' : 'bg-teal-50 text-teal-600'}`}>
-              {client.type === 'juridica' ? <Building2 size={11} /> : <UserRound size={11} />}
-              {client.type === 'juridica' ? 'Jurídica' : 'Física'}
-            </span>
+            <div className="flex items-center gap-2 mt-1 flex-wrap">
+              <span className={`inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full ${client.type === 'juridica' ? 'bg-indigo-50 text-indigo-600' : 'bg-teal-50 text-teal-600'}`}>
+                {client.type === 'juridica' ? <Building2 size={11} /> : <UserRound size={11} />}
+                {client.type === 'juridica' ? 'Jurídica' : 'Física'}
+              </span>
+              <span className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full ${STATUS_META[client.status]?.cls ?? 'bg-gray-100 text-gray-500'}`}>
+                <span className="w-1.5 h-1.5 rounded-full bg-current" />
+                {STATUS_META[client.status]?.label ?? client.status}
+              </span>
+            </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1.5 mt-3 text-sm text-gray-600">
               {client.document && <p className="flex items-center gap-2"><FileText size={14} className="text-gray-400 shrink-0" /> {client.document}</p>}
               {client.email && <p className="flex items-center gap-2 break-all"><Mail size={14} className="text-gray-400 shrink-0" /> {client.email}</p>}
@@ -167,6 +218,60 @@ export default function ClientDetail() {
             )}
           </div>
         )}
+      </section>
+
+      {/* Cobranças mensais */}
+      <section className="bg-white rounded-xl sm:rounded-2xl border shadow-sm p-4 sm:p-6 mb-6">
+        <div className="flex items-center justify-between mb-4 gap-3">
+          <h3 className="flex items-center gap-2 text-base sm:text-lg font-semibold text-slate-700">
+            <CalendarDays size={18} className="text-brand-600" /> Cobranças
+          </h3>
+          <div className="flex items-center gap-2">
+            <button onClick={() => setYear(y => y - 1)} className="p-1.5 text-gray-400 hover:text-brand-600 hover:bg-brand-50 rounded-lg transition-colors"><ChevronLeft size={16} /></button>
+            <span className="text-sm font-semibold text-slate-700 tabular-nums w-12 text-center">{year}</span>
+            <button onClick={() => setYear(y => y + 1)} className="p-1.5 text-gray-400 hover:text-brand-600 hover:bg-brand-50 rounded-lg transition-colors"><ChevronRight size={16} /></button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-3">
+          {MONTHS.map((label, m) => {
+            const period = `${year}-${pad(m + 1)}-01`
+            const rec = payments.find(p => p.period === period)
+            const dim = new Date(year, m + 1, 0).getDate()
+            const due = new Date(year, m, Math.min(client.payment_day ?? 1, dim))
+            const overdue = !rec?.paid && due < new Date(new Date().toDateString())
+            const state = rec?.paid ? 'pago' : overdue ? 'atraso' : 'pendente'
+            const styles = {
+              pago: 'bg-emerald-50 border-emerald-200 text-emerald-700',
+              atraso: 'bg-red-50 border-red-200 text-red-600',
+              pendente: 'bg-gray-50 border-gray-200 text-gray-500',
+            }[state]
+            return (
+              <button key={m} onClick={() => togglePayment.mutate(m)} disabled={togglePayment.isPending}
+                title={rec?.paid ? `Pago em ${fmtDate(rec.paid_at?.slice(0, 10))} — clique para desmarcar` : 'Clique para marcar como pago'}
+                className={`flex flex-col items-start gap-0.5 rounded-xl border p-2.5 text-left transition-colors ${styles} disabled:opacity-60`}>
+                <div className="flex items-center justify-between w-full">
+                  <span className="text-sm font-semibold">{label}</span>
+                  {rec?.paid
+                    ? <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-emerald-600 text-white"><Check size={12} /></span>
+                    : <span className="w-5 h-5 rounded-full border-2 border-current opacity-40" />}
+                </div>
+                <span className="text-[11px] font-medium capitalize">{state === 'pago' ? 'Pago' : state === 'atraso' ? 'Em atraso' : 'Pendente'}</span>
+                <span className="text-[11px] opacity-70">{brl(rec?.amount ?? client.billing_monthly)}</span>
+              </button>
+            )
+          })}
+        </div>
+
+        {(() => {
+          const paidCount = payments.filter(p => p.paid).length
+          const paidSum = payments.filter(p => p.paid).reduce((s, p) => s + (p.amount ?? 0), 0)
+          return (
+            <p className="text-xs text-gray-500 mt-4">
+              {paidCount} de 12 meses pagos em {year} · recebido: <b className="text-emerald-600">{brl(paidSum)}</b>
+            </p>
+          )
+        })()}
       </section>
 
       {/* Mídias do cliente */}

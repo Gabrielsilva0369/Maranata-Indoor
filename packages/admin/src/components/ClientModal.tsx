@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { uploadToSpaces, deleteFromSpaces, mediaUrl } from '../lib/spaces'
 import { useIbgeStates, useIbgeCities } from '../lib/ibge'
-import type { Client, ClientType } from '../lib/database.types'
+import type { Client, ClientType, ClientStatus } from '../lib/database.types'
 import { X, Upload, Loader2, UserRound, DollarSign, MapPin } from 'lucide-react'
 import PhoneField from './PhoneField'
 
@@ -34,6 +34,7 @@ export default function ClientModal({ client, onClose }: {
   const fileRef = useRef<HTMLInputElement>(null)
 
   const [type, setType] = useState<ClientType>(client?.type ?? 'fisica')
+  const [status, setStatus] = useState<ClientStatus>(client?.status ?? 'ativo')
   const [name, setName] = useState(client?.name ?? '')
   const [document, setDocument] = useState(client?.document ?? '')
   const [email, setEmail] = useState(client?.email ?? '')
@@ -86,7 +87,7 @@ export default function ClientModal({ client, onClose }: {
       const num = (s: string) => { const n = parseFloat(s.replace(',', '.')); return s.trim() === '' || isNaN(n) ? null : n }
 
       const payload = {
-        name: name.trim(), type, document: document.trim() || null,
+        name: name.trim(), type, status, document: document.trim() || null,
         email: email.trim() || null, phone1: phone1.trim() || null, phone2: phone2.trim() || null,
         image_path, address: address.trim() || null, number: number.trim() || null,
         complement: complement.trim() || null, district: district.trim() || null,
@@ -177,10 +178,20 @@ export default function ClientModal({ client, onClose }: {
             </div>
           </div>
 
-          {/* Nome */}
-          <div>
-            <label className={lbl}>Nome</label>
-            <input value={name} onChange={e => setName(e.target.value)} className={field} placeholder="Ex: Avulso" />
+          {/* Nome + Status */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className={lbl}>Nome</label>
+              <input value={name} onChange={e => setName(e.target.value)} className={field} placeholder="Ex: Avulso" />
+            </div>
+            <div>
+              <label className={lbl}>Status</label>
+              <select value={status} onChange={e => setStatus(e.target.value as ClientStatus)} className={field}>
+                <option value="ativo">Ativo</option>
+                <option value="atraso">Em atraso</option>
+                <option value="cancelado">Cancelado</option>
+              </select>
+            </div>
           </div>
 
           {/* Email */}
