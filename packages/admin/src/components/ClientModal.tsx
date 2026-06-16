@@ -5,6 +5,7 @@ import { uploadToSpaces, deleteFromSpaces, mediaUrl } from '../lib/spaces'
 import { useIbgeStates, useIbgeCities } from '../lib/ibge'
 import type { Client, ClientType } from '../lib/database.types'
 import { X, Upload, Loader2, UserRound } from 'lucide-react'
+import PhoneField from './PhoneField'
 
 const field = 'w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500'
 const lbl = 'block text-sm font-medium mb-1'
@@ -144,11 +145,11 @@ export default function ClientModal({ client, onClose }: {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className={lbl}>Telefone #1</label>
-              <input value={phone1} onChange={e => setPhone1(e.target.value)} className={field} placeholder="(00) 00000-0000" />
+              <PhoneField value={phone1} onChange={setPhone1} placeholder="(00) 00000-0000" />
             </div>
             <div>
               <label className={lbl}>Telefone #2</label>
-              <input value={phone2} onChange={e => setPhone2(e.target.value)} className={field} placeholder="(00) 00000-0000" />
+              <PhoneField value={phone2} onChange={setPhone2} placeholder="(00) 00000-0000" />
             </div>
           </div>
 
