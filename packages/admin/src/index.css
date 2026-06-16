@@ -53,9 +53,15 @@ html.dark body { background-color: #131c2e; color: #e2e8f0; }
 .dark .border-gray-100,
 .dark .border-gray-300 { border-color: #334155 !important; }
 
-/* hover de superfície */
+/* hover de superfície (inclui variantes com opacidade: /70, /80) */
 .dark .hover\:bg-gray-50:hover,
-.dark .hover\:bg-gray-100:hover { background-color: #334155 !important; }
+.dark .hover\:bg-gray-100:hover,
+.dark .hover\:bg-gray-50\/70:hover,
+.dark .active\:bg-gray-50:active { background-color: #334155 !important; }
+
+/* superfícies translúcidas usadas como fundo de painel/área */
+.dark .bg-gray-50\/70,
+.dark .bg-gray-50\/80 { background-color: #131c2e !important; }
 
 /* campos de formulário */
 .dark input,
