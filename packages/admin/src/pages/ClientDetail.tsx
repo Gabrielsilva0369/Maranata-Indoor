@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { mediaUrl } from '../lib/spaces'
 import type { Client, Media } from '../lib/database.types'
-import { youtubeId } from './Media'
+import { youtubeId, MediaFormModal } from './Media'
 import ClientModal from '../components/ClientModal'
 import {
   ChevronLeft, Pencil, Plus, Building2, UserRound, Mail, Phone, MapPin, FileText,
@@ -25,6 +25,7 @@ const TYPE_META: Record<string, { label: string; icon: React.ReactNode }> = {
 export default function ClientDetail() {
   const { id } = useParams<{ id: string }>()
   const [editing, setEditing] = useState(false)
+  const [addMediaOpen, setAddMediaOpen] = useState(false)
 
   const { data: client } = useQuery<Client>({
     queryKey: ['client', id],
@@ -62,6 +63,9 @@ export default function ClientDetail() {
       </Link>
 
       {editing && <ClientModal client={client} onClose={() => setEditing(false)} />}
+      {addMediaOpen && (
+        <MediaFormModal defaultClientId={client.id} onClose={() => setAddMediaOpen(false)} />
+      )}
 
       {/* Cabeçalho do cliente */}
       <section className="bg-white rounded-xl sm:rounded-2xl border shadow-sm p-4 sm:p-6 mb-6">
@@ -109,20 +113,20 @@ export default function ClientDetail() {
           <Images size={20} className="text-brand-600" /> Mídias deste cliente
           <span className="text-sm font-normal text-gray-400">({medias.length})</span>
         </h3>
-        <Link to={`/media?new=1&client=${client.id}`}
+        <button onClick={() => setAddMediaOpen(true)}
           className="flex items-center gap-2 bg-brand-600 hover:bg-brand-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors shadow-sm shrink-0">
           <Plus size={16} /> Adicionar mídia
-        </Link>
+        </button>
       </div>
 
       {medias.length === 0 ? (
         <div className="bg-white rounded-2xl border border-dashed py-12 text-center">
           <Images size={32} className="mx-auto text-gray-300 mb-2" />
           <p className="text-gray-500 text-sm">Nenhuma mídia vinculada a este cliente.</p>
-          <Link to={`/media?new=1&client=${client.id}`}
+          <button onClick={() => setAddMediaOpen(true)}
             className="inline-flex items-center gap-2 mt-3 bg-brand-600 hover:bg-brand-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">
             <Plus size={16} /> Adicionar mídia
-          </Link>
+          </button>
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">

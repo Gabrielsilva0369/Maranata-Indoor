@@ -1,5 +1,4 @@
 import { useState, useRef, useEffect } from 'react'
-import { useSearchParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import type { Media, MediaType, ClockConfig, WeatherConfig, QuotesConfig, MediaFolder, Client } from '../lib/database.types'
@@ -702,49 +701,383 @@ function ClockForm({ cfg, onChange, bgUrl, onBgFileChange, onOpenPicker }: {
   )
 }
 
-// ── Página principal ──────────────────────────────────────────────────────────
-export default function MediaPage() {
+// ── Modal de criação/edição de mídia (reutilizável: Mídias e detalhe do Cliente) ──
+export function MediaFormModal({ editing = null, defaultClientId = null, defaultFolderId = null, onClose, onSaved }: {
+  editing?: Media | null
+  defaultClientId?: string | null
+  defaultFolderId?: string | null
+  onClose: () => void
+  onSaved?: () => void
+}) {
   const qc = useQueryClient()
-  const navigate = useNavigate()
-  const [searchParams, setSearchParams] = useSearchParams()
-  const [showAdd, setShowAdd] = useState(false)
-  const [editingId, setEditingId] = useState<string | null>(null)
-  const [type, setType] = useState<MediaType>('image')
-  const [name, setName] = useState('')
-  const [url, setUrl] = useState('')
-  const [htmlContent, setHtmlContent] = useState('')
-  const [duration, setDuration] = useState(30)
+  const editingId = editing?.id ?? null
+
+  const [type, setType] = useState<MediaType>(editing?.type ?? 'image')
+  const [name, setName] = useState(editing?.name ?? '')
+  const [url, setUrl] = useState(editing?.url ?? '')
+  const [htmlContent, setHtmlContent] = useState(editing?.html_content ?? '')
+  const [duration, setDuration] = useState(editing?.duration ?? 30)
   const [file, setFile] = useState<File | null>(null)
-  const [clockCfg, setClockCfg] = useState<ClockConfig>({ ...DEFAULT_CLOCK })
-  const [weatherCfg, setWeatherCfg] = useState<WeatherConfig>({ ...DEFAULT_WEATHER })
-  const [quotesCfg, setQuotesCfg] = useState<QuotesConfig>({ ...DEFAULT_QUOTES })
+  const [clockCfg, setClockCfg] = useState<ClockConfig>(editing?.clock_config ?? { ...DEFAULT_CLOCK })
+  const [weatherCfg, setWeatherCfg] = useState<WeatherConfig>(editing?.weather_config ?? { ...DEFAULT_WEATHER })
+  const [quotesCfg, setQuotesCfg] = useState<QuotesConfig>(editing?.quotes_config ?? { ...DEFAULT_QUOTES })
   const [bgFile, setBgFile] = useState<File | null>(null)
-  const [bgPreviewUrl, setBgPreviewUrl] = useState<string>()
-  // Reaproveitar um asset já enviado como fundo (sem novo upload).
+  const [bgPreviewUrl, setBgPreviewUrl] = useState<string | undefined>(() => {
+    const bgPath = editing?.clock_config?.bg_image_path ?? editing?.quotes_config?.bg_image_path
+    return bgPath ? mediaUrl(bgPath) : undefined
+  })
   const [bgAssetPath, setBgAssetPath] = useState<string | null>(null)
   const [pickerOpen, setPickerOpen] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [transcodeStatus, setTranscodeStatus] = useState<'loading' | 'analyzing' | 'transcoding' | 'done' | 'error' | null>(null)
   const [transcodeProgress, setTranscodeProgress] = useState(0)
   const fileRef = useRef<HTMLInputElement>(null)
+  const [folderId, setFolderId] = useState<string | null>(editing?.folder_id ?? defaultFolderId)
+  const [clientId, setClientId] = useState<string | null>(editing?.client_id ?? defaultClientId)
+
+  const { data: folders = [] } = useQuery<MediaFolder[]>({
+    queryKey: ['media-folders'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('media_folders').select('*').order('name')
+      if (error) throw error
+      return data
+    },
+  })
+  const { data: clients = [] } = useQuery<Client[]>({
+    queryKey: ['clients'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('clients').select('*').order('name')
+      if (error) throw error
+      return data
+    },
+  })
+
+  useEffect(() => {
+    if (!bgFile) return
+    const u = URL.createObjectURL(bgFile)
+    setBgPreviewUrl(u)
+    return () => URL.revokeObjectURL(u)
+  }, [bgFile])
+
+  const finish = () => {
+    qc.invalidateQueries({ queryKey: ['media'] })
+    qc.invalidateQueries({ queryKey: ['client-media-counts'] })
+    qc.invalidateQueries({ queryKey: ['client-media'] })
+    onSaved?.()
+    onClose()
+  }
+
+  const addMedia = useMutation({
+    mutationFn: async () => {
+      setUploading(true)
+      setTranscodeStatus(null)
+      setTranscodeProgress(0)
+      let storagePath: string | null = null
+      let renditionSizes: Record<string, number> | null = null
+      let finalClock = clockCfg
+
+      if ((type === 'image' || type === 'video') && file) {
+        if (type === 'video') {
+          const r = await uploadVideoRenditions(file, setTranscodeProgress, setTranscodeStatus)
+          storagePath = r.path; renditionSizes = r.sizes
+        } else {
+          const r = await putAsset(file, 'images')
+          storagePath = r.path; renditionSizes = r.rendition_sizes
+        }
+      }
+      if (type === 'clock' && clockCfg.bg_type === 'image') {
+        if (bgFile) { const r = await putAsset(bgFile, 'clock-bg'); finalClock = { ...clockCfg, bg_image_path: r.path } }
+        else if (bgAssetPath) { await retainAsset(bgAssetPath); finalClock = { ...clockCfg, bg_image_path: bgAssetPath } }
+      }
+      let finalQuotes = { ...quotesCfg, quote: quotesCfg.quote.trim(), author: quotesCfg.author.trim() }
+      if (type === 'quotes' && quotesCfg.bg_type === 'image') {
+        if (bgFile) { const r = await putAsset(bgFile, 'quotes-bg'); finalQuotes = { ...finalQuotes, bg_image_path: r.path } }
+        else if (bgAssetPath) { await retainAsset(bgAssetPath); finalQuotes = { ...finalQuotes, bg_image_path: bgAssetPath } }
+      }
+
+      const { error } = await supabase.from('media').insert({
+        name: name.trim(), type, storage_path: storagePath,
+        url: url.trim() || null, html_content: htmlContent.trim() || null,
+        clock_config: type === 'clock' ? finalClock : null,
+        weather_config: type === 'weather' ? weatherCfg : null,
+        quotes_config: type === 'quotes' ? finalQuotes : null,
+        size_bytes: null, rendition_sizes: renditionSizes,
+        folder_id: folderId, client_id: clientId, duration,
+      })
+      if (error) throw error
+    },
+    onSuccess: finish,
+    onError: () => setUploading(false),
+  })
+
+  const updateMedia = useMutation({
+    mutationFn: async () => {
+      if (!editingId) return
+      setUploading(true)
+      const existing = editing
+      const patch: Record<string, unknown> = {
+        name: name.trim(), url: url.trim() || null, html_content: htmlContent.trim() || null,
+        weather_config: type === 'weather' ? weatherCfg : null,
+        folder_id: folderId, client_id: clientId, duration,
+      }
+      if ((type === 'image' || type === 'video') && file) {
+        setTranscodeStatus(null); setTranscodeProgress(0)
+        let newPath: string
+        if (type === 'video') { const r = await uploadVideoRenditions(file, setTranscodeProgress, setTranscodeStatus); newPath = r.path; patch.rendition_sizes = r.sizes; patch.size_bytes = null }
+        else { const r = await putAsset(file, 'images'); newPath = r.path; patch.rendition_sizes = r.rendition_sizes; patch.size_bytes = null }
+        await removeMediaStorage(existing?.storage_path)
+        patch.storage_path = newPath
+      }
+      if (type === 'clock') {
+        let finalClock = clockCfg
+        const oldBg = existing?.clock_config?.bg_image_path
+        if (clockCfg.bg_type === 'image' && bgFile) { const r = await putAsset(bgFile, 'clock-bg'); if (oldBg) await releaseAsset(oldBg); finalClock = { ...clockCfg, bg_image_path: r.path } }
+        else if (clockCfg.bg_type === 'image' && bgAssetPath && bgAssetPath !== oldBg) { await retainAsset(bgAssetPath); if (oldBg) await releaseAsset(oldBg); finalClock = { ...clockCfg, bg_image_path: bgAssetPath } }
+        patch.clock_config = finalClock
+      }
+      if (type === 'quotes') {
+        let finalQuotes = { ...quotesCfg, quote: quotesCfg.quote.trim(), author: quotesCfg.author.trim() }
+        const oldBg = existing?.quotes_config?.bg_image_path
+        if (quotesCfg.bg_type === 'image' && bgFile) { const r = await putAsset(bgFile, 'quotes-bg'); if (oldBg) await releaseAsset(oldBg); finalQuotes = { ...finalQuotes, bg_image_path: r.path } }
+        else if (quotesCfg.bg_type === 'image' && bgAssetPath && bgAssetPath !== oldBg) { await retainAsset(bgAssetPath); if (oldBg) await releaseAsset(oldBg); finalQuotes = { ...finalQuotes, bg_image_path: bgAssetPath } }
+        patch.quotes_config = finalQuotes
+      }
+      const { error } = await supabase.from('media').update(patch).eq('id', editingId)
+      if (error) throw error
+    },
+    onSuccess: finish,
+    onError: () => setUploading(false),
+  })
+
+  const handleSave = () => { if (editingId) updateMedia.mutate(); else addMedia.mutate() }
+
+  const saveBlockReason =
+    !name.trim() ? 'Digite um nome para a mídia.'
+    : ((type === 'image' || type === 'video') && !file && !editingId) ? 'Selecione um arquivo.'
+    : (type === 'weather' && weatherCfg.latitude === 0) ? 'Defina a localização do clima.'
+    : (type === 'youtube' && !youtubeId(url)) ? 'Informe uma URL do YouTube válida.'
+    : (type === 'stream' && !url.trim()) ? 'Informe a URL do stream.'
+    : (type === 'quotes' && !quotesCfg.quote.trim()) ? 'Digite a frase.'
+    : ''
+  const isSaveDisabled = !!saveBlockReason || uploading || addMedia.isPending || updateMedia.isPending
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 overflow-y-auto">
+      <div className="flex min-h-full items-center justify-center p-4">
+      <div className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-xl my-4">
+        <h3 className="text-lg font-semibold mb-4">{editingId ? 'Editar Mídia' : 'Nova Mídia'}</h3>
+        <div className="space-y-4">
+          {/* Tipo (fixo ao editar) */}
+          <div>
+            <label className="block text-sm font-medium mb-1">Tipo</label>
+            <div className="grid grid-cols-4 gap-2">
+              {(['image', 'video', 'html', 'clock', 'weather', 'youtube', 'stream', 'quotes'] as MediaType[]).map(t => (
+                <button key={t} onClick={() => !editingId && setType(t)}
+                  disabled={!!editingId}
+                  className={`py-2 rounded-lg border text-sm font-medium transition-colors flex flex-col items-center gap-1 ${type === t ? 'bg-brand-600 text-white border-brand-600' : 'border-gray-200 hover:border-brand-300'} ${editingId && type !== t ? 'opacity-40' : ''} ${editingId ? 'cursor-not-allowed' : ''}`}
+                >
+                  {TYPE_ICONS[t]}
+                  {TYPE_LABELS[t]}
+                </button>
+              ))}
+            </div>
+            {editingId && <p className="text-xs text-gray-400 mt-1">O tipo não pode ser alterado.</p>}
+          </div>
+
+          {/* Nome */}
+          <div>
+            <label className="block text-sm font-medium mb-1">Nome</label>
+            <input value={name} onChange={e => setName(e.target.value)}
+              className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
+          </div>
+
+          {/* Pasta + Cliente */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm font-medium mb-1">Pasta</label>
+              <select value={folderId ?? ''} onChange={e => setFolderId(e.target.value || null)}
+                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500">
+                <option value="">— Sem pasta —</option>
+                {folders.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Cliente</label>
+              <select value={clientId ?? ''} onChange={e => setClientId(e.target.value || null)}
+                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500">
+                <option value="">— Sem cliente —</option>
+                {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            </div>
+          </div>
+
+          {/* Arquivo imagem/vídeo */}
+          {(type === 'image' || type === 'video') && (
+            <div>
+              <label className="block text-sm font-medium mb-1">Arquivo</label>
+              <input ref={fileRef} type="file" accept={type === 'image' ? 'image/*' : 'video/*'}
+                onChange={e => setFile(e.target.files?.[0] ?? null)} className="hidden" />
+              <button onClick={() => fileRef.current?.click()}
+                className="flex items-center gap-2 border-2 border-dashed rounded-lg px-4 py-3 text-sm text-gray-500 hover:border-brand-400 w-full justify-center"
+              >
+                <Upload size={16} />
+                {file ? file.name : (editingId ? 'Trocar arquivo (opcional)' : 'Selecionar arquivo')}
+              </button>
+              {editingId && !file && (
+                <p className="text-xs text-gray-400 mt-1">Mantém o arquivo atual se nada for selecionado.</p>
+              )}
+            </div>
+          )}
+
+          {/* HTML */}
+          {type === 'html' && (
+            <div>
+              <label className="block text-sm font-medium mb-1">URL ou HTML</label>
+              <input value={url} onChange={e => setUrl(e.target.value)}
+                placeholder="https://... (ou deixe em branco e escreva HTML abaixo)"
+                className="w-full border rounded-lg px-3 py-2 text-sm mb-2 focus:outline-none focus:ring-2 focus:ring-brand-500" />
+              <textarea value={htmlContent} onChange={e => setHtmlContent(e.target.value)}
+                placeholder="<h1>Olá</h1>" rows={3}
+                className="w-full border rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-brand-500" />
+            </div>
+          )}
+
+          {/* YouTube */}
+          {type === 'youtube' && (
+            <div>
+              <label className="block text-sm font-medium mb-1">URL do YouTube (vídeo ou live)</label>
+              <input value={url} onChange={e => setUrl(e.target.value)}
+                placeholder="https://www.youtube.com/watch?v=... ou /live/..."
+                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
+              {url && (youtubeId(url)
+                ? <p className="text-xs text-green-600 mt-1">✓ Vídeo reconhecido: {youtubeId(url)}</p>
+                : <p className="text-xs text-red-500 mt-1">URL do YouTube não reconhecida.</p>
+              )}
+              <p className="text-xs text-amber-600 mt-2 bg-amber-50 rounded-lg p-2">
+                ⚠️ Vídeos/lives monetizados de terceiros exibem anúncios do YouTube (não há como remover de forma legítima). Para signage sem anúncio, use conteúdo próprio sem monetização ou um Stream HLS direto.
+              </p>
+            </div>
+          )}
+
+          {/* Stream HLS */}
+          {type === 'stream' && (
+            <div>
+              <label className="block text-sm font-medium mb-1">URL do stream (HLS .m3u8)</label>
+              <input value={url} onChange={e => setUrl(e.target.value)}
+                placeholder="https://.../playlist.m3u8"
+                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
+              <p className="text-xs text-gray-500 mt-2 bg-blue-50 rounded-lg p-2">
+                Toca o stream direto, sem anúncios e desatendido. Ideal para live indoor. Use a URL .m3u8 da sua transmissão (própria ou de um provedor que forneça o feed direto).
+              </p>
+            </div>
+          )}
+
+          {/* Clima */}
+          {type === 'weather' && (
+            <WeatherForm cfg={weatherCfg} onChange={setWeatherCfg} />
+          )}
+
+          {/* Relógio */}
+          {type === 'clock' && (
+            <ClockForm
+              cfg={clockCfg}
+              onChange={setClockCfg}
+              bgUrl={bgPreviewUrl}
+              onBgFileChange={f => { setBgFile(f); setBgAssetPath(null) }}
+              onOpenPicker={() => setPickerOpen(true)}
+            />
+          )}
+
+          {/* Frases motivacionais */}
+          {type === 'quotes' && (
+            <QuotesForm
+              cfg={quotesCfg}
+              onChange={setQuotesCfg}
+              bgUrl={bgPreviewUrl}
+              onBgFileChange={f => { setBgFile(f); setBgAssetPath(null) }}
+              onOpenPicker={() => setPickerOpen(true)}
+            />
+          )}
+
+          {/* Progresso de Transcodificação */}
+          {transcodeStatus && (
+            <div className="bg-brand-50 border border-brand-100 rounded-xl p-4 space-y-2">
+              <div className="flex justify-between items-center text-xs font-medium text-brand-800">
+                <span>
+                  {transcodeStatus === 'loading' && 'Inicializando conversor de vídeo...'}
+                  {transcodeStatus === 'analyzing' && 'Analisando formato do vídeo...'}
+                  {transcodeStatus === 'transcoding' && 'Convertendo vídeo para formato compatível (H.264)...'}
+                  {transcodeStatus === 'done' && 'Conversão concluída! Enviando...'}
+                  {transcodeStatus === 'error' && 'Erro ao converter o vídeo.'}
+                </span>
+                <span className="font-mono">{transcodeProgress}%</span>
+              </div>
+              <div className="w-full bg-brand-200/50 rounded-full h-1.5 overflow-hidden">
+                <div
+                  className="bg-brand-600 h-1.5 rounded-full transition-all duration-300 ease-out"
+                  style={{ width: `${transcodeProgress}%` }}
+                />
+              </div>
+              <p className="text-[10px] text-brand-600/80 leading-normal">
+                Para garantir que o vídeo reproduza sem travar em qualquer TV Box, convertemos automaticamente para H.264 + AAC. Isso pode levar alguns minutos em arquivos grandes.
+              </p>
+            </div>
+          )}
+
+          {/* Duração */}
+          <div>
+            <label className="block text-sm font-medium mb-1">Duração (segundos)</label>
+            <input type="number" min={1} value={duration} onChange={e => setDuration(Number(e.target.value))}
+              className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
+            {type === 'quotes' && (
+              <p className="text-xs text-gray-400 mt-1">Tempo que a frase fica na tela.</p>
+            )}
+          </div>
+
+          {saveBlockReason && !uploading && (
+            <p className="text-xs text-amber-600 bg-amber-50 rounded-lg px-3 py-2">
+              Para salvar: {saveBlockReason}
+            </p>
+          )}
+
+          <div className="flex gap-2 pt-1">
+            <button onClick={onClose} className="flex-1 border rounded-lg py-2 text-sm">Cancelar</button>
+            <button onClick={handleSave} disabled={isSaveDisabled}
+              className="flex-1 bg-brand-600 hover:bg-brand-700 text-white rounded-lg py-2 text-sm font-medium transition-colors disabled:opacity-50"
+            >
+              {uploading || addMedia.isPending || updateMedia.isPending ? 'Salvando...' : 'Salvar'}
+            </button>
+          </div>
+        </div>
+      </div>
+      </div>
+
+      {/* Picker: reaproveitar uma imagem já enviada como fundo */}
+      {pickerOpen && (
+        <AssetPickerModal
+          onClose={() => setPickerOpen(false)}
+          onSelect={path => {
+            setBgAssetPath(path)
+            setBgFile(null)
+            setBgPreviewUrl(mediaUrl(path))
+            setPickerOpen(false)
+          }}
+        />
+      )}
+    </div>
+  )
+}
+
+// ── Página principal ──────────────────────────────────────────────────────────
+export default function MediaPage() {
+  const qc = useQueryClient()
+  const [modalOpen, setModalOpen] = useState(false)
+  const [editingMedia, setEditingMedia] = useState<Media | null>(null)
 
   // Pastas: 'all' = todas, null = sem pasta, ou um id de pasta
   const [selectedFolder, setSelectedFolder] = useState<string | null | 'all'>('all')
-  const [folderId, setFolderId] = useState<string | null>(null)  // pasta no formulário
-  const [clientId, setClientId] = useState<string | null>(null)  // cliente no formulário
-  const [returnClientId, setReturnClientId] = useState<string | null>(null)  // volta ao cliente após salvar
   const [showNewFolder, setShowNewFolder] = useState(false)
   const [newFolderName, setNewFolderName] = useState('')
-
-  // Gera preview local quando um NOVO arquivo de fundo é escolhido. Quando não há
-  // arquivo novo, NÃO mexe no preview — ele pode vir de um asset reaproveitado ou
-  // do fundo já existente (definidos explicitamente em onSelect/openEdit/resetForm).
-  useEffect(() => {
-    if (!bgFile) return
-    const url = URL.createObjectURL(bgFile)
-    setBgPreviewUrl(url)
-    return () => URL.revokeObjectURL(url)
-  }, [bgFile])
 
   const { data: mediaList = [] } = useQuery<Media[]>({
     queryKey: ['media'],
@@ -759,15 +1092,6 @@ export default function MediaPage() {
     queryKey: ['media-folders'],
     queryFn: async () => {
       const { data, error } = await supabase.from('media_folders').select('*').order('name')
-      if (error) throw error
-      return data
-    },
-  })
-
-  const { data: clients = [] } = useQuery<Client[]>({
-    queryKey: ['clients'],
-    queryFn: async () => {
-      const { data, error } = await supabase.from('clients').select('*').order('name')
       if (error) throw error
       return data
     },
@@ -802,160 +1126,6 @@ export default function MediaPage() {
     selectedFolder === 'all' ? true : m.folder_id === selectedFolder
   )
 
-  const addMedia = useMutation({
-    mutationFn: async () => {
-      setUploading(true)
-      setTranscodeStatus(null)
-      setTranscodeProgress(0)
-      let storagePath: string | null = null
-      let sizeBytes: number | null = null
-      let renditionSizes: Record<string, number> | null = null
-      let finalClock = clockCfg
-
-      // Upload arquivo (imagem/vídeo)
-      if ((type === 'image' || type === 'video') && file) {
-        if (type === 'video') {
-          const r = await uploadVideoRenditions(file, setTranscodeProgress, setTranscodeStatus)
-          storagePath = r.path
-          renditionSizes = r.sizes
-        } else {
-          // Imagem: gera renditions SD/540p/HD/FullHD e deduplica por conteúdo.
-          const r = await putAsset(file, 'images')
-          storagePath = r.path
-          renditionSizes = r.rendition_sizes
-        }
-      }
-
-      // Fundo do relógio: novo upload, ou reaproveitar um asset já enviado.
-      if (type === 'clock' && clockCfg.bg_type === 'image') {
-        if (bgFile) {
-          const r = await putAsset(bgFile, 'clock-bg')
-          finalClock = { ...clockCfg, bg_image_path: r.path }
-        } else if (bgAssetPath) {
-          await retainAsset(bgAssetPath)
-          finalClock = { ...clockCfg, bg_image_path: bgAssetPath }
-        }
-      }
-
-      // Frase: novo upload, ou reaproveitar um asset já enviado.
-      let finalQuotes = { ...quotesCfg, quote: quotesCfg.quote.trim(), author: quotesCfg.author.trim() }
-      if (type === 'quotes' && quotesCfg.bg_type === 'image') {
-        if (bgFile) {
-          const r = await putAsset(bgFile, 'quotes-bg')
-          finalQuotes = { ...finalQuotes, bg_image_path: r.path }
-        } else if (bgAssetPath) {
-          await retainAsset(bgAssetPath)
-          finalQuotes = { ...finalQuotes, bg_image_path: bgAssetPath }
-        }
-      }
-
-      const { error } = await supabase.from('media').insert({
-        name: name.trim(),
-        type,
-        storage_path: storagePath,
-        url: url.trim() || null,
-        html_content: htmlContent.trim() || null,
-        clock_config: type === 'clock' ? finalClock : null,
-        weather_config: type === 'weather' ? weatherCfg : null,
-        quotes_config: type === 'quotes' ? finalQuotes : null,
-        size_bytes: sizeBytes,
-        rendition_sizes: renditionSizes,
-        folder_id: folderId,
-        client_id: clientId,
-        duration,
-      })
-      if (error) throw error
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['media'] })
-      qc.invalidateQueries({ queryKey: ['client-media-counts'] })
-      qc.invalidateQueries({ queryKey: ['client-media'] })
-      const back = returnClientId
-      resetForm()
-      if (back) { setReturnClientId(null); navigate(`/clients/${back}`) }
-    },
-    onError: () => setUploading(false),
-  })
-
-  const updateMedia = useMutation({
-    mutationFn: async () => {
-      if (!editingId) return
-      setUploading(true)
-      const existing = mediaList.find(m => m.id === editingId)
-      const patch: Record<string, unknown> = {
-        name: name.trim(),
-        url: url.trim() || null,
-        html_content: htmlContent.trim() || null,
-        weather_config: type === 'weather' ? weatherCfg : null,
-        folder_id: folderId,
-        client_id: clientId,
-        duration,
-      }
-
-      // Substituir arquivo de imagem/vídeo (se um novo foi escolhido)
-      if ((type === 'image' || type === 'video') && file) {
-        setTranscodeStatus(null)
-        setTranscodeProgress(0)
-        let newPath: string
-        if (type === 'video') {
-          const r = await uploadVideoRenditions(file, setTranscodeProgress, setTranscodeStatus)
-          newPath = r.path
-          patch.rendition_sizes = r.sizes
-          patch.size_bytes = null
-        } else {
-          const r = await putAsset(file, 'images')
-          newPath = r.path
-          patch.rendition_sizes = r.rendition_sizes
-          patch.size_bytes = null
-        }
-        await removeMediaStorage(existing?.storage_path)
-        patch.storage_path = newPath
-      }
-
-      // Relógio: substituir fundo (novo upload ou asset reaproveitado) ou manter
-      if (type === 'clock') {
-        let finalClock = clockCfg
-        const oldBg = existing?.clock_config?.bg_image_path
-        if (clockCfg.bg_type === 'image' && bgFile) {
-          const r = await putAsset(bgFile, 'clock-bg')
-          if (oldBg) await releaseAsset(oldBg)
-          finalClock = { ...clockCfg, bg_image_path: r.path }
-        } else if (clockCfg.bg_type === 'image' && bgAssetPath && bgAssetPath !== oldBg) {
-          await retainAsset(bgAssetPath)
-          if (oldBg) await releaseAsset(oldBg)
-          finalClock = { ...clockCfg, bg_image_path: bgAssetPath }
-        }
-        patch.clock_config = finalClock
-      }
-
-      // Frase: substituir fundo (novo upload ou asset reaproveitado)
-      if (type === 'quotes') {
-        let finalQuotes = { ...quotesCfg, quote: quotesCfg.quote.trim(), author: quotesCfg.author.trim() }
-        const oldBg = existing?.quotes_config?.bg_image_path
-        if (quotesCfg.bg_type === 'image' && bgFile) {
-          const r = await putAsset(bgFile, 'quotes-bg')
-          if (oldBg) await releaseAsset(oldBg)
-          finalQuotes = { ...finalQuotes, bg_image_path: r.path }
-        } else if (quotesCfg.bg_type === 'image' && bgAssetPath && bgAssetPath !== oldBg) {
-          await retainAsset(bgAssetPath)
-          if (oldBg) await releaseAsset(oldBg)
-          finalQuotes = { ...finalQuotes, bg_image_path: bgAssetPath }
-        }
-        patch.quotes_config = finalQuotes
-      }
-
-      const { error } = await supabase.from('media').update(patch).eq('id', editingId)
-      if (error) throw error
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['media'] })
-      qc.invalidateQueries({ queryKey: ['client-media-counts'] })
-      qc.invalidateQueries({ queryKey: ['client-media'] })
-      resetForm()
-    },
-    onError: () => setUploading(false),
-  })
-
   const deleteMedia = useMutation({
     mutationFn: async (item: Media) => {
       await removeMediaStorage(item.storage_path)
@@ -973,75 +1143,8 @@ export default function MediaPage() {
 
   const getPublicUrl = (path: string) => mediaUrl(path)
 
-  const resetForm = () => {
-    setName(''); setUrl(''); setHtmlContent(''); setDuration(30)
-    setFile(null); setType('image'); setClockCfg({ ...DEFAULT_CLOCK }); setWeatherCfg({ ...DEFAULT_WEATHER })
-    setQuotesCfg({ ...DEFAULT_QUOTES })
-    setBgFile(null); setBgPreviewUrl(undefined); setBgAssetPath(null); setUploading(false)
-    setTranscodeStatus(null); setTranscodeProgress(0)
-    setEditingId(null); setFolderId(null); setClientId(null); setShowAdd(false)
-  }
-
-  const openCreate = () => {
-    resetForm()
-    setReturnClientId(null)
-    // Cria já dentro da pasta atual (se uma pasta específica estiver selecionada)
-    setFolderId(selectedFolder === 'all' ? null : selectedFolder)
-    setShowAdd(true)
-  }
-
-  // Abertura via link (ex.: detalhe do cliente → "Adicionar mídia"): já abre o
-  // modal de criação com o cliente preenchido e volta pra ele ao salvar.
-  useEffect(() => {
-    if (searchParams.get('new') !== '1') return
-    const clientParam = searchParams.get('client')
-    resetForm()
-    setFolderId(selectedFolder === 'all' ? null : selectedFolder)
-    if (clientParam) { setClientId(clientParam); setReturnClientId(clientParam) }
-    setShowAdd(true)
-    setSearchParams({}, { replace: true })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
-  const openEdit = (item: Media) => {
-    setEditingId(item.id)
-    setType(item.type)
-    setName(item.name)
-    setUrl(item.url ?? '')
-    setHtmlContent(item.html_content ?? '')
-    setDuration(item.duration)
-    setFolderId(item.folder_id)
-    setClientId(item.client_id)
-    setFile(null)
-    setBgFile(null)
-    setBgAssetPath(null)
-    setClockCfg(item.clock_config ?? { ...DEFAULT_CLOCK })
-    setWeatherCfg(item.weather_config ?? { ...DEFAULT_WEATHER })
-    setQuotesCfg(item.quotes_config ?? { ...DEFAULT_QUOTES })
-    // Preview do fundo existente (relógio ou frases)
-    const bgPath = item.clock_config?.bg_image_path ?? item.quotes_config?.bg_image_path
-    setBgPreviewUrl(bgPath ? mediaUrl(bgPath) : undefined)
-    setShowAdd(true)
-  }
-
-  const handleSave = () => {
-    if (editingId) updateMedia.mutate()
-    else addMedia.mutate()
-  }
-
-  // Ao editar, o arquivo de imagem/vídeo é opcional (mantém o atual)
-  // Motivo de o salvar estar bloqueado — mostrado pro usuário não ficar no escuro
-  // (ex.: esqueceu o Nome ao configurar o fundo da frase/relógio).
-  const saveBlockReason =
-    !name.trim() ? 'Digite um nome para a mídia.'
-    : ((type === 'image' || type === 'video') && !file && !editingId) ? 'Selecione um arquivo.'
-    : (type === 'weather' && weatherCfg.latitude === 0) ? 'Defina a localização do clima.'
-    : (type === 'youtube' && !youtubeId(url)) ? 'Informe uma URL do YouTube válida.'
-    : (type === 'stream' && !url.trim()) ? 'Informe a URL do stream.'
-    : (type === 'quotes' && !quotesCfg.quote.trim()) ? 'Digite a frase.'
-    : ''
-
-  const isSaveDisabled = !!saveBlockReason || uploading || addMedia.isPending || updateMedia.isPending
+  const openCreate = () => { setEditingMedia(null); setModalOpen(true) }
+  const openEdit = (item: Media) => { setEditingMedia(item); setModalOpen(true) }
 
   return (
     <div className="p-4 sm:p-6 md:p-8 bg-gray-50 min-h-screen">
@@ -1111,210 +1214,12 @@ export default function MediaPage() {
         </div>
       )}
 
-      {/* Modal */}
-      {showAdd && (
-        <div className="fixed inset-0 bg-black/50 z-50 overflow-y-auto">
-          <div className="flex min-h-full items-center justify-center p-4">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-xl my-4">
-            <h3 className="text-lg font-semibold mb-4">{editingId ? 'Editar Mídia' : 'Nova Mídia'}</h3>
-            <div className="space-y-4">
-              {/* Tipo (fixo ao editar) */}
-              <div>
-                <label className="block text-sm font-medium mb-1">Tipo</label>
-                <div className="grid grid-cols-4 gap-2">
-                  {(['image', 'video', 'html', 'clock', 'weather', 'youtube', 'stream', 'quotes'] as MediaType[]).map(t => (
-                    <button key={t} onClick={() => !editingId && setType(t)}
-                      disabled={!!editingId}
-                      className={`py-2 rounded-lg border text-sm font-medium transition-colors flex flex-col items-center gap-1 ${type === t ? 'bg-brand-600 text-white border-brand-600' : 'border-gray-200 hover:border-brand-300'} ${editingId && type !== t ? 'opacity-40' : ''} ${editingId ? 'cursor-not-allowed' : ''}`}
-                    >
-                      {TYPE_ICONS[t]}
-                      {TYPE_LABELS[t]}
-                    </button>
-                  ))}
-                </div>
-                {editingId && <p className="text-xs text-gray-400 mt-1">O tipo não pode ser alterado.</p>}
-              </div>
-
-              {/* Nome */}
-              <div>
-                <label className="block text-sm font-medium mb-1">Nome</label>
-                <input value={name} onChange={e => setName(e.target.value)}
-                  className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
-              </div>
-
-              {/* Pasta + Cliente */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-sm font-medium mb-1">Pasta</label>
-                  <select value={folderId ?? ''} onChange={e => setFolderId(e.target.value || null)}
-                    className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500">
-                    <option value="">— Sem pasta —</option>
-                    {folders.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">Cliente</label>
-                  <select value={clientId ?? ''} onChange={e => setClientId(e.target.value || null)}
-                    className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500">
-                    <option value="">— Sem cliente —</option>
-                    {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                  </select>
-                </div>
-              </div>
-
-              {/* Arquivo imagem/vídeo */}
-              {(type === 'image' || type === 'video') && (
-                <div>
-                  <label className="block text-sm font-medium mb-1">Arquivo</label>
-                  <input ref={fileRef} type="file" accept={type === 'image' ? 'image/*' : 'video/*'}
-                    onChange={e => setFile(e.target.files?.[0] ?? null)} className="hidden" />
-                  <button onClick={() => fileRef.current?.click()}
-                    className="flex items-center gap-2 border-2 border-dashed rounded-lg px-4 py-3 text-sm text-gray-500 hover:border-brand-400 w-full justify-center"
-                  >
-                    <Upload size={16} />
-                    {file ? file.name : (editingId ? 'Trocar arquivo (opcional)' : 'Selecionar arquivo')}
-                  </button>
-                  {editingId && !file && (
-                    <p className="text-xs text-gray-400 mt-1">Mantém o arquivo atual se nada for selecionado.</p>
-                  )}
-                </div>
-              )}
-
-              {/* HTML */}
-              {type === 'html' && (
-                <div>
-                  <label className="block text-sm font-medium mb-1">URL ou HTML</label>
-                  <input value={url} onChange={e => setUrl(e.target.value)}
-                    placeholder="https://... (ou deixe em branco e escreva HTML abaixo)"
-                    className="w-full border rounded-lg px-3 py-2 text-sm mb-2 focus:outline-none focus:ring-2 focus:ring-brand-500" />
-                  <textarea value={htmlContent} onChange={e => setHtmlContent(e.target.value)}
-                    placeholder="<h1>Olá</h1>" rows={3}
-                    className="w-full border rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-brand-500" />
-                </div>
-              )}
-
-              {/* YouTube */}
-              {type === 'youtube' && (
-                <div>
-                  <label className="block text-sm font-medium mb-1">URL do YouTube (vídeo ou live)</label>
-                  <input value={url} onChange={e => setUrl(e.target.value)}
-                    placeholder="https://www.youtube.com/watch?v=... ou /live/..."
-                    className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
-                  {url && (youtubeId(url)
-                    ? <p className="text-xs text-green-600 mt-1">✓ Vídeo reconhecido: {youtubeId(url)}</p>
-                    : <p className="text-xs text-red-500 mt-1">URL do YouTube não reconhecida.</p>
-                  )}
-                  <p className="text-xs text-amber-600 mt-2 bg-amber-50 rounded-lg p-2">
-                    ⚠️ Vídeos/lives monetizados de terceiros exibem anúncios do YouTube (não há como remover de forma legítima). Para signage sem anúncio, use conteúdo próprio sem monetização ou um Stream HLS direto.
-                  </p>
-                </div>
-              )}
-
-              {/* Stream HLS */}
-              {type === 'stream' && (
-                <div>
-                  <label className="block text-sm font-medium mb-1">URL do stream (HLS .m3u8)</label>
-                  <input value={url} onChange={e => setUrl(e.target.value)}
-                    placeholder="https://.../playlist.m3u8"
-                    className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
-                  <p className="text-xs text-gray-500 mt-2 bg-blue-50 rounded-lg p-2">
-                    Toca o stream direto, sem anúncios e desatendido. Ideal para live indoor. Use a URL .m3u8 da sua transmissão (própria ou de um provedor que forneça o feed direto).
-                  </p>
-                </div>
-              )}
-
-              {/* Clima */}
-              {type === 'weather' && (
-                <WeatherForm cfg={weatherCfg} onChange={setWeatherCfg} />
-              )}
-
-              {/* Relógio */}
-              {type === 'clock' && (
-                <ClockForm
-                  cfg={clockCfg}
-                  onChange={setClockCfg}
-                  bgUrl={bgPreviewUrl}
-                  onBgFileChange={f => { setBgFile(f); setBgAssetPath(null) }}
-                  onOpenPicker={() => setPickerOpen(true)}
-                />
-              )}
-
-              {/* Frases motivacionais */}
-              {type === 'quotes' && (
-                <QuotesForm
-                  cfg={quotesCfg}
-                  onChange={setQuotesCfg}
-                  bgUrl={bgPreviewUrl}
-                  onBgFileChange={f => { setBgFile(f); setBgAssetPath(null) }}
-                  onOpenPicker={() => setPickerOpen(true)}
-                />
-              )}
-
-              {/* Progresso de Transcodificação */}
-              {transcodeStatus && (
-                <div className="bg-brand-50 border border-brand-100 rounded-xl p-4 space-y-2">
-                  <div className="flex justify-between items-center text-xs font-medium text-brand-800">
-                    <span>
-                      {transcodeStatus === 'loading' && 'Inicializando conversor de vídeo...'}
-                      {transcodeStatus === 'analyzing' && 'Analisando formato do vídeo...'}
-                      {transcodeStatus === 'transcoding' && 'Convertendo vídeo para formato compatível (H.264)...'}
-                      {transcodeStatus === 'done' && 'Conversão concluída! Enviando...'}
-                      {transcodeStatus === 'error' && 'Erro ao converter o vídeo.'}
-                    </span>
-                    <span className="font-mono">{transcodeProgress}%</span>
-                  </div>
-                  <div className="w-full bg-brand-200/50 rounded-full h-1.5 overflow-hidden">
-                    <div
-                      className="bg-brand-600 h-1.5 rounded-full transition-all duration-300 ease-out"
-                      style={{ width: `${transcodeProgress}%` }}
-                    />
-                  </div>
-                  <p className="text-[10px] text-brand-600/80 leading-normal">
-                    Para garantir que o vídeo reproduza sem travar em qualquer TV Box, convertemos automaticamente para H.264 + AAC. Isso pode levar alguns minutos em arquivos grandes.
-                  </p>
-                </div>
-              )}
-
-              {/* Duração */}
-              <div>
-                <label className="block text-sm font-medium mb-1">Duração (segundos)</label>
-                <input type="number" min={1} value={duration} onChange={e => setDuration(Number(e.target.value))}
-                  className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
-                {type === 'quotes' && (
-                  <p className="text-xs text-gray-400 mt-1">Tempo que a frase fica na tela.</p>
-                )}
-              </div>
-
-              {saveBlockReason && !uploading && (
-                <p className="text-xs text-amber-600 bg-amber-50 rounded-lg px-3 py-2">
-                  Para salvar: {saveBlockReason}
-                </p>
-              )}
-
-              <div className="flex gap-2 pt-1">
-                <button onClick={resetForm} className="flex-1 border rounded-lg py-2 text-sm">Cancelar</button>
-                <button onClick={handleSave} disabled={isSaveDisabled}
-                  className="flex-1 bg-brand-600 hover:bg-brand-700 text-white rounded-lg py-2 text-sm font-medium transition-colors disabled:opacity-50"
-                >
-                  {uploading || addMedia.isPending || updateMedia.isPending ? 'Salvando...' : 'Salvar'}
-                </button>
-              </div>
-            </div>
-          </div>
-          </div>
-        </div>
-      )}
-
-      {/* Picker: reaproveitar uma imagem já enviada como fundo */}
-      {pickerOpen && (
-        <AssetPickerModal
-          onClose={() => setPickerOpen(false)}
-          onSelect={path => {
-            setBgAssetPath(path)
-            setBgFile(null)
-            setBgPreviewUrl(mediaUrl(path))
-            setPickerOpen(false)
-          }}
+      {/* Modal de criação/edição (reutilizável) */}
+      {modalOpen && (
+        <MediaFormModal
+          editing={editingMedia}
+          defaultFolderId={editingMedia ? undefined : (selectedFolder === 'all' ? null : selectedFolder)}
+          onClose={() => setModalOpen(false)}
         />
       )}
 
