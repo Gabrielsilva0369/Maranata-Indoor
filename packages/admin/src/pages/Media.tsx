@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
+import { useSearchParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import type { Media, MediaType, ClockConfig, WeatherConfig, QuotesConfig, MediaFolder, Client } from '../lib/database.types'
@@ -704,6 +705,8 @@ function ClockForm({ cfg, onChange, bgUrl, onBgFileChange, onOpenPicker }: {
 // ── Página principal ──────────────────────────────────────────────────────────
 export default function MediaPage() {
   const qc = useQueryClient()
+  const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [showAdd, setShowAdd] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [type, setType] = useState<MediaType>('image')
@@ -729,6 +732,7 @@ export default function MediaPage() {
   const [selectedFolder, setSelectedFolder] = useState<string | null | 'all'>('all')
   const [folderId, setFolderId] = useState<string | null>(null)  // pasta no formulário
   const [clientId, setClientId] = useState<string | null>(null)  // cliente no formulário
+  const [returnClientId, setReturnClientId] = useState<string | null>(null)  // volta ao cliente após salvar
   const [showNewFolder, setShowNewFolder] = useState(false)
   const [newFolderName, setNewFolderName] = useState('')
 
@@ -866,7 +870,9 @@ export default function MediaPage() {
       qc.invalidateQueries({ queryKey: ['media'] })
       qc.invalidateQueries({ queryKey: ['client-media-counts'] })
       qc.invalidateQueries({ queryKey: ['client-media'] })
+      const back = returnClientId
       resetForm()
+      if (back) { setReturnClientId(null); navigate(`/clients/${back}`) }
     },
     onError: () => setUploading(false),
   })
@@ -978,10 +984,24 @@ export default function MediaPage() {
 
   const openCreate = () => {
     resetForm()
+    setReturnClientId(null)
     // Cria já dentro da pasta atual (se uma pasta específica estiver selecionada)
     setFolderId(selectedFolder === 'all' ? null : selectedFolder)
     setShowAdd(true)
   }
+
+  // Abertura via link (ex.: detalhe do cliente → "Adicionar mídia"): já abre o
+  // modal de criação com o cliente preenchido e volta pra ele ao salvar.
+  useEffect(() => {
+    if (searchParams.get('new') !== '1') return
+    const clientParam = searchParams.get('client')
+    resetForm()
+    setFolderId(selectedFolder === 'all' ? null : selectedFolder)
+    if (clientParam) { setClientId(clientParam); setReturnClientId(clientParam) }
+    setShowAdd(true)
+    setSearchParams({}, { replace: true })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const openEdit = (item: Media) => {
     setEditingId(item.id)

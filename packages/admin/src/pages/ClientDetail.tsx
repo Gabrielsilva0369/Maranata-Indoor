@@ -7,7 +7,7 @@ import type { Client, Media } from '../lib/database.types'
 import { youtubeId } from './Media'
 import ClientModal from '../components/ClientModal'
 import {
-  ChevronLeft, Pencil, Building2, UserRound, Mail, Phone, MapPin, FileText,
+  ChevronLeft, Pencil, Plus, Building2, UserRound, Mail, Phone, MapPin, FileText,
   Image as ImageIcon, Film, Code, Clock, Cloud, Youtube, Radio, Quote, Images,
 } from 'lucide-react'
 
@@ -104,16 +104,25 @@ export default function ClientDetail() {
       </section>
 
       {/* Mídias do cliente */}
-      <h3 className="flex items-center gap-2 text-lg sm:text-xl font-semibold mb-4">
-        <Images size={20} className="text-brand-600" /> Mídias deste cliente
-        <span className="text-sm font-normal text-gray-400">({medias.length})</span>
-      </h3>
+      <div className="flex items-center justify-between mb-4 gap-3">
+        <h3 className="flex items-center gap-2 text-lg sm:text-xl font-semibold">
+          <Images size={20} className="text-brand-600" /> Mídias deste cliente
+          <span className="text-sm font-normal text-gray-400">({medias.length})</span>
+        </h3>
+        <Link to={`/media?new=1&client=${client.id}`}
+          className="flex items-center gap-2 bg-brand-600 hover:bg-brand-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors shadow-sm shrink-0">
+          <Plus size={16} /> Adicionar mídia
+        </Link>
+      </div>
 
       {medias.length === 0 ? (
         <div className="bg-white rounded-2xl border border-dashed py-12 text-center">
           <Images size={32} className="mx-auto text-gray-300 mb-2" />
           <p className="text-gray-500 text-sm">Nenhuma mídia vinculada a este cliente.</p>
-          <p className="text-xs text-gray-400 mt-1">Vincule na tela de Mídias, no campo "Cliente".</p>
+          <Link to={`/media?new=1&client=${client.id}`}
+            className="inline-flex items-center gap-2 mt-3 bg-brand-600 hover:bg-brand-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+            <Plus size={16} /> Adicionar mídia
+          </Link>
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
