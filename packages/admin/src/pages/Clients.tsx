@@ -5,7 +5,7 @@ import { supabase } from '../lib/supabase'
 import { mediaUrl } from '../lib/spaces'
 import type { Client } from '../lib/database.types'
 import ClientModal from '../components/ClientModal'
-import { Plus, Pencil, Trash2, Users, Building2, UserRound, Mail, Phone, MapPin } from 'lucide-react'
+import { Plus, Pencil, Trash2, Users, Building2, UserRound } from 'lucide-react'
 
 export default function Clients() {
   const qc = useQueryClient()
@@ -67,40 +67,90 @@ export default function Clients() {
 
       {showModal && <ClientModal client={modalClient} onClose={() => setShowModal(false)} />}
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
-        {clients.map(c => (
-          <div key={c.id} className="bg-white rounded-xl sm:rounded-2xl border shadow-sm hover:shadow-lg transition-shadow flex flex-col">
-            <Link to={`/clients/${c.id}`} className="flex items-start gap-3 p-4 sm:p-5 flex-1">
-              <div className="w-14 h-14 shrink-0 rounded-xl bg-gray-100 overflow-hidden flex items-center justify-center text-gray-400">
-                {c.image_path
-                  ? <img src={mediaUrl(c.image_path)} alt="" className="w-full h-full object-cover" />
-                  : (c.type === 'juridica' ? <Building2 size={22} /> : <UserRound size={22} />)}
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="font-semibold text-slate-800 break-words">{c.name}</p>
-                <span className={`inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full mt-1 ${c.type === 'juridica' ? 'bg-indigo-50 text-indigo-600' : 'bg-teal-50 text-teal-600'}`}>
-                  {c.type === 'juridica' ? <Building2 size={11} /> : <UserRound size={11} />}
-                  {c.type === 'juridica' ? 'Jurídica' : 'Física'}
-                </span>
-                <div className="mt-2 space-y-1 text-xs text-gray-500">
-                  {c.email && <p className="flex items-center gap-1.5 break-all"><Mail size={12} className="shrink-0" /> {c.email}</p>}
-                  {c.phone1 && <p className="flex items-center gap-1.5"><Phone size={12} className="shrink-0" /> {c.phone1}</p>}
-                  {(c.city || c.state) && <p className="flex items-center gap-1.5"><MapPin size={12} className="shrink-0" /> {[c.city, c.state].filter(Boolean).join(' - ')}</p>}
+      {clients.length > 0 && (
+        <>
+          {/* Tabela (desktop) */}
+          <div className="hidden md:block bg-white rounded-2xl border shadow-sm overflow-hidden">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b bg-gray-50 text-gray-500 text-xs uppercase tracking-wider">
+                  <th className="text-left font-semibold px-4 py-3">Cliente</th>
+                  <th className="text-left font-semibold px-4 py-3">Tipo</th>
+                  <th className="text-left font-semibold px-4 py-3">Email</th>
+                  <th className="text-left font-semibold px-4 py-3">Telefone</th>
+                  <th className="text-left font-semibold px-4 py-3">Cidade</th>
+                  <th className="text-center font-semibold px-4 py-3">Mídias</th>
+                  <th className="text-right font-semibold px-4 py-3">Ações</th>
+                </tr>
+              </thead>
+              <tbody>
+                {clients.map(c => (
+                  <tr key={c.id} className="border-b last:border-0 hover:bg-gray-50/70 transition-colors">
+                    <td className="px-4 py-3">
+                      <Link to={`/clients/${c.id}`} className="flex items-center gap-3 group">
+                        <div className="w-10 h-10 shrink-0 rounded-lg bg-gray-100 overflow-hidden flex items-center justify-center text-gray-400">
+                          {c.image_path
+                            ? <img src={mediaUrl(c.image_path)} alt="" className="w-full h-full object-cover" />
+                            : (c.type === 'juridica' ? <Building2 size={18} /> : <UserRound size={18} />)}
+                        </div>
+                        <span className="font-semibold text-slate-800 group-hover:text-brand-600 transition-colors break-words">{c.name}</span>
+                      </Link>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className={`inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full ${c.type === 'juridica' ? 'bg-indigo-50 text-indigo-600' : 'bg-teal-50 text-teal-600'}`}>
+                        {c.type === 'juridica' ? <Building2 size={11} /> : <UserRound size={11} />}
+                        {c.type === 'juridica' ? 'Jurídica' : 'Física'}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-gray-600 break-all">{c.email || <span className="text-gray-300">—</span>}</td>
+                    <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{c.phone1 || <span className="text-gray-300">—</span>}</td>
+                    <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{[c.city, c.state].filter(Boolean).join(' - ') || <span className="text-gray-300">—</span>}</td>
+                    <td className="px-4 py-3 text-center text-gray-600 tabular-nums">{mediaCounts[c.id] ?? 0}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center justify-end gap-1">
+                        <button onClick={() => openEdit(c)} title="Editar"
+                          className="p-2 text-gray-400 hover:text-brand-600 hover:bg-brand-50 rounded-lg transition-colors"><Pencil size={15} /></button>
+                        <button onClick={() => { if (confirm(`Remover cliente "${c.name}"? As mídias dele serão desvinculadas (não apagadas).`)) deleteClient.mutate(c.id) }}
+                          title="Remover" className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"><Trash2 size={15} /></button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Cards (mobile) */}
+          <div className="md:hidden space-y-3">
+            {clients.map(c => (
+              <div key={c.id} className="bg-white rounded-xl border shadow-sm">
+                <Link to={`/clients/${c.id}`} className="flex items-center gap-3 p-4">
+                  <div className="w-11 h-11 shrink-0 rounded-lg bg-gray-100 overflow-hidden flex items-center justify-center text-gray-400">
+                    {c.image_path
+                      ? <img src={mediaUrl(c.image_path)} alt="" className="w-full h-full object-cover" />
+                      : (c.type === 'juridica' ? <Building2 size={20} /> : <UserRound size={20} />)}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-semibold text-slate-800 break-words">{c.name}</p>
+                    <div className="flex items-center gap-2 mt-0.5 text-xs text-gray-500">
+                      <span>{c.type === 'juridica' ? 'Jurídica' : 'Física'}</span>
+                      <span>·</span>
+                      <span>{mediaCounts[c.id] ?? 0} mídias</span>
+                    </div>
+                    {c.email && <p className="text-xs text-gray-500 break-all mt-0.5">{c.email}</p>}
+                  </div>
+                </Link>
+                <div className="flex items-center justify-end gap-1 px-3 py-2 border-t">
+                  <button onClick={() => openEdit(c)} title="Editar"
+                    className="p-2 text-gray-400 hover:text-brand-600 hover:bg-brand-50 rounded-lg transition-colors"><Pencil size={15} /></button>
+                  <button onClick={() => { if (confirm(`Remover cliente "${c.name}"? As mídias dele serão desvinculadas (não apagadas).`)) deleteClient.mutate(c.id) }}
+                    title="Remover" className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"><Trash2 size={15} /></button>
                 </div>
               </div>
-            </Link>
-            <div className="flex items-center justify-between px-4 sm:px-5 py-2.5 border-t">
-              <span className="text-xs text-gray-500">{mediaCounts[c.id] ?? 0} {(mediaCounts[c.id] ?? 0) === 1 ? 'mídia' : 'mídias'}</span>
-              <div className="flex items-center gap-1">
-                <button onClick={() => openEdit(c)} title="Editar"
-                  className="p-2 text-gray-400 hover:text-brand-600 hover:bg-brand-50 rounded-lg transition-colors"><Pencil size={15} /></button>
-                <button onClick={() => { if (confirm(`Remover cliente "${c.name}"? As mídias dele serão desvinculadas (não apagadas).`)) deleteClient.mutate(c.id) }}
-                  title="Remover" className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"><Trash2 size={15} /></button>
-              </div>
-            </div>
+            ))}
           </div>
-        ))}
-      </div>
+        </>
+      )}
 
       {clients.length === 0 && (
         <div className="bg-white rounded-2xl border border-dashed py-16 text-center">
