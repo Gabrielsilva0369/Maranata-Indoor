@@ -10,7 +10,13 @@ import ClientModal from '../components/ClientModal'
 import {
   ChevronLeft, Pencil, Plus, Trash2, Building2, UserRound, Mail, Phone, MapPin, FileText,
   Image as ImageIcon, Film, Code, Clock, Cloud, Youtube, Radio, Quote, Images,
+  DollarSign, Wallet, TrendingUp, CalendarDays,
 } from 'lucide-react'
+
+const brl = (n: number | null | undefined) =>
+  n == null ? '—' : n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+const fmtDate = (d: string | null | undefined) =>
+  d ? new Date(d + 'T00:00').toLocaleDateString('pt-BR') : '—'
 
 const TYPE_META: Record<string, { label: string; icon: React.ReactNode }> = {
   image: { label: 'Imagem', icon: <ImageIcon size={13} /> },
@@ -126,6 +132,44 @@ export default function ClientDetail() {
             </div>
           </div>
         </div>
+
+        {/* Financeiro */}
+        {(client.billing_monthly != null || client.billing_per_media != null ||
+          client.cost_monthly != null || client.cost_per_media != null ||
+          client.start_date || client.payment_day != null) && (
+          <div className="mt-5 pt-4 border-t grid grid-cols-2 lg:grid-cols-4 gap-3">
+            {(client.billing_monthly != null || client.billing_per_media != null) && (
+              <div className="bg-gray-50 rounded-xl p-3">
+                <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide flex items-center gap-1"><DollarSign size={12} /> Cobrança</p>
+                <p className="text-sm text-slate-700 mt-1">{brl(client.billing_monthly)} <span className="text-gray-400 text-xs">/mês</span></p>
+                <p className="text-sm text-slate-700">{brl(client.billing_per_media)} <span className="text-gray-400 text-xs">/mídia</span></p>
+              </div>
+            )}
+            {(client.cost_monthly != null || client.cost_per_media != null) && (
+              <div className="bg-gray-50 rounded-xl p-3">
+                <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide flex items-center gap-1"><Wallet size={12} /> Custo operacional</p>
+                <p className="text-sm text-slate-700 mt-1">{brl(client.cost_monthly)} <span className="text-gray-400 text-xs">/mês</span></p>
+                <p className="text-sm text-slate-700">{brl(client.cost_per_media)} <span className="text-gray-400 text-xs">/mídia</span></p>
+              </div>
+            )}
+            {(client.billing_monthly != null || client.cost_monthly != null) && (
+              <div className="bg-gray-50 rounded-xl p-3">
+                <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide flex items-center gap-1"><TrendingUp size={12} /> Resultado/mês</p>
+                {(() => {
+                  const net = (client.billing_monthly ?? 0) - (client.cost_monthly ?? 0)
+                  return <p className={`text-lg font-bold mt-1 ${net >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>{brl(net)}</p>
+                })()}
+              </div>
+            )}
+            {(client.start_date || client.payment_day != null) && (
+              <div className="bg-gray-50 rounded-xl p-3">
+                <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide flex items-center gap-1"><CalendarDays size={12} /> Contrato</p>
+                <p className="text-sm text-slate-700 mt-1">Início: {fmtDate(client.start_date)}</p>
+                <p className="text-sm text-slate-700">Pagamento: {client.payment_day != null ? `dia ${client.payment_day}` : '—'}</p>
+              </div>
+            )}
+          </div>
+        )}
       </section>
 
       {/* Mídias do cliente */}
