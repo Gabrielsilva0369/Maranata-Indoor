@@ -26,12 +26,14 @@
    contrastam bem no escuro. Variantes com opacidade (bg-white/95) e badges
    coloridos (bg-green-100…) usam classes próprias e NÃO são afetados. */
 html.dark { color-scheme: dark; }
-html.dark body { @apply bg-slate-900 text-slate-200; }
+html.dark body { background-color: #131c2e; color: #e2e8f0; }
 
-/* superfícies */
-.dark .bg-white { background-color: #1e293b !important; }
-.dark .bg-gray-50 { background-color: #0f172a !important; }
-.dark .bg-gray-100 { background-color: #334155 !important; }
+/* superfícies — 3 níveis distintos:
+   sidebar (mais escura) < página < cards (mais claros, "elevados") */
+.dark .bg-gray-900 { background-color: #0b1220 !important; }  /* sidebar / menu mobile */
+.dark .bg-gray-50  { background-color: #131c2e !important; }  /* fundo da página */
+.dark .bg-white    { background-color: #1e293b !important; }  /* cards / modais */
+.dark .bg-gray-100 { background-color: #334155 !important; }  /* chips / avatares */
 
 /* textos */
 .dark .text-slate-800,
