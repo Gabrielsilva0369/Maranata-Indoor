@@ -50,9 +50,7 @@ export default function ClientModal({ client, onClose }: {
   // Financeiro (campos como string para permitir vazio; convertidos no save)
   const str = (v: number | null | undefined) => (v == null ? '' : String(v))
   const [billingMonthly, setBillingMonthly] = useState(str(client?.billing_monthly))
-  const [billingPerMedia, setBillingPerMedia] = useState(str(client?.billing_per_media))
   const [costMonthly, setCostMonthly] = useState(str(client?.cost_monthly))
-  const [costPerMedia, setCostPerMedia] = useState(str(client?.cost_per_media))
   const [startDate, setStartDate] = useState(client?.start_date ?? '')
   const [paymentDay, setPaymentDay] = useState(str(client?.payment_day))
 
@@ -93,8 +91,8 @@ export default function ClientModal({ client, onClose }: {
         image_path, address: address.trim() || null, number: number.trim() || null,
         complement: complement.trim() || null, district: district.trim() || null,
         zip: zip.trim() || null, state: state || null, city: city || null,
-        billing_monthly: num(billingMonthly), billing_per_media: num(billingPerMedia),
-        cost_monthly: num(costMonthly), cost_per_media: num(costPerMedia),
+        billing_monthly: num(billingMonthly), billing_per_media: null,
+        cost_monthly: num(costMonthly), cost_per_media: null,
         start_date: startDate || null,
         payment_day: paymentDay.trim() === '' ? null : Math.min(31, Math.max(1, parseInt(paymentDay, 10) || 1)),
       }
@@ -115,7 +113,6 @@ export default function ClientModal({ client, onClose }: {
 
   const nf = (s: string) => { const x = parseFloat(s.replace(',', '.')); return isNaN(x) ? 0 : x }
   const netMonthly = nf(billingMonthly) - nf(costMonthly)
-  const netPerMedia = nf(billingPerMedia) - nf(costPerMedia)
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-3 sm:p-4">
@@ -260,16 +257,9 @@ export default function ClientModal({ client, onClose }: {
           {/* ── FINANCEIRO ── */}
           {tab === 'financeiro' && (
           <div>
-            <p className="text-xs font-medium text-gray-500 mb-2">Cobrança</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <MoneyField label="Valor por mês" value={billingMonthly} onChange={setBillingMonthly} />
-              <MoneyField label="Valor por mídia" value={billingPerMedia} onChange={setBillingPerMedia} />
-            </div>
-
-            <p className="text-xs font-medium text-gray-500 mb-2 mt-4">Custo operacional</p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <MoneyField label="Custo fixo por mês" value={costMonthly} onChange={setCostMonthly} />
-              <MoneyField label="Custo por mídia" value={costPerMedia} onChange={setCostPerMedia} />
+              <MoneyField label="Cobrança por mês" value={billingMonthly} onChange={setBillingMonthly} />
+              <MoneyField label="Custo operacional por mês" value={costMonthly} onChange={setCostMonthly} />
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
@@ -285,10 +275,9 @@ export default function ClientModal({ client, onClose }: {
             </div>
 
             {/* Resultado estimado */}
-            {(billingMonthly || costMonthly || billingPerMedia || costPerMedia) && (
-              <div className="mt-3 text-xs text-gray-600 bg-gray-50 rounded-lg px-3 py-2 space-y-0.5">
+            {(billingMonthly || costMonthly) && (
+              <div className="mt-3 text-xs text-gray-600 bg-gray-50 rounded-lg px-3 py-2">
                 <p>Resultado/mês estimado: <b className={netMonthly >= 0 ? 'text-emerald-600' : 'text-red-600'}>{brl(netMonthly)}</b></p>
-                <p>Resultado por mídia: <b className={netPerMedia >= 0 ? 'text-emerald-600' : 'text-red-600'}>{brl(netPerMedia)}</b></p>
               </div>
             )}
           </div>

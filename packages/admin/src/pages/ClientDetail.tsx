@@ -134,22 +134,19 @@ export default function ClientDetail() {
         </div>
 
         {/* Financeiro */}
-        {(client.billing_monthly != null || client.billing_per_media != null ||
-          client.cost_monthly != null || client.cost_per_media != null ||
+        {(client.billing_monthly != null || client.cost_monthly != null ||
           client.start_date || client.payment_day != null) && (
           <div className="mt-5 pt-4 border-t grid grid-cols-2 lg:grid-cols-4 gap-3">
-            {(client.billing_monthly != null || client.billing_per_media != null) && (
+            {client.billing_monthly != null && (
               <div className="bg-gray-50 rounded-xl p-3">
-                <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide flex items-center gap-1"><DollarSign size={12} /> Cobrança</p>
-                <p className="text-sm text-slate-700 mt-1">{brl(client.billing_monthly)} <span className="text-gray-400 text-xs">/mês</span></p>
-                <p className="text-sm text-slate-700">{brl(client.billing_per_media)} <span className="text-gray-400 text-xs">/mídia</span></p>
+                <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide flex items-center gap-1"><DollarSign size={12} /> Cobrança/mês</p>
+                <p className="text-lg font-bold text-slate-700 mt-1">{brl(client.billing_monthly)}</p>
               </div>
             )}
-            {(client.cost_monthly != null || client.cost_per_media != null) && (
+            {client.cost_monthly != null && (
               <div className="bg-gray-50 rounded-xl p-3">
-                <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide flex items-center gap-1"><Wallet size={12} /> Custo operacional</p>
-                <p className="text-sm text-slate-700 mt-1">{brl(client.cost_monthly)} <span className="text-gray-400 text-xs">/mês</span></p>
-                <p className="text-sm text-slate-700">{brl(client.cost_per_media)} <span className="text-gray-400 text-xs">/mídia</span></p>
+                <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide flex items-center gap-1"><Wallet size={12} /> Custo/mês</p>
+                <p className="text-lg font-bold text-slate-700 mt-1">{brl(client.cost_monthly)}</p>
               </div>
             )}
             {(client.billing_monthly != null || client.cost_monthly != null) && (
