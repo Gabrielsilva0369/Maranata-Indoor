@@ -4,11 +4,27 @@ import { supabase } from '../lib/supabase'
 import { uploadToSpaces, deleteFromSpaces, mediaUrl } from '../lib/spaces'
 import { useIbgeStates, useIbgeCities } from '../lib/ibge'
 import type { Client, ClientType } from '../lib/database.types'
-import { X, Upload, Loader2, UserRound } from 'lucide-react'
+import { X, Upload, Loader2, UserRound, DollarSign } from 'lucide-react'
 import PhoneField from './PhoneField'
 
 const field = 'w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500'
 const lbl = 'block text-sm font-medium mb-1'
+
+const brl = (n: number) => n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+
+// Campo de valor em R$ (number com prefixo).
+function MoneyField({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+  return (
+    <div>
+      <label className={lbl}>{label}</label>
+      <div className="flex items-center w-full border rounded-lg px-3 text-sm bg-white focus-within:ring-2 focus-within:ring-brand-500">
+        <span className="text-gray-400 mr-1 shrink-0">R$</span>
+        <input type="number" min={0} step="0.01" value={value} onChange={e => onChange(e.target.value)}
+          placeholder="0,00" className="flex-1 py-2 bg-transparent focus:outline-none min-w-0" />
+      </div>
+    </div>
+  )
+}
 
 export default function ClientModal({ client, onClose }: {
   client: Client | null            // null = novo cliente
@@ -30,6 +46,15 @@ export default function ClientModal({ client, onClose }: {
   const [zip, setZip] = useState(client?.zip ?? '')
   const [state, setState] = useState(client?.state ?? '')
   const [city, setCity] = useState(client?.city ?? '')
+
+  // Financeiro (campos como string para permitir vazio; convertidos no save)
+  const str = (v: number | null | undefined) => (v == null ? '' : String(v))
+  const [billingMonthly, setBillingMonthly] = useState(str(client?.billing_monthly))
+  const [billingPerMedia, setBillingPerMedia] = useState(str(client?.billing_per_media))
+  const [costMonthly, setCostMonthly] = useState(str(client?.cost_monthly))
+  const [costPerMedia, setCostPerMedia] = useState(str(client?.cost_per_media))
+  const [startDate, setStartDate] = useState(client?.start_date ?? '')
+  const [paymentDay, setPaymentDay] = useState(str(client?.payment_day))
 
   const [imageFile, setImageFile] = useState<File | null>(null)
   const [imagePreview, setImagePreview] = useState<string | undefined>(
@@ -58,12 +83,18 @@ export default function ClientModal({ client, onClose }: {
         image_path = path
       }
 
+      const num = (s: string) => { const n = parseFloat(s.replace(',', '.')); return s.trim() === '' || isNaN(n) ? null : n }
+
       const payload = {
         name: name.trim(), type, document: document.trim() || null,
         email: email.trim() || null, phone1: phone1.trim() || null, phone2: phone2.trim() || null,
         image_path, address: address.trim() || null, number: number.trim() || null,
         complement: complement.trim() || null, district: district.trim() || null,
         zip: zip.trim() || null, state: state || null, city: city || null,
+        billing_monthly: num(billingMonthly), billing_per_media: num(billingPerMedia),
+        cost_monthly: num(costMonthly), cost_per_media: num(costPerMedia),
+        start_date: startDate || null,
+        payment_day: paymentDay.trim() === '' ? null : Math.min(31, Math.max(1, parseInt(paymentDay, 10) || 1)),
       }
 
       const { error } = client
@@ -79,6 +110,10 @@ export default function ClientModal({ client, onClose }: {
       setSaving(false)
     }
   }
+
+  const nf = (s: string) => { const x = parseFloat(s.replace(',', '.')); return isNaN(x) ? 0 : x }
+  const netMonthly = nf(billingMonthly) - nf(costMonthly)
+  const netPerMedia = nf(billingPerMedia) - nf(costPerMedia)
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-3 sm:p-4">
@@ -202,6 +237,47 @@ export default function ClientModal({ client, onClose }: {
                 {cities.map(c => <option key={c.id} value={c.nome}>{c.nome}</option>)}
               </select>
             </div>
+          </div>
+
+          <hr className="border-gray-100" />
+
+          {/* ── Financeiro ── */}
+          <div>
+            <h4 className="flex items-center gap-1.5 text-sm font-semibold text-slate-700 mb-3">
+              <DollarSign size={16} className="text-emerald-600" /> Financeiro
+            </h4>
+
+            <p className="text-xs font-medium text-gray-500 mb-2">Cobrança</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <MoneyField label="Valor por mês" value={billingMonthly} onChange={setBillingMonthly} />
+              <MoneyField label="Valor por mídia" value={billingPerMedia} onChange={setBillingPerMedia} />
+            </div>
+
+            <p className="text-xs font-medium text-gray-500 mb-2 mt-4">Custo operacional</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <MoneyField label="Custo fixo por mês" value={costMonthly} onChange={setCostMonthly} />
+              <MoneyField label="Custo por mídia" value={costPerMedia} onChange={setCostPerMedia} />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
+              <div>
+                <label className={lbl}>Data de início</label>
+                <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className={field} />
+              </div>
+              <div>
+                <label className={lbl}>Dia do pagamento <span className="text-gray-400 font-normal">(mensal)</span></label>
+                <input type="number" min={1} max={31} value={paymentDay} onChange={e => setPaymentDay(e.target.value)}
+                  className={field} placeholder="Ex: 10" />
+              </div>
+            </div>
+
+            {/* Resultado estimado */}
+            {(billingMonthly || costMonthly || billingPerMedia || costPerMedia) && (
+              <div className="mt-3 text-xs text-gray-600 bg-gray-50 rounded-lg px-3 py-2 space-y-0.5">
+                <p>Resultado/mês estimado: <b className={netMonthly >= 0 ? 'text-emerald-600' : 'text-red-600'}>{brl(netMonthly)}</b></p>
+                <p>Resultado por mídia: <b className={netPerMedia >= 0 ? 'text-emerald-600' : 'text-red-600'}>{brl(netPerMedia)}</b></p>
+              </div>
+            )}
           </div>
         </div>
 

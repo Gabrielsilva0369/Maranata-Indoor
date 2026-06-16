@@ -168,6 +168,13 @@ export interface Client {
   zip: string | null
   state: string | null
   city: string | null
+  // Financeiro
+  billing_monthly: number | null     // valor cobrado por mês
+  billing_per_media: number | null   // valor cobrado por mídia
+  cost_monthly: number | null        // custo operacional fixo/mês
+  cost_per_media: number | null      // custo operacional por mídia
+  start_date: string | null          // YYYY-MM-DD — início do contrato
+  payment_day: number | null         // dia do vencimento mensal (1–31)
   created_at: string
 }
 
