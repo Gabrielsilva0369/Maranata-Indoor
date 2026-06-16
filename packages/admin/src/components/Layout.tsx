@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Outlet, NavLink, useNavigate } from 'react-router-dom'
-import { Monitor, Image, ListVideo, LayoutDashboard, LogOut, Rss, FileBarChart, Users, Menu, X } from 'lucide-react'
+import { Monitor, Image, ListVideo, LayoutDashboard, LogOut, Rss, FileBarChart, Users, Menu, X, Sun, Moon } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 
 const nav = [
@@ -16,6 +16,14 @@ const nav = [
 export default function Layout() {
   const navigate = useNavigate()
   const [menuOpen, setMenuOpen] = useState(false)
+  const [dark, setDark] = useState(() => document.documentElement.classList.contains('dark'))
+
+  const toggleTheme = () => {
+    const next = !dark
+    setDark(next)
+    document.documentElement.classList.toggle('dark', next)
+    localStorage.setItem('theme', next ? 'dark' : 'light')
+  }
 
   const handleNavClick = (to: string) => {
     navigate(to)
@@ -52,6 +60,13 @@ export default function Layout() {
           ))}
         </nav>
         <button
+          onClick={toggleTheme}
+          className="flex items-center gap-3 px-6 py-3 text-sm text-gray-400 hover:text-white border-t border-gray-700 transition-colors"
+        >
+          {dark ? <Sun size={18} /> : <Moon size={18} />}
+          {dark ? 'Tema claro' : 'Tema escuro'}
+        </button>
+        <button
           onClick={handleLogout}
           className="flex items-center gap-3 px-6 py-4 text-sm text-gray-400 hover:text-white border-t border-gray-700 transition-colors"
         >
@@ -63,12 +78,21 @@ export default function Layout() {
       {/* Mobile Menu Button + Header */}
       <div className="md:hidden fixed top-0 left-0 right-0 bg-white border-b z-40 p-4 flex items-center justify-between">
         <span className="text-lg font-bold text-gray-900">Maranata Indoor</span>
-        <button
-          onClick={() => setMenuOpen(!menuOpen)}
-          className="p-2 text-gray-600 hover:text-gray-900 transition-colors"
-        >
-          {menuOpen ? <X size={24} /> : <Menu size={24} />}
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={toggleTheme}
+            className="p-2 text-gray-600 hover:text-gray-900 transition-colors"
+            title={dark ? 'Tema claro' : 'Tema escuro'}
+          >
+            {dark ? <Sun size={22} /> : <Moon size={22} />}
+          </button>
+          <button
+            onClick={() => setMenuOpen(!menuOpen)}
+            className="p-2 text-gray-600 hover:text-gray-900 transition-colors"
+          >
+            {menuOpen ? <X size={24} /> : <Menu size={24} />}
+          </button>
+        </div>
       </div>
 
       {/* Mobile Menu — Fullscreen */}

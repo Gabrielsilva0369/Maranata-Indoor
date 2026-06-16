@@ -19,3 +19,53 @@
 .PhoneInputCountrySelectArrow {
   opacity: 0.5;
 }
+
+/* ───────────────────────── Tema escuro ─────────────────────────
+   Remapeia as superfícies/textos/bordas mais usados quando html.dark
+   está ativo. As cores de marca (brand/verde/vermelho/etc.) ficam iguais —
+   contrastam bem no escuro. Variantes com opacidade (bg-white/95) e badges
+   coloridos (bg-green-100…) usam classes próprias e NÃO são afetados. */
+html.dark { color-scheme: dark; }
+html.dark body { @apply bg-slate-900 text-slate-200; }
+
+/* superfícies */
+.dark .bg-white { background-color: #1e293b !important; }
+.dark .bg-gray-50 { background-color: #0f172a !important; }
+.dark .bg-gray-100 { background-color: #334155 !important; }
+
+/* textos */
+.dark .text-slate-800,
+.dark .text-slate-700,
+.dark .text-slate-600,
+.dark .text-gray-900,
+.dark .text-gray-800,
+.dark .text-gray-700 { color: #e2e8f0 !important; }
+.dark .text-gray-600,
+.dark .text-gray-500 { color: #cbd5e1 !important; }
+.dark .text-gray-400,
+.dark .text-gray-300 { color: #94a3b8 !important; }
+
+/* bordas */
+.dark .border,
+.dark .border-gray-200,
+.dark .border-gray-100,
+.dark .border-gray-300 { border-color: #334155 !important; }
+
+/* hover de superfície */
+.dark .hover\:bg-gray-50:hover,
+.dark .hover\:bg-gray-100:hover { background-color: #334155 !important; }
+
+/* campos de formulário */
+.dark input,
+.dark select,
+.dark textarea {
+  background-color: #1e293b;
+  color: #e2e8f0;
+  border-color: #334155;
+}
+.dark input::placeholder,
+.dark textarea::placeholder { color: #64748b; }
+.dark select option { background-color: #1e293b; color: #e2e8f0; }
+
+/* rodapé de modais e linhas divisórias */
+.dark .divide-gray-100 > * + * { border-color: #334155 !important; }
