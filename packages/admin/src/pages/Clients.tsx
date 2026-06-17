@@ -124,6 +124,7 @@ export default function Clients() {
                   <th className="text-left font-semibold px-4 py-3">Cliente</th>
                   <th className="text-left font-semibold px-4 py-3">Status</th>
                   <th className="text-left font-semibold px-4 py-3">Cobrança do mês</th>
+                  <th className="text-center font-semibold px-4 py-3">Vencimento</th>
                   <th className="text-center font-semibold px-4 py-3">Mídias</th>
                   <th className="text-right font-semibold px-4 py-3">Ações</th>
                 </tr>
@@ -155,6 +156,9 @@ export default function Clients() {
                         <span className={`inline-flex items-center text-[11px] font-semibold px-2.5 py-1 rounded-full ${pm.cls}`}>
                           {pm.label}
                         </span>
+                      </td>
+                      <td className="px-4 py-3 text-center text-gray-600 tabular-nums">
+                        {c.payment_day != null ? <span>dia {c.payment_day}</span> : <span className="text-gray-300">—</span>}
                       </td>
                       <td className="px-4 py-3 text-center text-gray-600 tabular-nums">{mediaCounts[c.id] ?? 0}</td>
                       <td className="px-4 py-3">
