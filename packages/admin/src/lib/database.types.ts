@@ -151,7 +151,7 @@ export interface Media {
 }
 
 export type ClientType = 'fisica' | 'juridica'
-export type ClientStatus = 'ativo' | 'atraso' | 'cancelado'
+export type ClientStatus = 'ativo' | 'atraso' | 'cancelado' | 'pausado'
 
 export interface ClientPayment {
   id: string

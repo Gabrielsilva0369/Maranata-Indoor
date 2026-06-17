@@ -22,6 +22,7 @@ const MONTHS = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', '
 const STATUS_META: Record<string, { label: string; cls: string }> = {
   ativo:     { label: 'Ativo',     cls: 'bg-emerald-50 text-emerald-600' },
   atraso:    { label: 'Em atraso', cls: 'bg-amber-50 text-amber-600' },
+  pausado:   { label: 'Pausado',   cls: 'bg-sky-50 text-sky-600' },
   cancelado: { label: 'Cancelado', cls: 'bg-gray-100 text-gray-500' },
 }
 const pad = (n: number) => String(n).padStart(2, '0')
@@ -99,7 +100,12 @@ export default function ClientDetail() {
       if (rec) {
         const nowPaid = !rec.paid
         const { error } = await supabase.from('client_payments')
-          .update({ paid: nowPaid, paid_at: nowPaid ? new Date().toISOString() : null })
+          .update({
+            paid: nowPaid,
+            paid_at: nowPaid ? new Date().toISOString() : null,
+            // ao marcar pago, grava o valor cobrado no momento
+            amount: nowPaid ? (client?.billing_monthly ?? rec.amount) : rec.amount,
+          })
           .eq('id', rec.id)
         if (error) throw error
       } else {
@@ -239,25 +245,49 @@ export default function ClientDetail() {
             const rec = payments.find(p => p.period === period)
             const dim = new Date(year, m + 1, 0).getDate()
             const due = new Date(year, m, Math.min(client.payment_day ?? 1, dim))
+
+            // Antes do início do contrato → "não aderente".
+            let beforeStart = false
+            if (client.start_date) {
+              const s = new Date(client.start_date + 'T00:00')
+              beforeStart = year < s.getFullYear() || (year === s.getFullYear() && m < s.getMonth())
+            }
             const overdue = !rec?.paid && due < new Date(new Date().toDateString())
-            const state = rec?.paid ? 'pago' : overdue ? 'atraso' : 'pendente'
-            const styles = {
+
+            const state =
+              rec?.paid ? 'pago'
+              : beforeStart ? 'naoaderente'
+              : client.status === 'pausado' ? 'pausado'   // pausado nunca mostra atraso
+              : overdue ? 'atraso'
+              : 'pendente'
+
+            const styles: Record<string, string> = {
               pago: 'bg-emerald-50 border-emerald-200 text-emerald-700',
               atraso: 'bg-red-50 border-red-200 text-red-600',
               pendente: 'bg-gray-50 border-gray-200 text-gray-500',
-            }[state]
+              pausado: 'bg-sky-50 border-sky-200 text-sky-600',
+              naoaderente: 'bg-gray-50 border-dashed border-gray-200 text-gray-300',
+            }
+            const labels: Record<string, string> = {
+              pago: 'Pago', atraso: 'Em atraso', pendente: 'Pendente',
+              pausado: 'Pausado', naoaderente: 'Não aderente',
+            }
+            const disabled = state === 'naoaderente' || togglePayment.isPending
+
             return (
-              <button key={m} onClick={() => togglePayment.mutate(m)} disabled={togglePayment.isPending}
-                title={rec?.paid ? `Pago em ${fmtDate(rec.paid_at?.slice(0, 10))} — clique para desmarcar` : 'Clique para marcar como pago'}
-                className={`flex flex-col items-start gap-0.5 rounded-xl border p-2.5 text-left transition-colors ${styles} disabled:opacity-60`}>
+              <button key={m} onClick={() => togglePayment.mutate(m)} disabled={disabled}
+                title={rec?.paid ? `Pago em ${fmtDate(rec.paid_at?.slice(0, 10))} — clique para desmarcar`
+                  : state === 'naoaderente' ? 'Antes do início do contrato'
+                  : 'Clique para marcar como pago'}
+                className={`flex flex-col items-start gap-0.5 rounded-xl border p-2.5 text-left transition-colors ${styles[state]} ${disabled ? 'cursor-default' : ''} disabled:opacity-100`}>
                 <div className="flex items-center justify-between w-full">
                   <span className="text-sm font-semibold">{label}</span>
                   {rec?.paid
                     ? <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-emerald-600 text-white"><Check size={12} /></span>
-                    : <span className="w-5 h-5 rounded-full border-2 border-current opacity-40" />}
+                    : state !== 'naoaderente' && <span className="w-5 h-5 rounded-full border-2 border-current opacity-40" />}
                 </div>
-                <span className="text-[11px] font-medium capitalize">{state === 'pago' ? 'Pago' : state === 'atraso' ? 'Em atraso' : 'Pendente'}</span>
-                <span className="text-[11px] opacity-70">{brl(rec?.amount ?? client.billing_monthly)}</span>
+                <span className="text-[11px] font-medium">{labels[state]}</span>
+                {state !== 'naoaderente' && <span className="text-[11px] opacity-70">{brl(rec?.amount ?? client.billing_monthly)}</span>}
               </button>
             )
           })}

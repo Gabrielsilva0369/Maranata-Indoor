@@ -189,6 +189,7 @@ export default function ClientModal({ client, onClose }: {
               <select value={status} onChange={e => setStatus(e.target.value as ClientStatus)} className={field}>
                 <option value="ativo">Ativo</option>
                 <option value="atraso">Em atraso</option>
+                <option value="pausado">Pausado</option>
                 <option value="cancelado">Cancelado</option>
               </select>
             </div>
