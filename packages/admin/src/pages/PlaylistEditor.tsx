@@ -14,7 +14,7 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 import { supabase } from '../lib/supabase'
 import type { PlaylistItem, Media, RssFeed, Playlist, PlaylistItemFooter, ItemSchedule, MediaFolder } from '../lib/database.types'
-import { GripVertical, Copy, Trash2, ChevronLeft, Image, Film, Code, Rss, Clock, Newspaper, Volume2, VolumeX, Volume1, PanelBottom, PanelBottomClose, PanelBottomOpen, Folder, ChevronDown, ChevronRight, CalendarClock, X, Plus, Eye, Radio, Cloud, ListVideo, Upload, XCircle } from 'lucide-react'
+import { GripVertical, Copy, Trash2, ChevronLeft, Image, Film, Code, Rss, Clock, Newspaper, Volume2, VolumeX, Volume1, PanelBottom, PanelBottomClose, PanelBottomOpen, Folder, ChevronDown, ChevronRight, CalendarClock, X, Plus, Eye, Radio, Cloud, ListVideo, Upload, XCircle, Quote, CloudSun, Youtube, Wifi } from 'lucide-react'
 import { youtubeId } from './Media'
 import { uploadToSpaces, deleteFromSpaces, mediaUrl } from '../lib/spaces'
 
@@ -39,7 +39,14 @@ function formatDuration(total: number): string {
 }
 
 const MEDIA_ICONS: Record<string, React.ReactNode> = {
-  image: <Image size={12} />, video: <Film size={12} />, html: <Code size={12} />,
+  image:   <Image   size={12} />,
+  video:   <Film    size={12} />,
+  html:    <Code    size={12} />,
+  clock:   <Clock   size={12} className="text-blue-400" />,
+  weather: <CloudSun size={12} className="text-sky-400" />,
+  quotes:  <Quote   size={12} className="text-violet-400" />,
+  youtube: <Youtube size={12} className="text-red-500" />,
+  stream:  <Wifi    size={12} className="text-pink-400" />,
 }
 
 // ── Toggle de rodapé por item ─────────────────────────────────────────────────
