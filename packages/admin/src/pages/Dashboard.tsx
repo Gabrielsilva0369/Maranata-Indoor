@@ -1,7 +1,7 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import type { Screen, Client, ClientPayment } from '../lib/database.types'
-import { Monitor, Wifi, WifiOff, DownloadCloud, Loader2, Users, TrendingUp, Wallet, DollarSign } from 'lucide-react'
+import { Monitor, Wifi, WifiOff, Users, TrendingUp, Wallet, DollarSign } from 'lucide-react'
 import DashboardCharts from '../components/DashboardCharts'
 
 function isOnline(lastSeen: string | null) {
@@ -12,8 +12,6 @@ function isOnline(lastSeen: string | null) {
 const brl = (n: number) => n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 
 export default function Dashboard() {
-  const qc = useQueryClient()
-
   const { data: screens = [] } = useQuery<Screen[]>({
     queryKey: ['screens'],
     queryFn: async () => {
@@ -42,14 +40,6 @@ export default function Dashboard() {
     },
   })
 
-  const updateAll = useMutation({
-    mutationFn: async () => {
-      const { error } = await supabase.from('screens').update({ pending_command: 'update' }).not('id', 'is', null)
-      if (error) throw error
-    },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['screens'] }),
-  })
-
   const online = screens.filter(s => isOnline(s.last_seen)).length
 
   // Clientes por status
@@ -67,18 +57,7 @@ export default function Dashboard() {
     <div className="p-4 sm:p-6 md:p-8 bg-gray-50 min-h-screen">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
         <h2 className="text-2xl sm:text-3xl font-bold">Dashboard</h2>
-        <button
-          onClick={() => { if (confirm('Atualizar TODAS as telas para a nova versão do player?')) updateAll.mutate() }}
-          disabled={updateAll.isPending || screens.length === 0}
-          className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 w-full sm:w-auto justify-center">
-          {updateAll.isPending ? <Loader2 size={16} className="animate-spin" /> : <DownloadCloud size={16} />}
-          <span className="hidden sm:inline">Atualizar todas</span>
-          <span className="sm:hidden">Atualizar</span>
-        </button>
       </div>
-      {updateAll.isSuccess && (
-        <p className="text-xs sm:text-sm text-emerald-600 mb-4 -mt-2">Comando enviado ✓ As telas vão atualizar em até ~15s.</p>
-      )}
 
       {/* Métricas de clientes */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mb-4">

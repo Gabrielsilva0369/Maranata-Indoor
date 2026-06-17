@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import type { Screen, Playlist, RssFeed, FooterConfig } from '../lib/database.types'
-import { Plus, Trash2, Volume2, VolumeX, PanelBottom, Pencil, Monitor, Camera, DownloadCloud } from 'lucide-react'
+import { Plus, Trash2, Volume2, VolumeX, PanelBottom, Pencil, Monitor, Camera, DownloadCloud, Loader2 } from 'lucide-react'
 import { FooterModal, EditScreenModal, uploadFooterLogo } from '../components/screenSettings'
 
 const PLAYER_URL =
@@ -99,6 +99,14 @@ export default function Screens() {
     setFooterScreen(null)
   }
 
+  const updateAll = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.from('screens').update({ pending_command: 'update' }).not('id', 'is', null)
+      if (error) throw error
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['screens'] }),
+  })
+
   const onlineCount = screens.filter(s => isOnline(s.last_seen)).length
 
   return (
@@ -113,12 +121,25 @@ export default function Screens() {
             )}
           </p>
         </div>
-        <button onClick={() => setShowAdd(true)}
-          className="flex items-center justify-center gap-2 bg-brand-600 hover:bg-brand-700 text-white px-4 py-2.5 rounded-xl text-sm font-medium transition-colors shadow-sm w-full sm:w-auto"
-        >
-          <Plus size={16} /> <span className="hidden sm:inline">Adicionar</span><span className="sm:hidden">Novo</span>
-        </button>
+        <div className="flex gap-2 w-full sm:w-auto">
+          <button
+            onClick={() => { if (confirm('Atualizar TODAS as telas para a nova versão do player? Elas não serão desconectadas — só vão recarregar a versão nova.')) updateAll.mutate() }}
+            disabled={updateAll.isPending || screens.length === 0}
+            className="flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-xl text-sm font-medium transition-colors shadow-sm flex-1 sm:flex-none disabled:opacity-50">
+            {updateAll.isPending ? <Loader2 size={16} className="animate-spin" /> : <DownloadCloud size={16} />}
+            <span className="hidden sm:inline">Atualizar todas</span>
+            <span className="sm:hidden">Atualizar</span>
+          </button>
+          <button onClick={() => setShowAdd(true)}
+            className="flex items-center justify-center gap-2 bg-brand-600 hover:bg-brand-700 text-white px-4 py-2.5 rounded-xl text-sm font-medium transition-colors shadow-sm flex-1 sm:flex-none"
+          >
+            <Plus size={16} /> <span className="hidden sm:inline">Adicionar</span><span className="sm:hidden">Novo</span>
+          </button>
+        </div>
       </div>
+      {updateAll.isSuccess && (
+        <p className="text-xs sm:text-sm text-emerald-600 mb-4 -mt-2">Comando enviado ✓ As telas vão atualizar em até ~15s.</p>
+      )}
 
       {/* Modal pareamento */}
       {showAdd && (
