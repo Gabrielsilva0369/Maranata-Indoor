@@ -221,6 +221,32 @@ export default function ClientDetail() {
             )}
           </div>
         )}
+
+        {/* Totais gerais */}
+        {allPayments.length > 0 && (() => {
+          const allPaidSum = allPayments.reduce((s, p) => s + (p.amount ?? 0), 0)
+          const allCostSum = (client.cost_monthly ?? 0) * allPayments.length
+          const allNet = allPaidSum - allCostSum
+          return (
+            <div className="mt-3 grid grid-cols-3 gap-3">
+              <div className="bg-gray-50 rounded-xl p-3">
+                <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Total recebido</p>
+                <p className="text-lg font-bold text-emerald-600 mt-1">{brl(allPaidSum)}</p>
+                <p className="text-[11px] text-gray-400">{allPayments.length} meses pagos</p>
+              </div>
+              <div className="bg-gray-50 rounded-xl p-3">
+                <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Total custo</p>
+                <p className="text-lg font-bold text-slate-700 mt-1">{brl(allCostSum)}</p>
+                <p className="text-[11px] text-gray-400">{allPayments.length} × {brl(client.cost_monthly)}</p>
+              </div>
+              <div className="bg-gray-50 rounded-xl p-3">
+                <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Resultado total</p>
+                <p className={`text-lg font-bold mt-1 ${allNet >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>{brl(allNet)}</p>
+                <p className="text-[11px] text-gray-400">recebido − custo</p>
+              </div>
+            </div>
+          )
+        })()}
       </section>
 
       {/* Cobranças mensais */}
@@ -296,31 +322,6 @@ export default function ClientDetail() {
             )
           })}
         </div>
-
-        {(() => {
-          const allPaidSum = allPayments.reduce((s, p) => s + (p.amount ?? 0), 0)
-          const allCostSum = (client.cost_monthly ?? 0) * allPayments.length
-          const allNet = allPaidSum - allCostSum
-          return (
-            <div className="grid grid-cols-3 gap-2 mt-4">
-              <div className="bg-brand-50 border border-brand-100 rounded-xl p-3">
-                <p className="text-[11px] font-semibold text-brand-400 uppercase tracking-wide">Total recebido</p>
-                <p className="text-base font-bold text-emerald-600 mt-0.5">{brl(allPaidSum)}</p>
-                <p className="text-[11px] text-brand-300">{allPayments.length} meses pagos</p>
-              </div>
-              <div className="bg-brand-50 border border-brand-100 rounded-xl p-3">
-                <p className="text-[11px] font-semibold text-brand-400 uppercase tracking-wide">Total custo</p>
-                <p className="text-base font-bold text-slate-700 mt-0.5">{brl(allCostSum)}</p>
-                <p className="text-[11px] text-brand-300">{allPayments.length} × {brl(client.cost_monthly)}</p>
-              </div>
-              <div className="bg-brand-50 border border-brand-100 rounded-xl p-3">
-                <p className="text-[11px] font-semibold text-brand-400 uppercase tracking-wide">Resultado total</p>
-                <p className={`text-base font-bold mt-0.5 ${allNet >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>{brl(allNet)}</p>
-                <p className="text-[11px] text-brand-300">recebido − custo</p>
-              </div>
-            </div>
-          )
-        })()}
 
         {(() => {
           const paidCount = payments.filter(p => p.paid).length
