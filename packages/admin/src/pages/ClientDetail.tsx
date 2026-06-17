@@ -254,12 +254,15 @@ export default function ClientDetail() {
               const e = new Date(client.end_date + 'T00:00')
               afterEnd = year > e.getFullYear() || (year === e.getFullYear() && m > e.getMonth())
             }
+            const today = new Date()
+            const isFuture = year > today.getFullYear() || (year === today.getFullYear() && m > today.getMonth())
             const overdue = !rec?.paid && due < new Date(new Date().toDateString())
 
             const state =
               rec?.paid ? 'pago'
               : (beforeStart || afterEnd) ? 'naoaderente'
-              : client.status === 'pausado' ? 'pausado'   // pausado nunca mostra atraso
+              : (client.status === 'cancelado' && isFuture) ? 'naoaderente'
+              : client.status === 'pausado' ? 'pausado'
               : overdue ? 'atraso'
               : 'pendente'
 
@@ -278,7 +281,7 @@ export default function ClientDetail() {
 
             return (
               <button key={m} onClick={() => setPayMonth(m)} disabled={disabled}
-                title={beforeStart ? 'Antes do início do contrato' : afterEnd ? 'Após o término do contrato' : 'Gerenciar cobrança do mês'}
+                title={beforeStart ? 'Antes do início do contrato' : afterEnd ? 'Após o término do contrato' : (client.status === 'cancelado' && isFuture) ? 'Cliente cancelado' : 'Gerenciar cobrança do mês'}
                 className={`flex flex-col items-start gap-0.5 rounded-xl border p-2.5 text-left transition-colors ${styles[state]} ${disabled ? 'cursor-default' : 'hover:brightness-95'} disabled:opacity-100`}>
                 <div className="flex items-center justify-between w-full">
                   <span className="text-sm font-semibold">{label}</span>
