@@ -224,6 +224,8 @@ export interface RssArticle {
 export interface PlaylistItemFooter {
   enabled: boolean
   text?: string | null
+  logo_path?: string | null
+  bg_color?: string | null
 }
 
 export interface ItemSchedule {

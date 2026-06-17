@@ -14,8 +14,9 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 import { supabase } from '../lib/supabase'
 import type { PlaylistItem, Media, RssFeed, Playlist, PlaylistItemFooter, ItemSchedule, MediaFolder } from '../lib/database.types'
-import { GripVertical, Copy, Trash2, ChevronLeft, Image, Film, Code, Rss, Clock, Newspaper, Volume2, VolumeX, Volume1, PanelBottom, PanelBottomClose, PanelBottomOpen, Folder, ChevronDown, ChevronRight, CalendarClock, X, Plus, Eye, Radio, Cloud, ListVideo } from 'lucide-react'
+import { GripVertical, Copy, Trash2, ChevronLeft, Image, Film, Code, Rss, Clock, Newspaper, Volume2, VolumeX, Volume1, PanelBottom, PanelBottomClose, PanelBottomOpen, Folder, ChevronDown, ChevronRight, CalendarClock, X, Plus, Eye, Radio, Cloud, ListVideo, Upload, XCircle } from 'lucide-react'
 import { youtubeId } from './Media'
+import { uploadToSpaces, deleteFromSpaces, mediaUrl } from '../lib/spaces'
 
 type RichItem = PlaylistItem & { media?: Media | null; rss_feed?: RssFeed | null; child_playlist?: Playlist | null }
 
@@ -526,6 +527,28 @@ function PlaylistCard({ item, index, childSeconds, onDelete, onDuplicate, onUpda
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: item.id })
   const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.4 : 1 }
+  const logoInputRef = useRef<HTMLInputElement>(null)
+  const [logoUploading, setLogoUploading] = useState(false)
+
+  const handleLogoUpload = async (file: File) => {
+    setLogoUploading(true)
+    try {
+      const ext = file.name.split('.').pop()?.toLowerCase() || 'png'
+      const path = `footer-logos/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
+      await uploadToSpaces(path, file, file.type)
+      const prev = item.footer_override?.logo_path
+      if (prev) await deleteFromSpaces(prev).catch(() => {})
+      onUpdateFooter({ ...(item.footer_override ?? { enabled: true }), logo_path: path })
+    } finally {
+      setLogoUploading(false)
+    }
+  }
+
+  const handleLogoRemove = async () => {
+    const prev = item.footer_override?.logo_path
+    if (prev) await deleteFromSpaces(prev).catch(() => {})
+    onUpdateFooter({ ...(item.footer_override ?? { enabled: true }), logo_path: null })
+  }
 
   const isPlaylist = !!item.child_playlist_id
   const isRss   = !!item.rss_feed
@@ -617,16 +640,52 @@ function PlaylistCard({ item, index, childSeconds, onDelete, onDuplicate, onUpda
       ><Trash2 size={14} /></button>
     </div>
 
-    {/* Texto personalizado do rodapé (inline quando ativo) */}
+    {/* Personalização do rodapé (inline quando ativo) */}
     {item.footer_override?.enabled === true && (
-      <div className="flex items-center gap-2 px-3 pb-2 -mt-1">
-        <PanelBottomOpen size={11} className="text-blue-400 shrink-0 ml-12" />
-        <input
-          value={item.footer_override.text ?? ''}
-          onChange={e => onUpdateFooter({ enabled: true, text: e.target.value })}
-          placeholder="Texto personalizado do rodapé..."
-          className="flex-1 text-xs border rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-400"
-        />
+      <div className="px-3 pb-2 -mt-1 space-y-1.5">
+        {/* Texto */}
+        <div className="flex items-center gap-2">
+          <PanelBottomOpen size={11} className="text-blue-400 shrink-0 ml-12" />
+          <input
+            value={item.footer_override.text ?? ''}
+            onChange={e => onUpdateFooter({ ...item.footer_override!, text: e.target.value })}
+            placeholder="Texto personalizado do rodapé..."
+            className="flex-1 text-xs border rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-400"
+          />
+        </div>
+        {/* Logo + cor */}
+        <div className="flex items-center gap-2 ml-[52px]">
+          {/* Logo */}
+          <input ref={logoInputRef} type="file" accept="image/*" className="hidden"
+            onChange={e => { const f = e.target.files?.[0]; if (f) handleLogoUpload(f); e.target.value = '' }} />
+          {item.footer_override.logo_path ? (
+            <div className="flex items-center gap-1">
+              <img src={mediaUrl(item.footer_override.logo_path)} alt="" className="h-5 rounded object-contain border bg-white" />
+              <button onClick={handleLogoRemove} title="Remover logo"
+                className="text-red-400 hover:text-red-600"><XCircle size={13} /></button>
+            </div>
+          ) : (
+            <button onClick={() => logoInputRef.current?.click()} disabled={logoUploading}
+              title="Definir logo do rodapé"
+              className="flex items-center gap-1 text-[11px] text-gray-400 hover:text-blue-500 border rounded px-1.5 py-0.5 hover:border-blue-300 transition-colors disabled:opacity-50">
+              <Upload size={10} /> {logoUploading ? '…' : 'Logo'}
+            </button>
+          )}
+          {/* Cor de fundo */}
+          <label className="flex items-center gap-1 text-[11px] text-gray-400 hover:text-blue-500 border rounded px-1.5 py-0.5 hover:border-blue-300 transition-colors cursor-pointer" title="Cor de fundo do rodapé">
+            <span className="w-3 h-3 rounded-sm border border-gray-300 shrink-0"
+              style={{ background: item.footer_override.bg_color ?? '#000000' }} />
+            Fundo
+            <input type="color" className="w-0 h-0 opacity-0 absolute"
+              value={item.footer_override.bg_color ?? '#000000'}
+              onChange={e => onUpdateFooter({ ...item.footer_override!, bg_color: e.target.value })} />
+          </label>
+          {item.footer_override.bg_color && (
+            <button onClick={() => onUpdateFooter({ ...item.footer_override!, bg_color: null })}
+              title="Remover cor (usar padrão da tela)"
+              className="text-gray-300 hover:text-red-400"><XCircle size={12} /></button>
+          )}
+        </div>
       </div>
     )}
 
