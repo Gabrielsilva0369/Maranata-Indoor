@@ -255,7 +255,7 @@ export default function ClientDetail() {
             const styles: Record<string, string> = {
               pago: 'bg-emerald-50 border-emerald-200 text-emerald-700',
               atraso: 'bg-red-50 border-red-200 text-red-600',
-              pendente: 'bg-gray-50 border-gray-200 text-gray-500',
+              pendente: 'bg-orange-50 border-orange-200 text-orange-500',
               pausado: 'bg-sky-50 border-sky-200 text-sky-600',
               naoaderente: 'bg-gray-50 border-dashed border-gray-200 text-gray-300',
             }
@@ -407,10 +407,9 @@ function PaymentModal({ clientId, year, month, rec, defaultAmount, paymentDay, o
           {/* Pago toggle */}
           <div className="flex items-center justify-between py-1">
             <span className="text-sm font-medium">Pago</span>
-            <button onClick={() => setPaid(v => !v)}
-              className={`relative w-14 h-8 rounded-full transition-colors ${paid ? 'bg-emerald-600' : 'bg-gray-300'}`}>
-              <span style={{ transform: paid ? 'translateX(28px)' : 'translateX(2px)' }}
-                className="absolute top-1 w-6 h-6 bg-white rounded-full shadow-md transition-transform" />
+            <button type="button" role="switch" aria-checked={paid} onClick={() => setPaid(v => !v)}
+              className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 ${paid ? 'bg-emerald-500' : 'bg-gray-300'}`}>
+              <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition-transform ${paid ? 'translate-x-5' : 'translate-x-0'}`} />
             </button>
           </div>
 
