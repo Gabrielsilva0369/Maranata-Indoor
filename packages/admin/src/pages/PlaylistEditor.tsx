@@ -125,10 +125,10 @@ function AvailableMediaCard({ media, onAdd, inPlaylist }: { media: Media; onAdd?
   return (
     <div ref={setNodeRef}
       style={{ opacity: isDragging ? 0.4 : 1 }}
-      className={`flex items-center gap-2 border rounded-lg px-3 py-2.5 select-none hover:shadow-sm transition-all group/card ${inPlaylist ? 'bg-emerald-50 border-emerald-200 hover:border-emerald-400' : 'bg-white hover:border-brand-400'}`}
+      className={`flex items-center gap-2 border rounded-lg px-3 py-2.5 select-none hover:shadow-sm transition-all group/card ${inPlaylist ? 'bg-emerald-900/30 border-emerald-600/50 hover:border-emerald-500' : 'bg-white hover:border-brand-400'}`}
     >
       <span {...attributes} {...listeners} className="text-gray-400 shrink-0 cursor-grab active:cursor-grabbing">{MEDIA_ICONS[media.type]}</span>
-      <span {...attributes} {...listeners} className="text-sm font-medium flex-1 cursor-grab active:cursor-grabbing">{media.name}</span>
+      <span {...attributes} {...listeners} className={`text-sm font-medium flex-1 cursor-grab active:cursor-grabbing ${inPlaylist ? 'text-emerald-300' : ''}`}>{media.name}</span>
       <span className="text-xs text-gray-400 shrink-0">{media.duration}s</span>
       {inPlaylist && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" title="Já está na playlist" />}
       {onAdd && (
@@ -147,10 +147,10 @@ function AvailablePlaylistCard({ playlist, seconds, onAdd, inPlaylist }: { playl
   return (
     <div ref={setNodeRef}
       style={{ opacity: isDragging ? 0.4 : 1 }}
-      className={`flex items-center gap-2 border rounded-lg px-3 py-2.5 select-none hover:shadow-sm transition-all group/card ${inPlaylist ? 'bg-emerald-50 border-emerald-200 hover:border-emerald-400' : 'bg-white hover:border-purple-400'}`}
+      className={`flex items-center gap-2 border rounded-lg px-3 py-2.5 select-none hover:shadow-sm transition-all group/card ${inPlaylist ? 'bg-emerald-900/30 border-emerald-600/50 hover:border-emerald-500' : 'bg-white hover:border-purple-400'}`}
     >
       <span {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing shrink-0"><ListVideo size={13} className="text-purple-500" /></span>
-      <span {...attributes} {...listeners} className="text-sm font-medium flex-1 cursor-grab active:cursor-grabbing min-w-0 break-words">{playlist.name}</span>
+      <span {...attributes} {...listeners} className={`text-sm font-medium flex-1 cursor-grab active:cursor-grabbing min-w-0 break-words ${inPlaylist ? 'text-emerald-300' : ''}`}>{playlist.name}</span>
       <span className="text-xs text-gray-400 shrink-0">{seconds ? formatDuration(seconds) : 'Playlist'}</span>
       {inPlaylist && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" title="Já está na playlist" />}
       {onAdd && (
@@ -169,10 +169,10 @@ function AvailableRssCard({ feed, onAdd, inPlaylist }: { feed: RssFeed; onAdd?: 
   return (
     <div ref={setNodeRef}
       style={{ opacity: isDragging ? 0.4 : 1 }}
-      className={`flex items-center gap-2 border rounded-lg px-3 py-2.5 select-none hover:shadow-sm transition-all group/card ${inPlaylist ? 'bg-emerald-50 border-emerald-200 hover:border-emerald-400' : 'bg-white hover:border-orange-400'}`}
+      className={`flex items-center gap-2 border rounded-lg px-3 py-2.5 select-none hover:shadow-sm transition-all group/card ${inPlaylist ? 'bg-emerald-900/30 border-emerald-600/50 hover:border-emerald-500' : 'bg-white hover:border-orange-400'}`}
     >
       <span {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing shrink-0"><Rss size={12} className="text-orange-400" /></span>
-      <span {...attributes} {...listeners} className="text-sm font-medium flex-1 cursor-grab active:cursor-grabbing">{feed.name}</span>
+      <span {...attributes} {...listeners} className={`text-sm font-medium flex-1 cursor-grab active:cursor-grabbing ${inPlaylist ? 'text-emerald-300' : ''}`}>{feed.name}</span>
       <span className="text-xs text-gray-400 shrink-0">RSS</span>
       {inPlaylist && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" title="Já está na playlist" />}
       {onAdd && (
