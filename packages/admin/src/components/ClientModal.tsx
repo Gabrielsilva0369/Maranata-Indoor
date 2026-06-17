@@ -178,20 +178,27 @@ export default function ClientModal({ client, onClose }: {
             </div>
           </div>
 
-          {/* Nome + Status */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className={lbl}>Nome</label>
-              <input value={name} onChange={e => setName(e.target.value)} className={field} placeholder="Ex: Avulso" />
-            </div>
-            <div>
-              <label className={lbl}>Status</label>
-              <select value={status} onChange={e => setStatus(e.target.value as ClientStatus)} className={field}>
-                <option value="ativo">Ativo</option>
-                <option value="atraso">Em atraso</option>
-                <option value="pausado">Pausado</option>
-                <option value="cancelado">Cancelado</option>
-              </select>
+          {/* Nome */}
+          <div>
+            <label className={lbl}>Nome</label>
+            <input value={name} onChange={e => setName(e.target.value)} className={field} placeholder="Ex: Avulso" />
+          </div>
+
+          {/* Status */}
+          <div>
+            <label className={lbl}>Status do cliente</label>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              {([
+                { v: 'ativo', label: 'Ativo', active: 'bg-emerald-600 text-white border-emerald-600' },
+                { v: 'atraso', label: 'Em atraso', active: 'bg-amber-500 text-white border-amber-500' },
+                { v: 'pausado', label: 'Pausado', active: 'bg-sky-600 text-white border-sky-600' },
+                { v: 'cancelado', label: 'Cancelado', active: 'bg-gray-500 text-white border-gray-500' },
+              ] as const).map(o => (
+                <button key={o.v} type="button" onClick={() => setStatus(o.v)}
+                  className={`py-2 rounded-lg border text-sm font-medium transition-colors ${status === o.v ? o.active : 'border-gray-200 text-slate-600 hover:border-brand-300'}`}>
+                  {o.label}
+                </button>
+              ))}
             </div>
           </div>
 

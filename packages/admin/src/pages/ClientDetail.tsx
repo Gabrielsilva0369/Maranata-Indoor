@@ -10,7 +10,7 @@ import ClientModal from '../components/ClientModal'
 import {
   ChevronLeft, ChevronRight, Pencil, Plus, Trash2, Building2, UserRound, Mail, Phone, MapPin, FileText,
   Image as ImageIcon, Film, Code, Clock, Cloud, Youtube, Radio, Quote, Images,
-  DollarSign, Wallet, TrendingUp, CalendarDays, Check,
+  DollarSign, Wallet, TrendingUp, CalendarDays, Check, StickyNote, X, Loader2,
 } from 'lucide-react'
 
 const brl = (n: number | null | undefined) =>
@@ -92,34 +92,7 @@ export default function ClientDetail() {
     },
   })
 
-  // Marca/desmarca o pagamento de um mês (0–11). Cria a linha na 1ª vez.
-  const togglePayment = useMutation({
-    mutationFn: async (month: number) => {
-      const period = `${year}-${pad(month + 1)}-01`
-      const rec = payments.find(p => p.period === period)
-      if (rec) {
-        const nowPaid = !rec.paid
-        const { error } = await supabase.from('client_payments')
-          .update({
-            paid: nowPaid,
-            paid_at: nowPaid ? new Date().toISOString() : null,
-            // ao marcar pago, grava o valor cobrado no momento
-            amount: nowPaid ? (client?.billing_monthly ?? rec.amount) : rec.amount,
-          })
-          .eq('id', rec.id)
-        if (error) throw error
-      } else {
-        const dim = new Date(year, month + 1, 0).getDate()
-        const day = Math.min(client?.payment_day ?? 1, dim)
-        const { error } = await supabase.from('client_payments').insert({
-          client_id: id!, period, due_date: `${year}-${pad(month + 1)}-${pad(day)}`,
-          amount: client?.billing_monthly ?? null, paid: true, paid_at: new Date().toISOString(),
-        })
-        if (error) throw error
-      }
-    },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['client-payments', id, year] }),
-  })
+  const [payMonth, setPayMonth] = useState<number | null>(null)
 
   if (!client) {
     return <div className="p-8"><div className="animate-spin rounded-full h-8 w-8 border-4 border-brand-500 border-t-transparent" /></div>
@@ -272,14 +245,12 @@ export default function ClientDetail() {
               pago: 'Pago', atraso: 'Em atraso', pendente: 'Pendente',
               pausado: 'Pausado', naoaderente: 'Não aderente',
             }
-            const disabled = state === 'naoaderente' || togglePayment.isPending
+            const disabled = state === 'naoaderente'
 
             return (
-              <button key={m} onClick={() => togglePayment.mutate(m)} disabled={disabled}
-                title={rec?.paid ? `Pago em ${fmtDate(rec.paid_at?.slice(0, 10))} — clique para desmarcar`
-                  : state === 'naoaderente' ? 'Antes do início do contrato'
-                  : 'Clique para marcar como pago'}
-                className={`flex flex-col items-start gap-0.5 rounded-xl border p-2.5 text-left transition-colors ${styles[state]} ${disabled ? 'cursor-default' : ''} disabled:opacity-100`}>
+              <button key={m} onClick={() => setPayMonth(m)} disabled={disabled}
+                title={state === 'naoaderente' ? 'Antes do início do contrato' : 'Gerenciar cobrança do mês'}
+                className={`flex flex-col items-start gap-0.5 rounded-xl border p-2.5 text-left transition-colors ${styles[state]} ${disabled ? 'cursor-default' : 'hover:brightness-95'} disabled:opacity-100`}>
                 <div className="flex items-center justify-between w-full">
                   <span className="text-sm font-semibold">{label}</span>
                   {rec?.paid
@@ -288,6 +259,7 @@ export default function ClientDetail() {
                 </div>
                 <span className="text-[11px] font-medium">{labels[state]}</span>
                 {state !== 'naoaderente' && <span className="text-[11px] opacity-70">{brl(rec?.amount ?? client.billing_monthly)}</span>}
+                {rec?.note && <span className="text-[11px] opacity-60 flex items-center gap-1 truncate max-w-full"><StickyNote size={10} className="shrink-0" /> {rec.note}</span>}
               </button>
             )
           })}

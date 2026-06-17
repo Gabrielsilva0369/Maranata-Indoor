@@ -161,6 +161,7 @@ export interface ClientPayment {
   amount: number | null
   paid: boolean
   paid_at: string | null
+  note: string | null
   created_at: string
 }
 
