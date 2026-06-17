@@ -200,10 +200,11 @@ export default function ClientDetail() {
                 })()}
               </div>
             )}
-            {(client.start_date || client.payment_day != null) && (
+            {(client.start_date || client.end_date || client.payment_day != null) && (
               <div className="bg-gray-50 rounded-xl p-3">
                 <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide flex items-center gap-1"><CalendarDays size={12} /> Contrato</p>
                 <p className="text-sm text-slate-700 mt-1">Início: {fmtDate(client.start_date)}</p>
+                {client.end_date && <p className="text-sm text-slate-700">Término: {fmtDate(client.end_date)}</p>}
                 <p className="text-sm text-slate-700">Pagamento: {client.payment_day != null ? `dia ${client.payment_day}` : '—'}</p>
               </div>
             )}
@@ -231,17 +232,22 @@ export default function ClientDetail() {
             const dim = new Date(year, m + 1, 0).getDate()
             const due = new Date(year, m, Math.min(client.payment_day ?? 1, dim))
 
-            // Antes do início do contrato → "não aderente".
+            // Antes do início ou depois do término do contrato → "não aderente".
             let beforeStart = false
             if (client.start_date) {
               const s = new Date(client.start_date + 'T00:00')
               beforeStart = year < s.getFullYear() || (year === s.getFullYear() && m < s.getMonth())
             }
+            let afterEnd = false
+            if (client.end_date) {
+              const e = new Date(client.end_date + 'T00:00')
+              afterEnd = year > e.getFullYear() || (year === e.getFullYear() && m > e.getMonth())
+            }
             const overdue = !rec?.paid && due < new Date(new Date().toDateString())
 
             const state =
               rec?.paid ? 'pago'
-              : beforeStart ? 'naoaderente'
+              : (beforeStart || afterEnd) ? 'naoaderente'
               : client.status === 'pausado' ? 'pausado'   // pausado nunca mostra atraso
               : overdue ? 'atraso'
               : 'pendente'
@@ -261,7 +267,7 @@ export default function ClientDetail() {
 
             return (
               <button key={m} onClick={() => setPayMonth(m)} disabled={disabled}
-                title={state === 'naoaderente' ? 'Antes do início do contrato' : 'Gerenciar cobrança do mês'}
+                title={beforeStart ? 'Antes do início do contrato' : afterEnd ? 'Após o término do contrato' : 'Gerenciar cobrança do mês'}
                 className={`flex flex-col items-start gap-0.5 rounded-xl border p-2.5 text-left transition-colors ${styles[state]} ${disabled ? 'cursor-default' : 'hover:brightness-95'} disabled:opacity-100`}>
                 <div className="flex items-center justify-between w-full">
                   <span className="text-sm font-semibold">{label}</span>

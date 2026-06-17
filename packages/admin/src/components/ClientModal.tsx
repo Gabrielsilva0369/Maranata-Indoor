@@ -53,6 +53,7 @@ export default function ClientModal({ client, onClose }: {
   const [billingMonthly, setBillingMonthly] = useState(str(client?.billing_monthly))
   const [costMonthly, setCostMonthly] = useState(str(client?.cost_monthly))
   const [startDate, setStartDate] = useState(client?.start_date ?? '')
+  const [endDate, setEndDate] = useState(client?.end_date ?? '')
   const [paymentDay, setPaymentDay] = useState(str(client?.payment_day))
 
   const [tab, setTab] = useState<'dados' | 'endereco' | 'financeiro'>('dados')
@@ -95,6 +96,7 @@ export default function ClientModal({ client, onClose }: {
         billing_monthly: num(billingMonthly), billing_per_media: null,
         cost_monthly: num(costMonthly), cost_per_media: null,
         start_date: startDate || null,
+        end_date: endDate || null,
         payment_day: paymentDay.trim() === '' ? null : Math.min(31, Math.max(1, parseInt(paymentDay, 10) || 1)),
       }
 
@@ -287,10 +289,15 @@ export default function ClientModal({ client, onClose }: {
                 <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className={field} />
               </div>
               <div>
-                <label className={lbl}>Dia do pagamento <span className="text-gray-400 font-normal">(mensal)</span></label>
-                <input type="number" min={1} max={31} value={paymentDay} onChange={e => setPaymentDay(e.target.value)}
-                  className={field} placeholder="Ex: 10" />
+                <label className={lbl}>Data de término <span className="text-gray-400 font-normal">(opcional)</span></label>
+                <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className={field} />
               </div>
+            </div>
+
+            <div className="mt-4">
+              <label className={lbl}>Dia do pagamento <span className="text-gray-400 font-normal">(mensal)</span></label>
+              <input type="number" min={1} max={31} value={paymentDay} onChange={e => setPaymentDay(e.target.value)}
+                className={`${field} max-w-xs`} placeholder="Ex: 10" />
             </div>
 
             {/* Resultado estimado */}

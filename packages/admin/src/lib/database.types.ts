@@ -188,6 +188,7 @@ export interface Client {
   cost_monthly: number | null        // custo operacional fixo/mês
   cost_per_media: number | null      // custo operacional por mídia
   start_date: string | null          // YYYY-MM-DD — início do contrato
+  end_date: string | null            // YYYY-MM-DD — fim do contrato (opcional)
   payment_day: number | null         // dia do vencimento mensal (1–31)
   created_at: string
 }
