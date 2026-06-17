@@ -118,18 +118,19 @@ function InlineNumber({ value, onSave, min = 1, max = 9999, suffix = '' }: {
 }
 
 // ── Cards arrastáveis da biblioteca ───────────────────────────────────────────
-function AvailableMediaCard({ media, onAdd }: { media: Media; onAdd?: () => void }) {
+function AvailableMediaCard({ media, onAdd, inPlaylist }: { media: Media; onAdd?: () => void; inPlaylist?: boolean }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: `avail::${media.id}`, data: { kind: 'media', media },
   })
   return (
     <div ref={setNodeRef}
       style={{ opacity: isDragging ? 0.4 : 1 }}
-      className="flex items-center gap-2 bg-white border rounded-lg px-3 py-2.5 select-none hover:border-brand-400 hover:shadow-sm transition-all group/card"
+      className={`flex items-center gap-2 border rounded-lg px-3 py-2.5 select-none hover:shadow-sm transition-all group/card ${inPlaylist ? 'bg-emerald-50 border-emerald-200 hover:border-emerald-400' : 'bg-white hover:border-brand-400'}`}
     >
       <span {...attributes} {...listeners} className="text-gray-400 shrink-0 cursor-grab active:cursor-grabbing">{MEDIA_ICONS[media.type]}</span>
       <span {...attributes} {...listeners} className="text-sm font-medium flex-1 cursor-grab active:cursor-grabbing">{media.name}</span>
       <span className="text-xs text-gray-400 shrink-0">{media.duration}s</span>
+      {inPlaylist && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" title="Já está na playlist" />}
       {onAdd && (
         <button onClick={onAdd} title="Adicionar à playlist"
           className="p-1 rounded text-gray-300 hover:text-brand-600 hover:bg-brand-50 transition-colors opacity-0 group-hover/card:opacity-100 shrink-0"
@@ -139,18 +140,19 @@ function AvailableMediaCard({ media, onAdd }: { media: Media; onAdd?: () => void
   )
 }
 
-function AvailablePlaylistCard({ playlist, seconds, onAdd }: { playlist: Playlist; seconds?: number; onAdd?: () => void }) {
+function AvailablePlaylistCard({ playlist, seconds, onAdd, inPlaylist }: { playlist: Playlist; seconds?: number; onAdd?: () => void; inPlaylist?: boolean }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: `playlist::${playlist.id}`, data: { kind: 'playlist', playlist },
   })
   return (
     <div ref={setNodeRef}
       style={{ opacity: isDragging ? 0.4 : 1 }}
-      className="flex items-center gap-2 bg-white border rounded-lg px-3 py-2.5 select-none hover:border-purple-400 hover:shadow-sm transition-all group/card"
+      className={`flex items-center gap-2 border rounded-lg px-3 py-2.5 select-none hover:shadow-sm transition-all group/card ${inPlaylist ? 'bg-emerald-50 border-emerald-200 hover:border-emerald-400' : 'bg-white hover:border-purple-400'}`}
     >
       <span {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing shrink-0"><ListVideo size={13} className="text-purple-500" /></span>
       <span {...attributes} {...listeners} className="text-sm font-medium flex-1 cursor-grab active:cursor-grabbing min-w-0 break-words">{playlist.name}</span>
       <span className="text-xs text-gray-400 shrink-0">{seconds ? formatDuration(seconds) : 'Playlist'}</span>
+      {inPlaylist && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" title="Já está na playlist" />}
       {onAdd && (
         <button onClick={onAdd} title="Adicionar à playlist"
           className="p-1 rounded text-gray-300 hover:text-purple-600 hover:bg-purple-50 transition-colors opacity-0 group-hover/card:opacity-100 shrink-0"
@@ -160,18 +162,19 @@ function AvailablePlaylistCard({ playlist, seconds, onAdd }: { playlist: Playlis
   )
 }
 
-function AvailableRssCard({ feed, onAdd }: { feed: RssFeed; onAdd?: () => void }) {
+function AvailableRssCard({ feed, onAdd, inPlaylist }: { feed: RssFeed; onAdd?: () => void; inPlaylist?: boolean }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: `rss::${feed.id}`, data: { kind: 'rss', feed },
   })
   return (
     <div ref={setNodeRef}
       style={{ opacity: isDragging ? 0.4 : 1 }}
-      className="flex items-center gap-2 bg-white border rounded-lg px-3 py-2.5 select-none hover:border-orange-400 hover:shadow-sm transition-all group/card"
+      className={`flex items-center gap-2 border rounded-lg px-3 py-2.5 select-none hover:shadow-sm transition-all group/card ${inPlaylist ? 'bg-emerald-50 border-emerald-200 hover:border-emerald-400' : 'bg-white hover:border-orange-400'}`}
     >
       <span {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing shrink-0"><Rss size={12} className="text-orange-400" /></span>
       <span {...attributes} {...listeners} className="text-sm font-medium flex-1 cursor-grab active:cursor-grabbing">{feed.name}</span>
       <span className="text-xs text-gray-400 shrink-0">RSS</span>
+      {inPlaylist && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" title="Já está na playlist" />}
       {onAdd && (
         <button onClick={onAdd} title="Adicionar à playlist"
           className="p-1 rounded text-gray-300 hover:text-orange-500 hover:bg-orange-50 transition-colors opacity-0 group-hover/card:opacity-100 shrink-0"
@@ -817,6 +820,11 @@ export default function PlaylistEditor() {
     return map
   })()
 
+  // IDs já presentes na playlist (para destacar na biblioteca)
+  const activeMediaIds    = new Set(localItems.map(i => i.media_id).filter(Boolean) as string[])
+  const activeRssIds      = new Set(localItems.map(i => i.rss_feed_id).filter(Boolean) as string[])
+  const activePlaylistIds = new Set(localItems.map(i => i.child_playlist_id).filter(Boolean) as string[])
+
   const { data: allMedia = [] } = useQuery<Media[]>({
     queryKey: ['media'],
     queryFn: async () => {
@@ -1050,7 +1058,7 @@ export default function PlaylistEditor() {
                         </button>
                         {open && (
                           <div className="pl-3 mt-1 space-y-2">
-                            {items.map(m => <AvailableMediaCard key={m.id} media={m} onAdd={() => optimisticAdd(m.id, undefined, localItems.length)} />)}
+                            {items.map(m => <AvailableMediaCard key={m.id} media={m} inPlaylist={activeMediaIds.has(m.id)} onAdd={() => optimisticAdd(m.id, undefined, localItems.length)} />)}
                           </div>
                         )}
                       </div>
@@ -1072,7 +1080,7 @@ export default function PlaylistEditor() {
                         </button>
                         {open && (
                           <div className="pl-3 mt-1 space-y-2">
-                            {items.map(m => <AvailableMediaCard key={m.id} media={m} onAdd={() => optimisticAdd(m.id, undefined, localItems.length)} />)}
+                            {items.map(m => <AvailableMediaCard key={m.id} media={m} inPlaylist={activeMediaIds.has(m.id)} onAdd={() => optimisticAdd(m.id, undefined, localItems.length)} />)}
                           </div>
                         )}
                       </div>
@@ -1084,7 +1092,7 @@ export default function PlaylistEditor() {
               )}
               {tab === 'rss' && (
                 <>
-                  {allFeeds.map(f => <AvailableRssCard key={f.id} feed={f} onAdd={() => optimisticAdd(undefined, f.id, localItems.length)} />)}
+                  {allFeeds.map(f => <AvailableRssCard key={f.id} feed={f} inPlaylist={activeRssIds.has(f.id)} onAdd={() => optimisticAdd(undefined, f.id, localItems.length)} />)}
                   {allFeeds.length === 0 && (
                     <p className="text-xs text-gray-400 text-center py-8">Sem feeds RSS.<br/>Cadastre em <span className="text-brand-500">RSS</span>.</p>
                   )}
@@ -1094,6 +1102,7 @@ export default function PlaylistEditor() {
                 <>
                   {allPlaylists.filter(pl => pl.id !== id).map(pl => (
                     <AvailablePlaylistCard key={pl.id} playlist={pl} seconds={childDurations[pl.id]}
+                      inPlaylist={activePlaylistIds.has(pl.id)}
                       onAdd={() => optimisticAdd(undefined, undefined, localItems.length, pl.id)} />
                   ))}
                   {allPlaylists.filter(pl => pl.id !== id).length === 0 && (
