@@ -187,22 +187,29 @@ export default function ClientModal({ client, onClose }: {
           </div>
 
           {/* Status */}
-          <div>
-            <label className={lbl}>Status do cliente</label>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              {([
-                { v: 'ativo', label: 'Ativo', active: 'bg-emerald-600 text-white border-emerald-600' },
-                { v: 'atraso', label: 'Em atraso', active: 'bg-amber-500 text-white border-amber-500' },
-                { v: 'pausado', label: 'Pausado', active: 'bg-sky-600 text-white border-sky-600' },
-                { v: 'cancelado', label: 'Cancelado', active: 'bg-gray-500 text-white border-gray-500' },
-              ] as const).map(o => (
-                <button key={o.v} type="button" onClick={() => setStatus(o.v)}
-                  className={`py-2 rounded-lg border text-sm font-medium transition-colors ${status === o.v ? o.active : 'border-gray-200 text-slate-600 hover:border-brand-300'}`}>
-                  {o.label}
-                </button>
-              ))}
-            </div>
-          </div>
+          {(() => {
+            const STATUS_OPTS = [
+              { v: 'ativo',     label: 'Ativo',       dot: 'bg-emerald-500' },
+              { v: 'atraso',    label: 'Em atraso',   dot: 'bg-amber-500'   },
+              { v: 'pausado',   label: 'Pausado',     dot: 'bg-sky-500'     },
+              { v: 'cancelado', label: 'Cancelado',   dot: 'bg-gray-400'    },
+            ] as const
+            const cur = STATUS_OPTS.find(o => o.v === status)
+            return (
+              <div>
+                <label className={lbl}>Status do cliente</label>
+                <div className="relative flex items-center">
+                  <span className={`absolute left-3 w-2.5 h-2.5 rounded-full shrink-0 ${cur?.dot ?? 'bg-gray-400'}`} />
+                  <select value={status} onChange={e => setStatus(e.target.value as ClientStatus)}
+                    className={`${field} pl-8`}>
+                    {STATUS_OPTS.map(o => (
+                      <option key={o.v} value={o.v}>{o.label}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            )
+          })()}
 
           {/* Email */}
           <div>

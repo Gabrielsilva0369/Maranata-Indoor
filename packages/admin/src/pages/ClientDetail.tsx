@@ -286,11 +286,27 @@ export default function ClientDetail() {
         {(() => {
           const paidCount = payments.filter(p => p.paid).length
           const paidSum = payments.filter(p => p.paid).reduce((s, p) => s + (p.amount ?? 0), 0)
-          return (
-            <p className="text-xs text-gray-500 mt-4">
-              {paidCount} de 12 meses pagos em {year} · recebido: <b className="text-emerald-600">{brl(paidSum)}</b>
-            </p>
-          )
+          const costSum = (client.cost_monthly ?? 0) * paidCount
+          const net = paidSum - costSum
+          return (<>
+            <div className="grid grid-cols-3 gap-2 mt-4">
+              <div className="bg-gray-50 rounded-xl p-3">
+                <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Recebido em {year}</p>
+                <p className="text-base font-bold text-emerald-600 mt-0.5">{brl(paidSum)}</p>
+                <p className="text-[11px] text-gray-400">{paidCount} de 12 meses</p>
+              </div>
+              <div className="bg-gray-50 rounded-xl p-3">
+                <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Custo em {year}</p>
+                <p className="text-base font-bold text-slate-700 mt-0.5">{brl(costSum)}</p>
+                <p className="text-[11px] text-gray-400">{paidCount} × {brl(client.cost_monthly)}</p>
+              </div>
+              <div className="bg-gray-50 rounded-xl p-3">
+                <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Resultado em {year}</p>
+                <p className={`text-base font-bold mt-0.5 ${net >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>{brl(net)}</p>
+                <p className="text-[11px] text-gray-400">recebido − custo</p>
+              </div>
+            </div>
+          </>)
         })()}
       </section>
 
