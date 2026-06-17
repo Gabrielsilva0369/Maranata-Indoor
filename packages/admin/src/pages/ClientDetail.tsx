@@ -117,6 +117,18 @@ export default function ClientDetail() {
       {editMedia && (
         <MediaFormModal editing={editMedia} onClose={() => setEditMedia(null)} />
       )}
+      {payMonth !== null && (
+        <PaymentModal
+          clientId={client.id}
+          year={year}
+          month={payMonth}
+          rec={payments.find(p => p.period === `${year}-${pad(payMonth + 1)}-01`) ?? null}
+          defaultAmount={client.billing_monthly}
+          paymentDay={client.payment_day}
+          onClose={() => setPayMonth(null)}
+          onSaved={() => { qc.invalidateQueries({ queryKey: ['client-payments', id, year] }); setPayMonth(null) }}
+        />
+      )}
 
       {/* Cabeçalho do cliente */}
       <section className="bg-white rounded-xl sm:rounded-2xl border shadow-sm p-4 sm:p-6 mb-6">
@@ -333,6 +345,96 @@ export default function ClientDetail() {
           })}
         </div>
       )}
+    </div>
+  )
+}
+
+// ── Modal de cobrança do mês (status pago, valor e observação) ───────────────
+function PaymentModal({ clientId, year, month, rec, defaultAmount, paymentDay, onClose, onSaved }: {
+  clientId: string
+  year: number
+  month: number
+  rec: ClientPayment | null
+  defaultAmount: number | null
+  paymentDay: number | null
+  onClose: () => void
+  onSaved: () => void
+}) {
+  const [paid, setPaid] = useState(rec?.paid ?? false)
+  const [amount, setAmount] = useState(rec?.amount != null ? String(rec.amount) : (defaultAmount != null ? String(defaultAmount) : ''))
+  const [note, setNote] = useState(rec?.note ?? '')
+  const [saving, setSaving] = useState(false)
+
+  const save = async () => {
+    setSaving(true)
+    try {
+      const period = `${year}-${pad(month + 1)}-01`
+      const dim = new Date(year, month + 1, 0).getDate()
+      const day = Math.min(paymentDay ?? 1, dim)
+      const amt = amount.trim() === '' ? null : parseFloat(amount.replace(',', '.'))
+      const { error } = await supabase.from('client_payments').upsert({
+        client_id: clientId,
+        period,
+        due_date: `${year}-${pad(month + 1)}-${pad(day)}`,
+        amount: amt != null && isNaN(amt) ? null : amt,
+        paid,
+        paid_at: paid ? (rec?.paid_at ?? new Date().toISOString()) : null,
+        note: note.trim() || null,
+      }, { onConflict: 'client_id,period' })
+      if (error) throw error
+      onSaved()
+    } catch (e) {
+      alert('Erro ao salvar a cobrança: ' + (e as Error).message)
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm">
+        <div className="flex items-center justify-between px-5 py-4 border-b">
+          <h3 className="text-lg font-semibold">Cobrança · {MONTHS[month]}/{year}</h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
+        </div>
+
+        <div className="p-5 space-y-4">
+          {/* Pago toggle */}
+          <div className="flex items-center justify-between py-1">
+            <span className="text-sm font-medium">Pago</span>
+            <button onClick={() => setPaid(v => !v)}
+              className={`relative w-14 h-8 rounded-full transition-colors ${paid ? 'bg-emerald-600' : 'bg-gray-300'}`}>
+              <span style={{ transform: paid ? 'translateX(28px)' : 'translateX(2px)' }}
+                className="absolute top-1 w-6 h-6 bg-white rounded-full shadow-md transition-transform" />
+            </button>
+          </div>
+
+          {/* Valor */}
+          <div>
+            <label className="block text-sm font-medium mb-1">Valor pago</label>
+            <div className="flex items-center w-full border rounded-lg px-3 text-sm bg-white focus-within:ring-2 focus-within:ring-brand-500">
+              <span className="text-gray-400 mr-1 shrink-0">R$</span>
+              <input type="number" min={0} step="0.01" value={amount} onChange={e => setAmount(e.target.value)}
+                placeholder="0,00" className="flex-1 py-2 bg-transparent focus:outline-none min-w-0" />
+            </div>
+          </div>
+
+          {/* Observação */}
+          <div>
+            <label className="block text-sm font-medium mb-1">Observação</label>
+            <textarea value={note} onChange={e => setNote(e.target.value)} rows={3}
+              placeholder="Ex: pago via PIX, desconto combinado, etc."
+              className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 resize-none" />
+          </div>
+        </div>
+
+        <div className="flex gap-2 px-5 py-4 border-t bg-gray-50 rounded-b-2xl justify-end">
+          <button onClick={onClose} className="border rounded-lg px-4 py-2 text-sm">Cancelar</button>
+          <button onClick={save} disabled={saving}
+            className="flex items-center gap-2 bg-brand-600 hover:bg-brand-700 text-white rounded-lg px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50">
+            {saving && <Loader2 size={15} className="animate-spin" />} Salvar
+          </button>
+        </div>
+      </div>
     </div>
   )
 }
