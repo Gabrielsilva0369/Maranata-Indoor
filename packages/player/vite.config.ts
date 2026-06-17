@@ -57,6 +57,18 @@ export default defineConfig({
               cacheableResponse: { statuses: [0, 200] },
             },
           },
+          // Imagens de notícia redimensionadas pela Edge Function news-img.
+          // Aquecidas no syncMediaCache (warmCache) e servidas offline pelo SW.
+          // maxEntries cobre: até 20 feeds × 20 artigos × 2 imgs (capa+logo) = 800.
+          {
+            urlPattern: /supabase\.co\/functions\/v1\/news-img/,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'news-images',
+              expiration: { maxEntries: 800, maxAgeSeconds: 60 * 60 * 24 },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
           // Imagens externas das notícias (capa + logo da fonte). São aquecidas
           // no preload (mediaCache.warmCache) e servidas daqui — aparecem na hora
           // e seguem disponíveis offline. Vem DEPOIS da regra do Storage acima,
