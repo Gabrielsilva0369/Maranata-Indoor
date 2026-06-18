@@ -114,11 +114,16 @@ export default function PlaylistPlayer({ items, screen, onMediaChange, forceMute
     if (i >= 0) setIndex(prev => (prev === i ? prev : i))
   }, [preview, followId, activeItems])
 
-  // Reporta a mídia atual para a telemetria
+  // Reporta a mídia atual para a telemetria.
+  // lastLoggedIdRef evita logar o mesmo item duas vezes quando activeItems é
+  // recriado pelo tick do relógio de agendamento (a cada 30s) sem o item mudar.
+  const lastLoggedIdRef = useRef('')
   useEffect(() => {
     if (!onMediaChange) return
     const it = activeItems[index % Math.max(activeItems.length, 1)]
     if (!it) { onMediaChange('—'); return }
+    if (it.id === lastLoggedIdRef.current) return   // mesmo item — não loga de novo
+    lastLoggedIdRef.current = it.id
     const TYPE_LABEL: Record<string, string> = {
       image: 'Imagem', video: 'Vídeo', html: 'HTML', clock: 'Relógio', weather: 'Clima',
     }
@@ -128,7 +133,6 @@ export default function PlaylistPlayer({ items, screen, onMediaChange, forceMute
     if (it.rss_feed) {
       name = it.rss_feed.name || 'Notícias RSS'
       type = 'rss'
-      // Bloco de notícias = (segundos por artigo) × (qtd de artigos)
       durationSec = (it.duration_override ?? 10) * (it.rss_article_count ?? 5)
     } else if (it.media) {
       name = it.media.name || TYPE_LABEL[it.media.type] || 'Mídia'

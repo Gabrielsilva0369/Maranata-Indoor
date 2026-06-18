@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useScreenToken } from './hooks/useScreenToken'
 import { usePlaylist } from './hooks/usePlaylist'
 import { useScreenSync } from './hooks/useScreenSync'
@@ -31,7 +31,9 @@ export default function App() {
   const [updating, setUpdating] = useState(false)
 
   // Registra cada exibição (para os relatórios). No preview, NÃO grava.
-  const handleMediaChange = (name: string, type?: string, durationSec?: number, itemId?: string) => {
+  // useCallback garante referência estável — evita que o useEffect de log no
+  // PlaylistPlayer dispare desnecessariamente ao re-renderizar o App.
+  const handleMediaChange = useCallback((name: string, type?: string, durationSec?: number, itemId?: string) => {
     setCurrentMedia(name)
     setCurrentItemId(itemId ?? '')
     if (preview || !screen?.id || !name || name === '—') return
@@ -39,7 +41,7 @@ export default function App() {
       screen_id: screen.id, name, type: type ?? null,
       duration: durationSec ? Math.round(durationSec) : null,
     }).then(undefined, () => { /* falha de log não pode quebrar a reprodução */ })
-  }
+  }, [preview, screen?.id])
   useScreenSync({
     screenId: screen?.id,
     currentMedia,
