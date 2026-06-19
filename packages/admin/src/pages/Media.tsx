@@ -916,7 +916,21 @@ export function MediaFormModal({ editing = null, defaultClientId = null, default
             <div>
               <label className="block text-sm font-medium mb-1">Arquivo</label>
               <input ref={fileRef} type="file" accept={type === 'image' ? 'image/*' : 'video/*'}
-                onChange={e => setFile(e.target.files?.[0] ?? null)} className="hidden" />
+                onChange={e => {
+                  const f = e.target.files?.[0] ?? null
+                  setFile(f)
+                  if (!f) return
+                  // Auto-preenche o nome pelo nome do arquivo (se ainda vazio)
+                  if (!name) setName(f.name.replace(/\.[^.]+$/, '').replace(/[-_]+/g, ' ').trim())
+                  // Para vídeo: detecta a duração automaticamente via metadados
+                  if (type === 'video') {
+                    const objUrl = URL.createObjectURL(f)
+                    const vid = document.createElement('video')
+                    vid.preload = 'metadata'
+                    vid.onloadedmetadata = () => { setDuration(Math.round(vid.duration)); URL.revokeObjectURL(objUrl) }
+                    vid.src = objUrl
+                  }
+                }} className="hidden" />
               <button onClick={() => fileRef.current?.click()}
                 className="flex items-center gap-2 border-2 border-dashed rounded-lg px-4 py-3 text-sm text-gray-500 hover:border-brand-400 w-full justify-center"
               >
@@ -1331,13 +1345,13 @@ export default function MediaPage() {
               )}
               <div className="absolute top-2 right-2 flex gap-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                 <button onClick={() => setPreviewMedia(item)} title="Preview"
-                  className="bg-white/95 text-gray-700 hover:bg-white p-2 sm:p-1.5 rounded-lg shadow-md sm:shadow"
+                  className="bg-white/95 dark:bg-gray-700 text-gray-700 dark:text-gray-100 hover:bg-white dark:hover:bg-gray-600 p-2 sm:p-1.5 rounded-lg shadow-md sm:shadow"
                 ><Eye size={18} className="sm:hidden" /> <Eye size={14} className="hidden sm:block" /></button>
                 <button onClick={() => openEdit(item)} title="Editar"
-                  className="bg-white/95 text-gray-700 hover:bg-white p-2 sm:p-1.5 rounded-lg shadow-md sm:shadow"
+                  className="bg-white/95 dark:bg-gray-700 text-gray-700 dark:text-gray-100 hover:bg-white dark:hover:bg-gray-600 p-2 sm:p-1.5 rounded-lg shadow-md sm:shadow"
                 ><Pencil size={18} className="sm:hidden" /> <Pencil size={14} className="hidden sm:block" /></button>
                 <button onClick={() => { if (confirm('Remover mídia?')) deleteMedia.mutate(item) }} title="Remover"
-                  className="bg-red-600 text-white p-2 sm:p-1.5 rounded-lg shadow-md sm:shadow hover:bg-red-700"
+                  className="bg-red-600 dark:bg-red-700 text-white p-2 sm:p-1.5 rounded-lg shadow-md sm:shadow hover:bg-red-700 dark:hover:bg-red-800"
                 ><Trash2 size={18} className="sm:hidden" /> <Trash2 size={14} className="hidden sm:block" /></button>
               </div>
             </div>
