@@ -14,7 +14,7 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 import { supabase } from '../lib/supabase'
 import type { PlaylistItem, Media, RssFeed, Playlist, PlaylistItemFooter, ItemSchedule, MediaFolder } from '../lib/database.types'
-import { GripVertical, Copy, Trash2, ChevronLeft, Image, Film, Code, Rss, Clock, Newspaper, Volume2, VolumeX, Volume1, PanelBottom, PanelBottomClose, PanelBottomOpen, Folder, ChevronDown, ChevronRight, CalendarClock, X, Plus, Eye, Radio, Cloud, ListVideo, Upload, XCircle, Quote, CloudSun, Youtube, Wifi } from 'lucide-react'
+import { GripVertical, Copy, Trash2, ChevronLeft, Image, Film, Code, Rss, Clock, Newspaper, Volume2, VolumeX, Volume1, PanelBottom, PanelBottomClose, PanelBottomOpen, Folder, ChevronDown, ChevronRight, CalendarClock, X, Plus, Eye, Radio, Cloud, ListVideo, Upload, Quote, CloudSun, Youtube, Wifi } from 'lucide-react'
 import { youtubeId } from './Media'
 import { uploadToSpaces, deleteFromSpaces, mediaUrl } from '../lib/spaces'
 
@@ -50,30 +50,28 @@ const MEDIA_ICONS: Record<string, React.ReactNode> = {
 }
 
 // ── Toggle de rodapé por item ─────────────────────────────────────────────────
-function FooterItemControl({ value, onChange }: {
+function FooterItemControl({ value, onChange, onEdit }: {
   value: PlaylistItemFooter | null
   onChange: (v: PlaylistItemFooter | null) => void
+  onEdit: () => void
 }) {
   const state = value === null ? 'default' : value.enabled === false ? 'off' : 'custom'
-  const cycle = () => {
-    if (state === 'default') onChange({ enabled: false })
-    else if (state === 'off') onChange({ enabled: true })
-    else onChange(null)
-  }
   if (state === 'off') return (
-    <button onClick={cycle} title="Rodapé desativado (clique para mudar)"
+    <button
+      onClick={() => { onChange({ enabled: true }); onEdit() }}
+      title="Rodapé desativado (clique para personalizar)"
       className="p-1 rounded text-red-500 bg-red-50 hover:bg-red-100 transition-colors">
       <PanelBottomClose size={13} />
     </button>
   )
   if (state === 'custom') return (
-    <button onClick={cycle} title="Rodapé com texto personalizado (clique para mudar)"
+    <button onClick={onEdit} title="Rodapé personalizado (clique para editar)"
       className="p-1 rounded text-blue-500 bg-blue-50 hover:bg-blue-100 transition-colors">
       <PanelBottomOpen size={13} />
     </button>
   )
   return (
-    <button onClick={cycle} title="Rodapé padrão da tela (clique para mudar)"
+    <button onClick={() => onChange({ enabled: false })} title="Rodapé padrão da tela (clique para desativar/personalizar)"
       className="p-1 rounded text-gray-300 hover:text-gray-500 hover:bg-gray-100 transition-colors">
       <PanelBottom size={13} />
     </button>
@@ -352,6 +350,117 @@ function ScheduleModal({ item, onClose, onSave }: {
   )
 }
 
+// ── Modal de personalização do rodapé por item ────────────────────────────────
+function FooterModal({ item, onClose, onSave }: {
+  item: RichItem
+  onClose: () => void
+  onSave: (v: PlaylistItemFooter | null) => void
+}) {
+  const ov = item.footer_override?.enabled !== false ? item.footer_override : null
+  const [text, setText] = useState<string | null>(ov?.text ?? null)
+  const [logoPath, setLogoPath] = useState<string | null>(ov?.logo_path ?? null)
+  const [bgColor, setBgColor] = useState<string | null>(ov?.bg_color ?? null)
+  const [logoUploading, setLogoUploading] = useState(false)
+  const logoInputRef = useRef<HTMLInputElement>(null)
+  const label = item.child_playlist?.name ?? item.rss_feed?.name ?? item.media?.name ?? 'Item'
+
+  const handleLogoUpload = async (file: File) => {
+    setLogoUploading(true)
+    try {
+      const ext = file.name.split('.').pop()?.toLowerCase() || 'png'
+      const path = `footer-logos/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
+      await uploadToSpaces(path, file, file.type)
+      if (logoPath) await deleteFromSpaces(logoPath).catch(() => {})
+      setLogoPath(path)
+    } finally {
+      setLogoUploading(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between p-6 border-b">
+          <div>
+            <h3 className="text-lg font-semibold">Rodapé personalizado</h3>
+            <p className="text-xs text-gray-400 mt-0.5 truncate max-w-xs">{label}</p>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
+        </div>
+
+        <div className="p-6 space-y-5">
+          {/* Texto */}
+          <div>
+            <label className="block text-sm font-medium mb-1">Texto</label>
+            <input
+              value={text ?? ''}
+              onChange={e => setText(e.target.value || null)}
+              placeholder="Vazio = usa o texto do rodapé da tela"
+              className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+            />
+          </div>
+
+          {/* Logo */}
+          <div>
+            <label className="block text-sm font-medium mb-2">Logo</label>
+            <input ref={logoInputRef} type="file" accept="image/*" className="hidden"
+              onChange={e => { const f = e.target.files?.[0]; if (f) handleLogoUpload(f); e.target.value = '' }} />
+            {logoPath ? (
+              <div className="flex items-center gap-3">
+                <img src={mediaUrl(logoPath)} alt="" className="h-10 rounded border bg-white object-contain p-1" />
+                <button onClick={() => logoInputRef.current?.click()}
+                  className="text-sm text-blue-500 hover:underline">Trocar</button>
+                <button onClick={async () => { await deleteFromSpaces(logoPath).catch(() => {}); setLogoPath(null) }}
+                  className="text-sm text-red-400 hover:text-red-600">Remover</button>
+              </div>
+            ) : (
+              <button onClick={() => logoInputRef.current?.click()} disabled={logoUploading}
+                className="flex items-center gap-2 border-2 border-dashed rounded-lg px-4 py-3 text-sm text-gray-400 hover:border-brand-400 hover:text-brand-600 transition-colors w-full disabled:opacity-50">
+                <Upload size={14} /> {logoUploading ? 'Enviando…' : 'Enviar logo  (vazio = usa logo da tela)'}
+              </button>
+            )}
+          </div>
+
+          {/* Cor de fundo */}
+          <div>
+            <label className="block text-sm font-medium mb-2">Cor de fundo</label>
+            <div className="flex items-center gap-3">
+              <input type="color" value={bgColor ?? '#000000'} onChange={e => setBgColor(e.target.value)}
+                className="h-10 w-20 rounded border cursor-pointer" />
+              <span className="text-sm text-gray-500">{bgColor ?? 'Padrão da tela'}</span>
+              {bgColor && (
+                <button onClick={() => setBgColor(null)}
+                  className="text-xs text-gray-400 hover:text-red-500 transition-colors">Usar padrão</button>
+              )}
+            </div>
+            {!bgColor && <p className="text-xs text-gray-400 mt-1">Vazio = usa a cor do rodapé da tela</p>}
+          </div>
+        </div>
+
+        <div className="flex gap-2 px-6 py-4 border-t bg-gray-50 rounded-b-2xl">
+          <button onClick={() => onSave({ enabled: false })}
+            className="border border-gray-200 text-gray-500 hover:bg-gray-100 rounded-lg px-3 py-2 text-sm transition-colors">
+            Desativar rodapé
+          </button>
+          {item.footer_override && (
+            <button onClick={() => onSave(null)}
+              className="border border-red-200 text-red-600 hover:bg-red-50 rounded-lg px-3 py-2 text-sm transition-colors">
+              Remover personalização
+            </button>
+          )}
+          <div className="flex-1" />
+          <button onClick={onClose} className="border rounded-lg px-4 py-2 text-sm">Cancelar</button>
+          <button
+            onClick={() => onSave({ enabled: true, text: text || null, logo_path: logoPath, bg_color: bgColor })}
+            className="bg-brand-600 hover:bg-brand-700 text-white rounded-lg px-4 py-2 text-sm font-medium transition-colors">
+            Salvar
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Modal de preview da mídia ─────────────────────────────────────────────────
 function PreviewModal({ item, onClose }: { item: RichItem; onClose: () => void }) {
   const m = item.media
@@ -588,7 +697,7 @@ function ArticleSelectionModal({ item, otherItems, articleCount, currentOffset, 
 }
 
 // ── Item sortável da playlist ─────────────────────────────────────────────────
-function PlaylistCard({ item, index, childSeconds, onDelete, onDuplicate, onUpdateDuration, onUpdateArticleCount, onUpdateAudio, onUpdateFooter, onOpenSchedule, onOpenArticleSelection, onPreview }: {
+function PlaylistCard({ item, index, childSeconds, onDelete, onDuplicate, onUpdateDuration, onUpdateArticleCount, onUpdateAudio, onUpdateFooter, onOpenSchedule, onOpenFooter, onOpenArticleSelection, onPreview }: {
   item: RichItem
   index: number
   childSeconds?: number
@@ -599,33 +708,12 @@ function PlaylistCard({ item, index, childSeconds, onDelete, onDuplicate, onUpda
   onUpdateAudio: (value: boolean | null) => void
   onUpdateFooter: (value: PlaylistItemFooter | null) => void
   onOpenSchedule: () => void
+  onOpenFooter: () => void
   onOpenArticleSelection: () => void
   onPreview: () => void
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: item.id })
   const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.4 : 1 }
-  const logoInputRef = useRef<HTMLInputElement>(null)
-  const [logoUploading, setLogoUploading] = useState(false)
-
-  const handleLogoUpload = async (file: File) => {
-    setLogoUploading(true)
-    try {
-      const ext = file.name.split('.').pop()?.toLowerCase() || 'png'
-      const path = `footer-logos/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
-      await uploadToSpaces(path, file, file.type)
-      const prev = item.footer_override?.logo_path
-      if (prev) await deleteFromSpaces(prev).catch(() => {})
-      onUpdateFooter({ ...(item.footer_override ?? { enabled: true }), logo_path: path })
-    } finally {
-      setLogoUploading(false)
-    }
-  }
-
-  const handleLogoRemove = async () => {
-    const prev = item.footer_override?.logo_path
-    if (prev) await deleteFromSpaces(prev).catch(() => {})
-    onUpdateFooter({ ...(item.footer_override ?? { enabled: true }), logo_path: null })
-  }
 
   const isPlaylist = !!item.child_playlist_id
   const isRss   = !!item.rss_feed
@@ -694,7 +782,7 @@ function PlaylistCard({ item, index, childSeconds, onDelete, onDuplicate, onUpda
       )}
 
       {/* toggle rodapé (não se aplica a bloco de playlist) */}
-      {!isPlaylist && <FooterItemControl value={item.footer_override ?? null} onChange={onUpdateFooter} />}
+      {!isPlaylist && <FooterItemControl value={item.footer_override ?? null} onChange={onUpdateFooter} onEdit={onOpenFooter} />}
 
       {/* agendamento */}
       <button onClick={onOpenSchedule}
@@ -716,60 +804,6 @@ function PlaylistCard({ item, index, childSeconds, onDelete, onDuplicate, onUpda
         className="text-gray-300 hover:text-red-500 transition-colors shrink-0 opacity-0 group-hover:opacity-100"
       ><Trash2 size={14} /></button>
     </div>
-
-    {/* Personalização do rodapé (inline quando ativo) */}
-    {item.footer_override?.enabled === true && (
-      <div className="px-3 pb-2 -mt-1 space-y-1.5">
-        {/* Texto */}
-        <div className="flex items-center gap-2">
-          <PanelBottomOpen size={11} className="text-blue-400 shrink-0 ml-12" />
-          <input
-            value={item.footer_override.text ?? ''}
-            onChange={e => onUpdateFooter({ ...item.footer_override!, text: e.target.value || null })}
-            placeholder="Vazio = usa o texto do rodapé da tela"
-            className="flex-1 text-xs border rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-400"
-          />
-        </div>
-        {/* Logo + cor */}
-        <div className="flex items-center gap-2 ml-[52px]">
-          {/* Logo */}
-          <input ref={logoInputRef} type="file" accept="image/*" className="hidden"
-            onChange={e => { const f = e.target.files?.[0]; if (f) handleLogoUpload(f); e.target.value = '' }} />
-          {item.footer_override.logo_path ? (
-            <div className="flex items-center gap-1">
-              <img src={mediaUrl(item.footer_override.logo_path)} alt="" className="h-5 rounded object-contain border bg-white" />
-              <button onClick={handleLogoRemove} title="Remover logo"
-                className="text-red-400 hover:text-red-600"><XCircle size={13} /></button>
-            </div>
-          ) : (
-            <button onClick={() => logoInputRef.current?.click()} disabled={logoUploading}
-              title="Definir logo personalizada (vazio = usa logo da tela)"
-              className="flex items-center gap-1 text-[11px] text-gray-300 hover:text-blue-500 border border-dashed rounded px-1.5 py-0.5 hover:border-blue-300 transition-colors disabled:opacity-50">
-              <Upload size={10} /> {logoUploading ? '…' : 'Logo'}
-            </button>
-          )}
-          {/* Cor de fundo */}
-          <label
-            className={`flex items-center gap-1 text-[11px] border rounded px-1.5 py-0.5 transition-colors cursor-pointer hover:border-blue-300 hover:text-blue-500
-              ${item.footer_override.bg_color ? 'text-gray-400 border-gray-300' : 'text-gray-300 border-dashed'}`}
-            title={item.footer_override.bg_color ? 'Cor personalizada (clique para mudar)' : 'Cor de fundo (vazio = usa cor da tela)'}>
-            <span className="w-3 h-3 rounded-sm border border-gray-300 shrink-0"
-              style={item.footer_override.bg_color
-                ? { background: item.footer_override.bg_color }
-                : { background: 'repeating-linear-gradient(45deg,#ccc 0,#ccc 2px,#fff 2px,#fff 5px)' }} />
-            Fundo
-            <input type="color" className="w-0 h-0 opacity-0 absolute"
-              value={item.footer_override.bg_color ?? '#000000'}
-              onChange={e => onUpdateFooter({ ...item.footer_override!, bg_color: e.target.value })} />
-          </label>
-          {item.footer_override.bg_color && (
-            <button onClick={() => onUpdateFooter({ ...item.footer_override!, bg_color: null })}
-              title="Remover cor (usar padrão da tela)"
-              className="text-gray-300 hover:text-red-400"><XCircle size={12} /></button>
-          )}
-        </div>
-      </div>
-    )}
 
     {/* Indicador de agendamento */}
     {item.schedule?.enabled && (
@@ -812,6 +846,7 @@ export default function PlaylistEditor() {
   const [activeInfo, setActiveInfo] = useState<{ label: string; type: 'media' | 'rss' | 'playlist' } | null>(null)
   const [localItems, setLocalItems] = useState<RichItem[]>([])
   const [scheduleItem, setScheduleItem] = useState<RichItem | null>(null)
+  const [footerItem, setFooterItem] = useState<RichItem | null>(null)
   const [previewItem, setPreviewItem] = useState<RichItem | null>(null)
   const [articleSelectionItem, setArticleSelectionItem] = useState<RichItem | null>(null)
 
@@ -1251,6 +1286,7 @@ export default function PlaylistEditor() {
                       onUpdateAudio={v => handleUpdateAudio(item, v)}
                       onUpdateFooter={v => handleUpdateFooter(item, v)}
                       onOpenSchedule={() => setScheduleItem(item)}
+                      onOpenFooter={() => setFooterItem(item)}
                       onOpenArticleSelection={() => setArticleSelectionItem(item)}
                       onPreview={() => setPreviewItem(item)}
                     />
@@ -1276,6 +1312,14 @@ export default function PlaylistEditor() {
           item={scheduleItem}
           onClose={() => setScheduleItem(null)}
           onSave={s => handleUpdateSchedule(scheduleItem, s)}
+        />
+      )}
+
+      {footerItem && (
+        <FooterModal
+          item={footerItem}
+          onClose={() => setFooterItem(null)}
+          onSave={v => { handleUpdateFooter(footerItem, v); setFooterItem(null) }}
         />
       )}
 
