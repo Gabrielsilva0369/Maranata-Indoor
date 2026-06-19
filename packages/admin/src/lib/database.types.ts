@@ -100,7 +100,8 @@ export interface ScreenTelemetry {
   ram?: string               // memória RAM aproximada
   device_model?: string      // modelo do aparelho (quando disponível)
   internet?: string          // 'ok' | 'sem' | '' (checagem real de internet)
-  storage_quota_bytes?: number  // cota total do app em bytes
+  storage_quota_bytes?: number   // cota total do app em bytes
+  storage_usage_bytes?: number   // uso real em bytes
 }
 
 export interface Screen {

@@ -33,7 +33,7 @@ function uptime(since: string | null, online: boolean) {
   const remMin = min % 60
   if (h < 24) return `${h}h ${remMin}min`
   const d = Math.floor(h / 24)
-  return `${d}d ${h % 24}h`
+  return `${d}d ${h % 24}h ${remMin}min`
 }
 
 // URL do player hospedado (Vercel). Usada no preview ao vivo via ?preview=CODIGO.
@@ -235,9 +235,13 @@ export default function ScreenDetail() {
     // weather/html/youtube/stream = ~0 (não cacheiam arquivo)
   }
   const quotaBytes = t?.storage_quota_bytes ?? 0
-  const usagePct = quotaBytes ? Math.min(100, Math.round((contentBytes / quotaBytes) * 100)) : 0
+  // Prefere o uso real reportado pelo player; fallback para estimativa calculada.
+  const realUsageBytes = t?.storage_usage_bytes
+  const displayBytes = realUsageBytes ?? contentBytes
+  const displayIsEstimate = !realUsageBytes && hasEstimate
+  const usagePct = quotaBytes ? Math.min(100, Math.round((displayBytes / quotaBytes) * 100)) : 0
   // Margem de segurança de 15% (notícias, app, etc. também ocupam).
-  const fits = quotaBytes ? contentBytes < quotaBytes * 0.85 : null
+  const fits = quotaBytes ? displayBytes < quotaBytes * 0.85 : null
   const QUALITY_LABEL: Record<string, string> = { sd: 'SD', qhd: '540p', hd: 'HD', fhd: 'Full HD' }
 
   return (
@@ -394,7 +398,7 @@ export default function ScreenDetail() {
                 Capacidade desta tela <span className="text-gray-400 font-normal">(qualidade {QUALITY_LABEL[quality] ?? quality})</span>
               </h3>
               <span className="text-sm text-gray-600">
-                {hasEstimate ? '≈ ' : ''}{fmtBytes(contentBytes)} de {fmtBytes(quotaBytes)}
+                {displayIsEstimate ? '≈ ' : ''}{fmtBytes(displayBytes)} de {fmtBytes(quotaBytes)}
               </span>
             </div>
             <div className="h-3 w-full rounded-full bg-gray-100 overflow-hidden">
@@ -408,7 +412,7 @@ export default function ScreenDetail() {
                 ? `✓ Cabe no armazenamento (${usagePct}% usado)`
                 : `⚠ Conteúdo muito grande para este box (${usagePct}%) — reduza a qualidade ou remova mídias`}
             </p>
-            {hasEstimate && (
+            {displayIsEstimate && (
               <p className="mt-1 text-xs text-gray-400">
                 Inclui estimativa das notícias (~2 MB por feed RSS — o player guarda ~20 notícias de cada). Clima, HTML, YouTube e Stream não ocupam cache.
               </p>

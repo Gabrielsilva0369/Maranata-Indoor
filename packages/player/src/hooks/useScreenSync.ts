@@ -54,12 +54,14 @@ async function buildTelemetry(currentMedia: string, currentItemId: string, orien
   let storageTotal = '' // total disponível para o app
   let storageFree = ''  // livre estimado
   let storageQuotaBytes = 0  // cota total em bytes (p/ o indicador de capacidade no admin)
+  let storageUsageBytes = 0  // uso real em bytes (p/ o indicador de capacidade no admin)
   try {
     if (navigator.storage?.estimate) {
       const est = await navigator.storage.estimate()
       const usage = est.usage ?? 0
       const quota = est.quota ?? 0
       storageQuotaBytes = quota
+      storageUsageBytes = usage
       storageStr = formatBytes(usage)
       storageTotal = formatBytes(quota)
       storageFree = formatBytes(Math.max(0, quota - usage))
@@ -99,6 +101,7 @@ async function buildTelemetry(currentMedia: string, currentItemId: string, orien
     user_agent: detectOS(ua),
     app_version: APP_VERSION,
     storage_estimate: storageStr,   // cache salvo
+    storage_usage_bytes: storageUsageBytes,  // uso real em bytes (p/ capacidade no admin)
     storage_total: storageTotal,    // disponível para o app
     storage_free: storageFree,      // livre estimado
     storage_quota_bytes: storageQuotaBytes,  // cota em bytes (p/ indicador de capacidade)
