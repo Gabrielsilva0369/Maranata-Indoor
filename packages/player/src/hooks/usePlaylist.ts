@@ -196,22 +196,18 @@ export function usePlaylist(token: string) {
     // O App segura a tela de carregamento até isto reportar 'done'/'error'.
     setSyncStatus({ status: 'syncing', completed: 0, total: 0 })
     const screenId = screenData.id
-    const onProgress = (p: SyncProgress) => {
-      setSyncStatus(p)
-      if (p.status === 'done') {
-        void supabase.from('screen_action_logs').insert({
-          screen_id: screenId,
-          action: 'refresh',
-          executed_by: 'player-auto',
-          status: 'completed',
-          completed_at: new Date().toISOString(),
-        })
-      }
-    }
-    syncMediaCache(fetchedItems, screenData.video_quality, screenData.footer_config, onProgress).catch(e => {
-      console.error('Erro na sincronização de cache de mídias:', e)
-      setSyncStatus({ status: 'error', completed: 0, total: 0 })
-    })
+    syncMediaCache(fetchedItems, screenData.video_quality, screenData.footer_config, setSyncStatus)
+      .then(() => supabase.from('screen_action_logs').insert({
+        screen_id: screenId,
+        action: 'refresh',
+        executed_by: 'player-auto',
+        status: 'completed',
+        completed_at: new Date().toISOString(),
+      }))
+      .catch(e => {
+        console.error('Erro na sincronização de cache de mídias:', e)
+        setSyncStatus({ status: 'error', completed: 0, total: 0 })
+      })
   }, [token])
 
   // Carrega o cache offline na inicialização (e já dispara o preload com ele).
