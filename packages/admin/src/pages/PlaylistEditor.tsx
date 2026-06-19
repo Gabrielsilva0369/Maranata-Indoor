@@ -412,22 +412,28 @@ function PreviewModal({ item, onClose }: { item: RichItem; onClose: () => void }
 }
 
 // ── Modal de seleção de notícias (RSS) ────────────────────────────────────────
-function ArticleSelectionModal({ item, onClose, onSave }: {
+function ArticleSelectionModal({ item, otherLinks, articleCount, onClose, onSave }: {
   item: RichItem
+  otherLinks: string[]        // links já selecionados em OUTROS itens com mesmo feed
+  articleCount: number        // rss_article_count atual (para pré-seleção inicial)
   onClose: () => void
-  onSave: (links: string[]) => void
+  onSave: (links: string[], count: number) => void
 }) {
-  const feedId = item.rss_feed_id
+  const feedId  = item.rss_feed_id
   const feedName = item.rss_feed?.name ?? 'Feed'
   const currentLinks = item.rss_article_links ?? []
+  const isFirstOpen  = item.rss_article_links === null   // null = nunca foi editado
 
-  const { data: articles = [] } = useQuery<{ id: string; link: string | null; title: string; pub_date: string | null }[]>({
+  const { data: articles = [] } = useQuery<{
+    id: string; link: string | null; title: string
+    pub_date: string | null; image_url: string | null; source_logo: string | null
+  }[]>({
     queryKey: ['rss-articles-select', feedId],
     queryFn: async () => {
       if (!feedId) return []
       const { data, error } = await supabase
         .from('rss_articles')
-        .select('id, link, title, pub_date')
+        .select('id, link, title, pub_date, image_url, source_logo')
         .eq('feed_id', feedId)
         .eq('active', true)
         .order('pub_date', { ascending: false })
@@ -438,79 +444,124 @@ function ArticleSelectionModal({ item, onClose, onSave }: {
     enabled: !!feedId,
   })
 
-  const [selected, setSelected] = useState<Set<string>>(new Set(currentLinks.filter(l => !!l)))
+  const [selected, setSelected] = useState<Set<string>>(new Set(currentLinks.filter(Boolean)))
+  const [didInit, setDidInit] = useState(!isFirstOpen)
 
-  const toggle = (link: string) => {
-    setSelected(prev => {
-      const next = new Set(prev)
-      if (next.has(link)) next.delete(link)
-      else next.add(link)
-      return next
-    })
-  }
+  // Pré-seleciona as primeiras N ao abrir pela primeira vez
+  useEffect(() => {
+    if (!didInit && articles.length > 0) {
+      const initial = articles.filter(a => a.link).slice(0, articleCount).map(a => a.link as string)
+      setSelected(new Set(initial))
+      setDidInit(true)
+    }
+  }, [articles, didInit, articleCount])
 
-  const selectAll = () => {
-    const all = articles.filter(a => a.link).map(a => a.link as string)
-    setSelected(new Set(all))
-  }
+  const otherSet = new Set(otherLinks)
 
-  const clearAll = () => {
-    setSelected(new Set())
+  const toggle = (link: string) => setSelected(prev => {
+    const next = new Set(prev)
+    if (next.has(link)) next.delete(link); else next.add(link)
+    return next
+  })
+
+  const handleSave = () => {
+    const links = Array.from(selected)
+    // Atualiza a quantidade para refletir o número de notícias escolhidas
+    const newCount = links.length > 0 ? links.length : articleCount
+    onSave(links, newCount)
   }
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[80vh] flex flex-col">
-        <div className="flex items-center justify-between p-6 border-b">
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={onClose}>
+      <div className="bg-gray-800 rounded-2xl shadow-2xl w-full max-w-lg max-h-[85vh] flex flex-col"
+        onClick={e => e.stopPropagation()}>
+
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-700">
           <div>
-            <h3 className="text-lg font-semibold">Escolher notícias</h3>
+            <h3 className="text-base font-semibold text-white">Escolher notícias</h3>
             <p className="text-xs text-gray-400 mt-0.5">{feedName}</p>
           </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
+          <button onClick={onClose} className="text-gray-500 hover:text-gray-300 transition-colors">
+            <X size={20} />
+          </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-6 space-y-2">
+        {/* Lista */}
+        <div className="flex-1 overflow-y-auto">
           {articles.length === 0 ? (
-            <p className="text-sm text-gray-400 text-center py-8">Nenhuma notícia disponível. Sincronize o feed primeiro.</p>
-          ) : (
-            articles.map(a => (
-              <label key={a.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={a.link ? selected.has(a.link) : false}
-                  onChange={() => a.link && toggle(a.link)}
-                  className="w-4 h-4 rounded border-gray-300 text-brand-600 focus:ring-brand-500"
-                />
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-800">{a.title}</p>
-                  {a.pub_date && (
-                    <p className="text-xs text-gray-400">{new Date(a.pub_date).toLocaleString('pt-BR')}</p>
-                  )}
+            <p className="text-sm text-gray-400 text-center py-12">
+              Nenhuma notícia disponível.<br/>Sincronize o feed primeiro.
+            </p>
+          ) : articles.map((a, idx) => {
+            const on        = a.link ? selected.has(a.link) : false
+            const inOther   = a.link ? otherSet.has(a.link) : false
+            const thumb     = a.image_url || a.source_logo || null
+            return (
+              <div key={a.id} onClick={() => a.link && toggle(a.link)}
+                className={`flex items-center gap-3 px-4 py-3 cursor-pointer transition-colors select-none
+                  ${idx < articles.length - 1 ? 'border-b border-gray-700/60' : ''}
+                  ${on ? 'bg-gray-700/50' : 'hover:bg-gray-700/30'}`}>
+
+                {/* Toggle */}
+                <div className={`relative flex-shrink-0 w-10 h-6 rounded-full transition-colors duration-200
+                  ${on ? 'bg-green-500' : 'bg-gray-600'}`}>
+                  <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow
+                    transition-transform duration-200 ${on ? 'translate-x-4' : ''}`} />
                 </div>
-              </label>
-            ))
-          )}
+
+                {/* Thumbnail */}
+                <div className="flex-shrink-0 w-12 h-12 rounded-md overflow-hidden bg-gray-700">
+                  {thumb
+                    ? <img src={thumb} alt="" className="w-full h-full object-cover" loading="lazy" />
+                    : <div className="w-full h-full flex items-center justify-center">
+                        <Newspaper size={16} className="text-gray-500" />
+                      </div>}
+                </div>
+
+                {/* Texto */}
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-gray-100 leading-snug line-clamp-2">{a.title}</p>
+                  <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                    {a.pub_date && (
+                      <p className="text-xs text-gray-400">
+                        {new Date(a.pub_date).toLocaleString('pt-BR')}
+                      </p>
+                    )}
+                    {inOther && (
+                      <span className="text-xs text-amber-400 font-medium">• já na playlist</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )
+          })}
         </div>
 
-        <div className="flex gap-2 px-6 py-4 border-t bg-gray-50 rounded-b-2xl">
-          <div className="flex gap-1.5">
-            {articles.length > 0 && (
-              <>
-                <button onClick={selectAll}
-                  className="text-xs text-brand-600 hover:underline">Marcar tudo</button>
-                {selected.size > 0 && (
-                  <>
-                    <span className="text-xs text-gray-300">·</span>
-                    <button onClick={clearAll}
-                      className="text-xs text-gray-400 hover:underline">Limpar</button>
-                  </>
-                )}
-              </>
-            )}
-          </div>
+        {/* Footer */}
+        <div className="flex items-center gap-3 px-5 py-4 border-t border-gray-700 bg-gray-800/80 rounded-b-2xl">
+          <span className="text-xs text-gray-400">
+            {selected.size} selecionada{selected.size !== 1 ? 's' : ''}
+          </span>
           <div className="flex-1" />
-          <button onClick={onClose} className="border rounded-lg px-4 py-2 text-sm">Cancelar</button>
-          <button onClick={() => onSave(Array.from(selected))}
+          {articles.length > 0 && selected.size < articles.length && (
+            <button
+              onClick={() => setSelected(new Set(articles.filter(a => a.link).map(a => a.link as string)))}
+              className="text-xs text-brand-400 hover:text-brand-300 transition-colors">
+              Selecionar tudo
+            </button>
+          )}
+          {selected.size > 0 && (
+            <button onClick={() => setSelected(new Set())}
+              className="text-xs text-gray-500 hover:text-gray-300 transition-colors">
+              Limpar
+            </button>
+          )}
+          <button onClick={onClose}
+            className="border border-gray-600 text-gray-300 rounded-lg px-4 py-2 text-sm hover:bg-gray-700 transition-colors">
+            Cancelar
+          </button>
+          <button onClick={handleSave}
             className="bg-brand-600 hover:bg-brand-700 text-white rounded-lg px-4 py-2 text-sm font-medium transition-colors">
             Salvar
           </button>
@@ -1191,10 +1242,21 @@ export default function PlaylistEditor() {
       {articleSelectionItem && (
         <ArticleSelectionModal
           item={articleSelectionItem}
+          articleCount={articleSelectionItem.rss_article_count ?? 5}
+          otherLinks={localItems
+            .filter(i => i.id !== articleSelectionItem.id && i.rss_feed_id === articleSelectionItem.rss_feed_id)
+            .flatMap(i => (i.rss_article_links ?? []).filter(Boolean) as string[])}
           onClose={() => setArticleSelectionItem(null)}
-          onSave={links => {
-            setLocalItems(prev => prev.map(i => i.id === articleSelectionItem.id ? { ...i, rss_article_links: links } : i))
-            updateItem.mutate({ itemId: articleSelectionItem.id, patch: { rss_article_links: links } })
+          onSave={(links, count) => {
+            setLocalItems(prev => prev.map(i =>
+              i.id === articleSelectionItem.id
+                ? { ...i, rss_article_links: links, rss_article_count: count }
+                : i
+            ))
+            updateItem.mutate({
+              itemId: articleSelectionItem.id,
+              patch: { rss_article_links: links, rss_article_count: count },
+            })
             setArticleSelectionItem(null)
           }}
         />
