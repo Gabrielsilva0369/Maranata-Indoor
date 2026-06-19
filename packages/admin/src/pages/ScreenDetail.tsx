@@ -348,7 +348,9 @@ export default function ScreenDetail() {
                     ? <span className="text-amber-600 font-medium">Sem internet</span>
                     : <span className="text-green-600 font-medium">OK</span>}
               </Info>
-              <Info label="Online a">{uptime(screen.session_started_at, online)}</Info>
+              <Info label="Online desde a última atualização">{uptime(screen.session_started_at, online)}</Info>
+              <Info label="Online hoje">{uptime(screen.day_started_at, online)}</Info>
+              <Info label="Online essa semana">{uptime(screen.week_started_at, online)}</Info>
               <Info label="Online esse mês">{uptime(screen.online_since, online)}</Info>
               <Info label="Última Atualização">
                 {screen.last_seen ? new Date(screen.last_seen).toLocaleString('pt-BR') : '—'}

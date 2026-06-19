@@ -116,6 +116,8 @@ export interface Screen {
   orientation: ScreenOrientation
   telemetry: ScreenTelemetry | null
   online_since: string | null
+  week_started_at: string | null
+  day_started_at: string | null
   session_started_at: string | null
   pending_command: string | null
   last_seen: string | null

@@ -38,6 +38,19 @@ function formatBytes(b: number): string {
   return `${(b / 1024 / 1024).toFixed(1)} MB`
 }
 
+// Retorna a data da segunda-feira da semana de d no formato YYYY-MM-DD (local).
+function weekOf(d: Date): string {
+  const copy = new Date(d.getTime())
+  const day = copy.getDay() || 7   // Dom=0→7, Seg=1..Sáb=6
+  copy.setDate(copy.getDate() - day + 1)
+  return `${copy.getFullYear()}-${String(copy.getMonth() + 1).padStart(2, '0')}-${String(copy.getDate()).padStart(2, '0')}`
+}
+
+function dayOf(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+
 async function buildTelemetry(currentMedia: string, currentItemId: string, orientation: string, checkNet = false) {
   const ua = navigator.userAgent
 
@@ -149,11 +162,21 @@ export function useScreenSync({ screenId, currentMedia, currentItemId = '', orie
         sessionSet = true
       }
 
-      // online_since do mês: define se está nulo ou se é de um mês anterior.
-      const { data } = await supabase.from('screens').select('online_since').eq('id', screenId).maybeSingle()
+      // online_since (mês), week_started_at (semana), day_started_at (dia):
+      // cada um reinicia quando vira o período.
+      const { data } = await supabase.from('screens')
+        .select('online_since, week_started_at, day_started_at')
+        .eq('id', screenId).maybeSingle()
+
       const os = data?.online_since ? new Date(data.online_since) : null
       const sameMonth = !!os && os.getMonth() === now.getMonth() && os.getFullYear() === now.getFullYear()
       if (!sameMonth) patch.online_since = now.toISOString()
+
+      const ws = data?.week_started_at ? new Date(data.week_started_at) : null
+      if (!ws || weekOf(ws) !== weekOf(now)) patch.week_started_at = now.toISOString()
+
+      const ds = data?.day_started_at ? new Date(data.day_started_at) : null
+      if (!ds || dayOf(ds) !== dayOf(now)) patch.day_started_at = now.toISOString()
 
       await supabase.from('screens').update(patch).eq('id', screenId)
     }
