@@ -931,14 +931,18 @@ export default function PlaylistEditor() {
 
   // ── Mutations ──────────────────────────────────────────────────────────────
   const addItem = useMutation({
-    mutationFn: async ({ mediaId, feedId, childPlaylistId, insertAt }: { mediaId?: string; feedId?: string; childPlaylistId?: string; insertAt: number }) => {
+    mutationFn: async ({ mediaId, feedId, childPlaylistId, insertAt, rssOffset, rssCount }: {
+      mediaId?: string; feedId?: string; childPlaylistId?: string; insertAt: number
+      rssOffset?: number; rssCount?: number
+    }) => {
       const { error } = await supabase.from('playlist_items').insert({
         playlist_id: id!,
         media_id: mediaId ?? null,
         rss_feed_id: feedId ?? null,
         child_playlist_id: childPlaylistId ?? null,
         order_index: insertAt,
-        rss_article_count: feedId ? 5 : null,
+        rss_article_count: feedId ? (rssCount ?? 5) : null,
+        ...(feedId ? { rss_article_offset: rssOffset ?? 0 } : {}),
       })
       if (error) throw error
     },
@@ -968,18 +972,32 @@ export default function PlaylistEditor() {
   }, [id, qc])
 
   // ── Helpers ────────────────────────────────────────────────────────────────
-  const optimisticAdd = (mediaId: string | undefined, feedId: string | undefined, insertAt: number, childPlaylistId?: string) => {
+
+  // Calcula o próximo offset disponível para um feed: logo após o último artigo
+  // já usado por qualquer outro item da playlist com o mesmo feed.
+  const nextRssOffset = (feedId: string): number => {
+    const same = localItems.filter(i => i.rss_feed_id === feedId)
+    if (same.length === 0) return 0
+    return Math.max(...same.map(i => (i.rss_article_offset ?? 0) + (i.rss_article_count ?? 5)))
+  }
+
+  const optimisticAdd = (
+    mediaId: string | undefined, feedId: string | undefined, insertAt: number,
+    childPlaylistId?: string, rssCount?: number,
+  ) => {
     const media = mediaId ? allMedia.find(m => m.id === mediaId) : undefined
     const feed  = feedId  ? allFeeds.find(f => f.id === feedId)  : undefined
     const child = childPlaylistId ? allPlaylists.find(p => p.id === childPlaylistId) : undefined
+    const rssOffset   = feedId ? nextRssOffset(feedId) : 0
+    const finalCount  = feedId ? (rssCount ?? 5) : null
     const temp: RichItem = {
       id: `temp::${Date.now()}`,
       playlist_id: id!, media_id: mediaId ?? null, rss_feed_id: feedId ?? null,
       child_playlist_id: childPlaylistId ?? null,
       order_index: insertAt, duration_override: null,
-      rss_article_count: feedId ? 5 : null,
+      rss_article_count: finalCount,
       rss_article_links: null,
-      rss_article_offset: 0,
+      rss_article_offset: rssOffset,
       audio_enabled: null,
       footer_override: null,
       schedule: null,
@@ -988,7 +1006,7 @@ export default function PlaylistEditor() {
     setLocalItems(prev => {
       const next = [...prev]; next.splice(insertAt, 0, temp); return next
     })
-    addItem.mutate({ mediaId, feedId, childPlaylistId, insertAt })
+    addItem.mutate({ mediaId, feedId, childPlaylistId, insertAt, rssOffset, rssCount: finalCount ?? undefined })
   }
 
   const handleRemove = (itemId: string) => {
@@ -998,7 +1016,11 @@ export default function PlaylistEditor() {
 
   const handleDuplicate = (item: RichItem) => {
     const index = localItems.findIndex(i => i.id === item.id)
-    optimisticAdd(item.media_id ?? undefined, item.rss_feed_id ?? undefined, index + 1, item.child_playlist_id ?? undefined)
+    optimisticAdd(
+      item.media_id ?? undefined, item.rss_feed_id ?? undefined, index + 1,
+      item.child_playlist_id ?? undefined,
+      item.rss_feed_id ? (item.rss_article_count ?? 5) : undefined,
+    )
   }
 
   const handleUpdateDuration = (item: RichItem, seconds: number) => {
