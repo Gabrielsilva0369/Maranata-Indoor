@@ -24,6 +24,15 @@ function fmtBytes(b: number): string {
   return `${Math.round(b / 1024 / 1024)} MB`
 }
 
+// Converte a string formatada pelo player ("573.0 MB" / "2.86 GB") de volta para bytes.
+function parseStorageStr(s: string | undefined): number | undefined {
+  if (!s) return undefined
+  const m = s.match(/([\d.]+)\s*(MB|GB)/i)
+  if (!m) return undefined
+  const n = parseFloat(m[1])
+  return m[2].toUpperCase() === 'GB' ? n * 1024 * 1024 * 1024 : n * 1024 * 1024
+}
+
 function uptime(since: string | null, online: boolean) {
   if (!since || !online) return '—'
   const ms = Date.now() - new Date(since).getTime()
@@ -235,8 +244,9 @@ export default function ScreenDetail() {
     // weather/html/youtube/stream = ~0 (não cacheiam arquivo)
   }
   const quotaBytes = t?.storage_quota_bytes ?? 0
-  // Prefere o uso real reportado pelo player; fallback para estimativa calculada.
-  const realUsageBytes = t?.storage_usage_bytes
+  // Prefere o uso real reportado pelo player (bytes raw), depois tenta parsear a
+  // string já existente ("573.0 MB"), e só usa estimativa calculada como último recurso.
+  const realUsageBytes = t?.storage_usage_bytes ?? parseStorageStr(t?.storage_estimate)
   const displayBytes = realUsageBytes ?? contentBytes
   const displayIsEstimate = !realUsageBytes && hasEstimate
   const usagePct = quotaBytes ? Math.min(100, Math.round((displayBytes / quotaBytes) * 100)) : 0
