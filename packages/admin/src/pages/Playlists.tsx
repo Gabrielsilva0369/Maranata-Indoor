@@ -14,7 +14,7 @@ export default function Playlists() {
   const { data: playlists = [] } = useQuery<Playlist[]>({
     queryKey: ['playlists'],
     queryFn: async () => {
-      const { data, error } = await supabase.from('playlists').select('*').order('created_at')
+      const { data, error } = await supabase.from('playlists').select('*').order('name').order('id')
       if (error) throw error
       return data
     },

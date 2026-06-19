@@ -31,7 +31,7 @@ export default function Screens() {
   const { data: screens = [] } = useQuery<Screen[]>({
     queryKey: ['screens'],
     queryFn: async () => {
-      const { data, error } = await supabase.from('screens').select('*').order('created_at')
+      const { data, error } = await supabase.from('screens').select('*').order('name').order('id')
       if (error) throw error
       return data
     },
