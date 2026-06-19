@@ -24,9 +24,21 @@ async function analyze(ffmpeg: FFmpeg, fileName: string): Promise<{ h264aac: boo
   try { await ffmpeg.exec(['-i', fileName]); } catch { /* esperado (sem output) */ } finally { ffmpeg.off('log', lst); }
   const h264aac = /Video: (h264|avc1)/i.test(log) && /Audio: aac/i.test(log);
   const m = log.match(/Video:[^\n]*?\b(\d{3,5})x(\d{3,5})\b/i);
-  const rot = log.match(/rotate\s*:\s*(-?\d+)/i);
-  const rotation = rot ? Math.abs(parseInt(rot[1], 10)) % 360 : 0;
+  const rot = log.match(/rotate\s*:\s*(-?\d+)/i)
+    ?? log.match(/Rotate\s*:\s*(-?\d+)/i)
+    ?? log.match(/rotation\s*of\s*(-?\d+)/i);
+  // Normaliza para 0/90/180/270
+  const rawRot = rot ? parseInt(rot[1], 10) : 0
+  const rotation = ((rawRot % 360) + 360) % 360
   return { h264aac, w: m ? parseInt(m[1], 10) : 0, h: m ? parseInt(m[2], 10) : 0, rotation };
+}
+
+/** Retorna o filtro vf para corrigir rotação, desativando o autorotate do decoder. */
+function rotationFilter(rotation: number): string {
+  if (rotation === 90)  return 'transpose=1,'   // 90° horário
+  if (rotation === 180) return 'vflip,hflip,'   // 180°
+  if (rotation === 270) return 'transpose=2,'   // 90° anti-horário
+  return ''
 }
 
 export type Quality = 'sd' | 'qhd' | 'hd' | 'fhd';
@@ -88,17 +100,22 @@ export async function transcodeVideoRenditions({
   ffmpeg.on('progress', progressListener);
 
   try {
+    const rotFilt = rotationFilter(info.rotation)
     for (const q of toEncode) {
       const r = RENDITIONS[q];
       const outName = `out_${q}.mp4`;
       await ffmpeg.exec([
-        '-i', input,
-        '-vf', `scale=${r.w}:${r.h}:force_original_aspect_ratio=decrease:force_divisible_by=2,fps=30`,
+        // -noautorotate: desativa rotação automática do decoder para não rotacionar
+        // duas vezes (uma vez pelo decoder e outra pelo filtro explícito abaixo).
+        '-noautorotate', '-i', input,
+        '-vf', `${rotFilt}scale=${r.w}:${r.h}:force_original_aspect_ratio=decrease:force_divisible_by=2,fps=30`,
         '-c:v', 'libx264', '-profile:v', r.profile, '-preset', 'ultrafast',
         '-crf', String(r.crf), '-maxrate', r.maxrate, '-bufsize', r.bufsize,
         '-pix_fmt', 'yuv420p',
         '-c:a', 'aac', '-b:a', '128k', '-ac', '2',
         '-movflags', '+faststart',
+        // Remove metadado de rotação do output — os pixels já estão corrigidos.
+        '-metadata:s:v:0', 'rotate=0',
         outName,
       ]);
       const data = await ffmpeg.readFile(outName);
