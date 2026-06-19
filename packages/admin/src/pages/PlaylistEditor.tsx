@@ -447,14 +447,19 @@ function ArticleSelectionModal({ item, otherLinks, articleCount, onClose, onSave
   const [selected, setSelected] = useState<Set<string>>(new Set(currentLinks.filter(Boolean)))
   const [didInit, setDidInit] = useState(!isFirstOpen)
 
-  // Pré-seleciona as primeiras N ao abrir pela primeira vez
+  // Pré-seleciona as primeiras N ao abrir pela primeira vez.
+  // Pula as que já estão em outro item da playlist com o mesmo feed.
   useEffect(() => {
     if (!didInit && articles.length > 0) {
-      const initial = articles.filter(a => a.link).slice(0, articleCount).map(a => a.link as string)
+      const otherSet = new Set(otherLinks)
+      const initial = articles
+        .filter(a => a.link && !otherSet.has(a.link))
+        .slice(0, articleCount)
+        .map(a => a.link as string)
       setSelected(new Set(initial))
       setDidInit(true)
     }
-  }, [articles, didInit, articleCount])
+  }, [articles, didInit, articleCount, otherLinks])
 
   const otherSet = new Set(otherLinks)
 
@@ -991,11 +996,47 @@ export default function PlaylistEditor() {
     }
   }
 
-  const handleUpdateArticleCount = (item: RichItem, count: number) => {
-    setLocalItems(prev => prev.map(i => i.id === item.id ? { ...i, rss_article_count: count } : i))
-    if (!item.id.startsWith('temp::')) {
-      updateItem.mutate({ itemId: item.id, patch: { rss_article_count: count } })
+  const handleUpdateArticleCount = async (item: RichItem, count: number) => {
+    const currentLinks = item.rss_article_links   // null = modo automático (sem seleção explícita)
+
+    // Sem seleção explícita: apenas atualiza a quantidade (player mostra as N mais recentes)
+    if (currentLinks === null || !item.rss_feed_id) {
+      setLocalItems(prev => prev.map(i => i.id === item.id ? { ...i, rss_article_count: count } : i))
+      if (!item.id.startsWith('temp::'))
+        updateItem.mutate({ itemId: item.id, patch: { rss_article_count: count } })
+      return
     }
+
+    // Com seleção explícita: busca a ordem dos artigos e ajusta os links
+    const { data } = await supabase
+      .from('rss_articles')
+      .select('link')
+      .eq('feed_id', item.rss_feed_id)
+      .eq('active', true)
+      .order('pub_date', { ascending: false })
+      .limit(20)
+
+    const available = (data ?? []).map(a => a.link as string).filter(Boolean)
+    const cur = currentLinks.filter(Boolean)
+
+    let newLinks: string[]
+    if (count >= cur.length) {
+      // Aumentou: adiciona as próximas da lista que ainda não estão selecionadas
+      const curSet = new Set(cur)
+      const toAdd = available.filter(l => !curSet.has(l)).slice(0, count - cur.length)
+      newLinks = [...cur, ...toAdd]
+    } else {
+      // Diminuiu: mantém as `count` mais recentes (by posição no feed)
+      const orderMap = new Map(available.map((l, i) => [l, i]))
+      newLinks = [...cur]
+        .sort((a, b) => (orderMap.get(a) ?? 999) - (orderMap.get(b) ?? 999))
+        .slice(0, count)
+    }
+
+    const patch = { rss_article_count: count, rss_article_links: newLinks }
+    setLocalItems(prev => prev.map(i => i.id === item.id ? { ...i, ...patch } : i))
+    if (!item.id.startsWith('temp::'))
+      updateItem.mutate({ itemId: item.id, patch })
   }
 
   const handleUpdateAudio = (item: RichItem, value: boolean | null) => {
