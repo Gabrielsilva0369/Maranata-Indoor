@@ -167,6 +167,7 @@ export function usePlaylist(token: string) {
   // Assinatura do último conteúdo aplicado — evita reiniciar a playlist no poll
   // quando nada mudou (senão a cada 1 min ela voltava pro item 0).
   const lastSigRef = useRef('')
+  const skipAutoLogRef = useRef(false)  // true quando sync é disparado por comando manual
 
   // Aplica o conteúdo (do cache ou da rede) APENAS se mudou de fato, e dispara o
   // download de TODAS as mídias (que aciona a tela de carregamento). Centralizar
@@ -197,13 +198,16 @@ export function usePlaylist(token: string) {
     setSyncStatus({ status: 'syncing', completed: 0, total: 0 })
     const screenId = screenData.id
     syncMediaCache(fetchedItems, screenData.video_quality, screenData.footer_config, setSyncStatus)
-      .then(() => supabase.from('screen_action_logs').insert({
-        screen_id: screenId,
-        action: 'refresh',
-        executed_by: 'player-auto',
-        status: 'completed',
-        completed_at: new Date().toISOString(),
-      }))
+      .then(() => {
+        if (skipAutoLogRef.current) { skipAutoLogRef.current = false; return }
+        return supabase.from('screen_action_logs').insert({
+          screen_id: screenId,
+          action: 'refresh',
+          executed_by: 'player-auto',
+          status: 'completed',
+          completed_at: new Date().toISOString(),
+        })
+      })
       .catch(e => {
         console.error('Erro na sincronização de cache de mídias:', e)
         setSyncStatus({ status: 'error', completed: 0, total: 0 })
@@ -344,5 +348,10 @@ export function usePlaylist(token: string) {
     return () => clearInterval(id)
   }, [fetchScreen])
 
-  return { screen, items, paired, loading, refetch: fetchScreen, syncStatus }
+  const manualRefetch = useCallback(() => {
+    skipAutoLogRef.current = true
+    fetchScreen()
+  }, [fetchScreen])
+
+  return { screen, items, paired, loading, refetch: manualRefetch, syncStatus }
 }
