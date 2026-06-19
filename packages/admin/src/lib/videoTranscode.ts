@@ -16,15 +16,17 @@ export async function getFFmpeg(): Promise<FFmpeg> {
   return ffmpeg;
 }
 
-/** Lê codec/resolução do vídeo a partir dos logs do FFmpeg. */
-async function analyze(ffmpeg: FFmpeg, fileName: string): Promise<{ h264aac: boolean; w: number; h: number }> {
+/** Lê codec/resolução/rotação do vídeo a partir dos logs do FFmpeg. */
+async function analyze(ffmpeg: FFmpeg, fileName: string): Promise<{ h264aac: boolean; w: number; h: number; rotation: number }> {
   let log = '';
   const lst = ({ message }: { message: string }) => { log += message + '\n'; };
   ffmpeg.on('log', lst);
   try { await ffmpeg.exec(['-i', fileName]); } catch { /* esperado (sem output) */ } finally { ffmpeg.off('log', lst); }
   const h264aac = /Video: (h264|avc1)/i.test(log) && /Audio: aac/i.test(log);
   const m = log.match(/Video:[^\n]*?\b(\d{3,5})x(\d{3,5})\b/i);
-  return { h264aac, w: m ? parseInt(m[1], 10) : 0, h: m ? parseInt(m[2], 10) : 0 };
+  const rot = log.match(/rotate\s*:\s*(-?\d+)/i);
+  const rotation = rot ? Math.abs(parseInt(rot[1], 10)) % 360 : 0;
+  return { h264aac, w: m ? parseInt(m[1], 10) : 0, h: m ? parseInt(m[2], 10) : 0, rotation };
 }
 
 export type Quality = 'sd' | 'qhd' | 'hd' | 'fhd';
@@ -68,8 +70,10 @@ export async function transcodeVideoRenditions({
   const info = await analyze(ffmpeg, input);
   const baseName = (file.name.substring(0, file.name.lastIndexOf('.')) || file.name);
 
-  // Quais qualidades precisam ser reencodadas. Full HD pode reusar o original.
-  const reuseOriginalAsFhd = info.h264aac && info.w > 0 && info.w <= 1920 && info.h <= 1080;
+  // Quais qualidades precisam ser reencodadas. Full HD pode reusar o original
+  // APENAS se não tiver metadado de rotação — do contrário o re-encode "queima"
+  // a rotação nos pixels (sem ele, o screenshot captura o frame sem girar).
+  const reuseOriginalAsFhd = info.h264aac && info.w > 0 && info.w <= 1920 && info.h <= 1080 && info.rotation === 0;
   const toEncode: Quality[] = reuseOriginalAsFhd ? ['hd', 'qhd', 'sd'] : ['fhd', 'hd', 'qhd', 'sd'];
 
   onStatusChange?.('transcoding');
