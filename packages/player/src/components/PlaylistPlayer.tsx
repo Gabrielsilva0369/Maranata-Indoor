@@ -192,7 +192,9 @@ export default function PlaylistPlayer({ items, screen, onMediaChange, forceMute
   const renderPlayer = () => {
     if (rss_feed_id && rss_feed) {
       return <RssNewsPlayer key={current.id} feedId={rss_feed_id} duration={duration}
-        articleCount={current.rss_article_count ?? 5} articleLinks={current.rss_article_links}
+        articleCount={current.rss_article_count ?? 5}
+        articleOffset={current.rss_article_offset ?? 0}
+        articleLinks={current.rss_article_links}
         quality={screen.video_quality} showProgress={showProgress} onEnd={advance} />
     }
     if (media) {

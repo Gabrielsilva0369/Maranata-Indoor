@@ -17,15 +17,16 @@ interface Article {
 
 interface Props {
   feedId: string
-  duration: number       // segundos por artigo
-  articleCount: number   // quantas notícias exibir (modo automático)
-  articleLinks?: string[] | null  // notícias escolhidas (por link); null = automático
+  duration: number        // segundos por artigo
+  articleCount: number    // quantas notícias exibir
+  articleOffset?: number  // posição inicial no feed (0 = mais recente)
+  articleLinks?: string[] | null  // modo legado: links explícitos
   quality?: VideoQuality
   showProgress?: boolean
   onEnd: () => void
 }
 
-export default function RssNewsPlayer({ feedId, duration, articleCount, articleLinks, quality = 'fhd', showProgress = true, onEnd }: Props) {
+export default function RssNewsPlayer({ feedId, duration, articleCount, articleOffset = 0, articleLinks, quality = 'fhd', showProgress = true, onEnd }: Props) {
   const [articles, setArticles] = useState<Article[]>([])
   const [index, setIndex] = useState(0)
   const [progress, setProgress] = useState(0)
@@ -36,14 +37,13 @@ export default function RssNewsPlayer({ feedId, duration, articleCount, articleL
     setLoading(true)
     setIndex(0)
 
-    // Seleção determinística: se há notícias ESCOLHIDAS, exibe só elas (na ordem
-    // escolhida); senão, as N mais recentes (a lista já vem por data desc).
+    // Seleção: links explícitos (modo legado) ou faixa por offset+count.
     const pick = (list: Article[]): Article[] => {
       if (articleLinks && articleLinks.length) {
         const byLink = new Map(list.filter(a => a.link).map(a => [a.link as string, a]))
         return articleLinks.map(l => byLink.get(l)).filter(Boolean) as Article[]
       }
-      return list.slice(0, articleCount)
+      return list.slice(articleOffset, articleOffset + articleCount)
     }
 
     // 1º: usa os artigos já pré-carregados (preload) — instantâneo e offline.
@@ -66,7 +66,7 @@ export default function RssNewsPlayer({ feedId, duration, articleCount, articleL
         setArticles(pick((data ?? []) as Article[]))
         setLoading(false)
       })
-  }, [feedId, articleCount, articleLinks])
+  }, [feedId, articleCount, articleOffset, articleLinks])
 
   const advance = useCallback(() => {
     setIndex(prev => {

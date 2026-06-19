@@ -321,27 +321,27 @@ export async function syncMediaCache(
   }
   const activePaths = Array.from(pathSet)
 
-  // ── 2. Notícias (RSS): guarda/aquece SÓ o que cada feed vai exibir ──
-  // Por feed: as notícias ESCOLHIDAS (rss_article_links) ∪ as `cap` mais recentes
-  // (rss_article_count dos itens automáticos). Feed usado só no rodapé guarda os
-  // títulos mas NÃO baixa imagens (warm=false).
-  const feedReq = new Map<string, { cap: number; links: Set<string>; warm: boolean }>()
+  // ── 2. Notícias (RSS): grava todos os 20 artigos do feed e aquece o intervalo exibido ──
+  // Por feed: acumula os intervalos offset+count de cada item. Se ainda houver itens
+  // no modo legado (rss_article_links), aquece por link. Rodapé: cap=8, sem imagens.
+  type FeedReq = { ranges: { offset: number; count: number }[]; links: Set<string>; warm: boolean }
+  const feedReq = new Map<string, FeedReq>()
   const getReq = (fid: string) => {
     let r = feedReq.get(fid)
-    if (!r) { r = { cap: 0, links: new Set(), warm: false }; feedReq.set(fid, r) }
+    if (!r) { r = { ranges: [], links: new Set(), warm: false }; feedReq.set(fid, r) }
     return r
   }
   for (const item of items) {
     const fid = item.rss_feed_id || item.rss_feed?.id
     if (!fid) continue
     const r = getReq(fid)
-    r.warm = true   // item de notícia exibe imagens
+    r.warm = true
     const sel: string[] | null = item.rss_article_links
     if (sel && sel.length) sel.forEach(l => r.links.add(l))
-    else r.cap = Math.max(r.cap, item.rss_article_count ?? 5)
+    else r.ranges.push({ offset: item.rss_article_offset ?? 0, count: item.rss_article_count ?? 5 })
   }
   if (footer?.type === 'rss' && footer.rss_feed_id) {
-    getReq(footer.rss_feed_id).cap = Math.max(getReq(footer.rss_feed_id).cap, 8)  // rodapé rola várias
+    getReq(footer.rss_feed_id).ranges.push({ offset: 0, count: 8 })  // rodapé rola várias
   }
 
   // URLs externas para "aquecer" no Service Worker (imagens de notícia + logo do
@@ -351,10 +351,21 @@ export async function syncMediaCache(
   // Busca os feeds EM PARALELO e cada um já tem timeout — offline isto resolve
   // rápido (não pendura o boot) e a reprodução cai pro cache.
   const perFeed = await Promise.all(
-    Array.from(feedReq.entries()).map(([fid, r]) =>
-      refreshFeedArticles(fid, { cap: r.cap, links: Array.from(r.links), quality, warmImages: r.warm })
-        .catch(() => [] as string[])
-    )
+    Array.from(feedReq.entries()).map(([fid, r]) => {
+      // Calcula o intervalo de aquecimento: do menor offset ao maior offset+count.
+      let warmOffset = 0, warmCap = 5
+      if (r.ranges.length > 0) {
+        const minOff = Math.min(...r.ranges.map(rng => rng.offset))
+        const maxEnd = Math.max(...r.ranges.map(rng => rng.offset + rng.count))
+        warmOffset = minOff
+        warmCap = maxEnd - minOff
+      }
+      return refreshFeedArticles(fid, {
+        offset: warmOffset, cap: warmCap,
+        links: Array.from(r.links),
+        quality, warmImages: r.warm,
+      }).catch(() => [] as string[])
+    })
   )
   for (const imgs of perFeed) for (const u of imgs) warmSet.add(u)
   const warmUrls = Array.from(warmSet)

@@ -412,17 +412,16 @@ function PreviewModal({ item, onClose }: { item: RichItem; onClose: () => void }
 }
 
 // ── Modal de seleção de notícias (RSS) ────────────────────────────────────────
-function ArticleSelectionModal({ item, otherLinks, articleCount, onClose, onSave }: {
+function ArticleSelectionModal({ item, otherItems, articleCount, currentOffset, onClose, onSave }: {
   item: RichItem
-  otherLinks: string[]        // links já selecionados em OUTROS itens com mesmo feed
-  articleCount: number        // rss_article_count atual (para pré-seleção inicial)
+  otherItems: { offset: number; count: number }[]  // intervalos de OUTROS itens com mesmo feed
+  articleCount: number    // rss_article_count atual (para pré-seleção)
+  currentOffset: number   // rss_article_offset atual deste item
   onClose: () => void
-  onSave: (links: string[], count: number) => void
+  onSave: (offset: number, count: number) => void
 }) {
-  const feedId  = item.rss_feed_id
+  const feedId   = item.rss_feed_id
   const feedName = item.rss_feed?.name ?? 'Feed'
-  const currentLinks = item.rss_article_links ?? []
-  const isFirstOpen  = item.rss_article_links === null   // null = nunca foi editado
 
   const { data: articles = [] } = useQuery<{
     id: string; link: string | null; title: string
@@ -444,24 +443,33 @@ function ArticleSelectionModal({ item, otherLinks, articleCount, onClose, onSave
     enabled: !!feedId,
   })
 
-  const [selected, setSelected] = useState<Set<string>>(new Set(currentLinks.filter(Boolean)))
-  const [didInit, setDidInit] = useState(!isFirstOpen)
+  const [selected, setSelected] = useState<Set<string>>(new Set())
 
-  // Pré-seleciona as primeiras N ao abrir pela primeira vez.
-  // Pula as que já estão em outro item da playlist com o mesmo feed.
+  // Inicializa a seleção quando os artigos carregam:
+  // - Links explícitos (dados legados): usa os links salvos.
+  // - Modo offset: seleciona o intervalo currentOffset..currentOffset+articleCount-1.
   useEffect(() => {
-    if (!didInit && articles.length > 0) {
-      const otherSet = new Set(otherLinks)
+    if (articles.length === 0) return
+    const legacyLinks = item.rss_article_links ?? []
+    if (legacyLinks.length > 0) {
+      setSelected(new Set(legacyLinks.filter(Boolean) as string[]))
+    } else {
       const initial = articles
-        .filter(a => a.link && !otherSet.has(a.link))
-        .slice(0, articleCount)
-        .map(a => a.link as string)
+        .slice(currentOffset, currentOffset + articleCount)
+        .map(a => a.link)
+        .filter(Boolean) as string[]
       setSelected(new Set(initial))
-      setDidInit(true)
     }
-  }, [articles, didInit, articleCount, otherLinks])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [articles])
 
-  const otherSet = new Set(otherLinks)
+  // Artigos que já estão em outros itens com o mesmo feed (por intervalo de posição).
+  const inOtherSet = new Set<string>()
+  articles.forEach((a, i) => {
+    if (a.link && otherItems.some(oi => i >= oi.offset && i < oi.offset + oi.count)) {
+      inOtherSet.add(a.link)
+    }
+  })
 
   const toggle = (link: string) => setSelected(prev => {
     const next = new Set(prev)
@@ -470,10 +478,13 @@ function ArticleSelectionModal({ item, otherLinks, articleCount, onClose, onSave
   })
 
   const handleSave = () => {
-    const links = Array.from(selected)
-    // Atualiza a quantidade para refletir o número de notícias escolhidas
-    const newCount = links.length > 0 ? links.length : articleCount
-    onSave(links, newCount)
+    // Calcula offset = posição do primeiro artigo selecionado no feed.
+    const selectedPositions = articles
+      .map((a, i) => (a.link && selected.has(a.link)) ? i : -1)
+      .filter(i => i >= 0)
+    const newOffset = selectedPositions.length > 0 ? selectedPositions[0] : 0
+    const newCount  = selected.size > 0 ? selected.size : articleCount
+    onSave(newOffset, newCount)
   }
 
   return (
@@ -500,7 +511,7 @@ function ArticleSelectionModal({ item, otherLinks, articleCount, onClose, onSave
             </p>
           ) : articles.map((a, idx) => {
             const on        = a.link ? selected.has(a.link) : false
-            const inOther   = a.link ? otherSet.has(a.link) : false
+            const inOther   = a.link ? inOtherSet.has(a.link) : false
             const thumb     = a.image_url || a.source_logo || null
             return (
               <div key={a.id} onClick={() => a.link && toggle(a.link)}
@@ -968,6 +979,7 @@ export default function PlaylistEditor() {
       order_index: insertAt, duration_override: null,
       rss_article_count: feedId ? 5 : null,
       rss_article_links: null,
+      rss_article_offset: 0,
       audio_enabled: null,
       footer_override: null,
       schedule: null,
@@ -996,44 +1008,8 @@ export default function PlaylistEditor() {
     }
   }
 
-  const handleUpdateArticleCount = async (item: RichItem, count: number) => {
-    const currentLinks = item.rss_article_links   // null = modo automático (sem seleção explícita)
-
-    // Sem seleção explícita: apenas atualiza a quantidade (player mostra as N mais recentes)
-    if (currentLinks === null || !item.rss_feed_id) {
-      setLocalItems(prev => prev.map(i => i.id === item.id ? { ...i, rss_article_count: count } : i))
-      if (!item.id.startsWith('temp::'))
-        updateItem.mutate({ itemId: item.id, patch: { rss_article_count: count } })
-      return
-    }
-
-    // Com seleção explícita: busca a ordem dos artigos e ajusta os links
-    const { data } = await supabase
-      .from('rss_articles')
-      .select('link')
-      .eq('feed_id', item.rss_feed_id)
-      .eq('active', true)
-      .order('pub_date', { ascending: false })
-      .limit(20)
-
-    const available = (data ?? []).map(a => a.link as string).filter(Boolean)
-    const cur = currentLinks.filter(Boolean)
-
-    let newLinks: string[]
-    if (count >= cur.length) {
-      // Aumentou: adiciona as próximas da lista que ainda não estão selecionadas
-      const curSet = new Set(cur)
-      const toAdd = available.filter(l => !curSet.has(l)).slice(0, count - cur.length)
-      newLinks = [...cur, ...toAdd]
-    } else {
-      // Diminuiu: mantém as `count` mais recentes (by posição no feed)
-      const orderMap = new Map(available.map((l, i) => [l, i]))
-      newLinks = [...cur]
-        .sort((a, b) => (orderMap.get(a) ?? 999) - (orderMap.get(b) ?? 999))
-        .slice(0, count)
-    }
-
-    const patch = { rss_article_count: count, rss_article_links: newLinks }
+  const handleUpdateArticleCount = (item: RichItem, count: number) => {
+    const patch = { rss_article_count: count }
     setLocalItems(prev => prev.map(i => i.id === item.id ? { ...i, ...patch } : i))
     if (!item.id.startsWith('temp::'))
       updateItem.mutate({ itemId: item.id, patch })
@@ -1284,20 +1260,17 @@ export default function PlaylistEditor() {
         <ArticleSelectionModal
           item={articleSelectionItem}
           articleCount={articleSelectionItem.rss_article_count ?? 5}
-          otherLinks={localItems
+          currentOffset={articleSelectionItem.rss_article_offset ?? 0}
+          otherItems={localItems
             .filter(i => i.id !== articleSelectionItem.id && i.rss_feed_id === articleSelectionItem.rss_feed_id)
-            .flatMap(i => (i.rss_article_links ?? []).filter(Boolean) as string[])}
+            .map(i => ({ offset: i.rss_article_offset ?? 0, count: i.rss_article_count ?? 5 }))}
           onClose={() => setArticleSelectionItem(null)}
-          onSave={(links, count) => {
+          onSave={(offset, count) => {
+            const patch = { rss_article_offset: offset, rss_article_count: count, rss_article_links: null }
             setLocalItems(prev => prev.map(i =>
-              i.id === articleSelectionItem.id
-                ? { ...i, rss_article_links: links, rss_article_count: count }
-                : i
+              i.id === articleSelectionItem.id ? { ...i, ...patch } : i
             ))
-            updateItem.mutate({
-              itemId: articleSelectionItem.id,
-              patch: { rss_article_links: links, rss_article_count: count },
-            })
+            updateItem.mutate({ itemId: articleSelectionItem.id, patch })
             setArticleSelectionItem(null)
           }}
         />

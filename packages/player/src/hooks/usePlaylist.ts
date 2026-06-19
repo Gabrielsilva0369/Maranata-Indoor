@@ -84,6 +84,7 @@ export interface PlaylistItem {
   duration_override: number | null
   rss_article_count: number | null
   rss_article_links: string[] | null
+  rss_article_offset: number | null
   audio_enabled: boolean | null
   footer_override: PlaylistItemFooter | null
   schedule: ItemSchedule | null
@@ -145,7 +146,7 @@ function computeSig(data: any, items: PlaylistItem[]): string {
     },
     items: items.map(it => ({
       id: it.id, o: it.order_index, d: it.duration_override, a: it.audio_enabled,
-      rc: it.rss_article_count, rl: it.rss_article_links, fo: it.footer_override, sc: it.schedule,
+      rc: it.rss_article_count, rl: it.rss_article_links, ro: it.rss_article_offset, fo: it.footer_override, sc: it.schedule,
       mid: it.media_id, rid: it.rss_feed_id,
       m: it.media ? {
         t: it.media.type, sp: it.media.storage_path, u: it.media.url,
@@ -238,7 +239,7 @@ export function usePlaylist(token: string) {
         return
       }
 
-      const ITEM_COLS = 'id, order_index, duration_override, rss_article_count, rss_article_links, audio_enabled, footer_override, schedule, media_id, rss_feed_id, child_playlist_id, media(*), rss_feed:rss_feeds(*)'
+      const ITEM_COLS = 'id, order_index, duration_override, rss_article_count, rss_article_links, rss_article_offset, audio_enabled, footer_override, schedule, media_id, rss_feed_id, child_playlist_id, media(*), rss_feed:rss_feeds(*)'
       const normItem = (it: any): PlaylistItem => ({
         ...it,
         media: Array.isArray(it.media) ? (it.media[0] ?? null) : it.media,

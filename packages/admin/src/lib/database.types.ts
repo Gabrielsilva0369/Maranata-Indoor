@@ -247,6 +247,7 @@ export interface PlaylistItem {
   duration_override: number | null
   rss_article_count: number | null
   rss_article_links: string[] | null   // notícias escolhidas (por link); null = automático
+  rss_article_offset: number | null    // posição inicial no feed (modo offset); 0 = mais recente
   audio_enabled: boolean | null
   footer_override: PlaylistItemFooter | null
   schedule: ItemSchedule | null
