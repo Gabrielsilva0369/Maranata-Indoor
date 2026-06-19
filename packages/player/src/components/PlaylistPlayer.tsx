@@ -168,14 +168,14 @@ export default function PlaylistPlayer({ items, screen, onMediaChange, forceMute
     const ov = current.footer_override
     if (ov === null || ov === undefined) return base        // usa config da tela
     if (ov.enabled === false) return null                   // desativado para este item
-    // Personalizado: sobrescreve campos mantendo o restante da config da tela
+    // Personalizado: sobrescreve campos; vazio/null = usa o valor da tela (fallback).
     if (ov.text !== undefined || ov.logo_path !== undefined || ov.bg_color !== undefined) {
       return {
         ...base,
         type: 'text',
-        text:      ov.text      !== undefined ? (ov.text      ?? base.text)      : base.text,
-        logo_path: ov.logo_path !== undefined ? (ov.logo_path ?? base.logo_path) : base.logo_path,
-        bg_color:  ov.bg_color  !== undefined ? (ov.bg_color  ?? base.bg_color)  : base.bg_color,
+        text:      ov.text      || base.text,       // '' e null → fallback ao texto da tela
+        logo_path: ov.logo_path || base.logo_path,  // null/undefined → fallback ao logo da tela
+        bg_color:  ov.bg_color  || base.bg_color,   // null/undefined → fallback à cor da tela
       }
     }
     return base

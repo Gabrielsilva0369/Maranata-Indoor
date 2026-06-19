@@ -57,7 +57,7 @@ function FooterItemControl({ value, onChange }: {
   const state = value === null ? 'default' : value.enabled === false ? 'off' : 'custom'
   const cycle = () => {
     if (state === 'default') onChange({ enabled: false })
-    else if (state === 'off') onChange({ enabled: true, text: '' })
+    else if (state === 'off') onChange({ enabled: true })
     else onChange(null)
   }
   if (state === 'off') return (
@@ -725,8 +725,8 @@ function PlaylistCard({ item, index, childSeconds, onDelete, onDuplicate, onUpda
           <PanelBottomOpen size={11} className="text-blue-400 shrink-0 ml-12" />
           <input
             value={item.footer_override.text ?? ''}
-            onChange={e => onUpdateFooter({ ...item.footer_override!, text: e.target.value })}
-            placeholder="Texto personalizado do rodapé..."
+            onChange={e => onUpdateFooter({ ...item.footer_override!, text: e.target.value || null })}
+            placeholder="Vazio = usa o texto do rodapé da tela"
             className="flex-1 text-xs border rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-400"
           />
         </div>
@@ -743,15 +743,20 @@ function PlaylistCard({ item, index, childSeconds, onDelete, onDuplicate, onUpda
             </div>
           ) : (
             <button onClick={() => logoInputRef.current?.click()} disabled={logoUploading}
-              title="Definir logo do rodapé"
-              className="flex items-center gap-1 text-[11px] text-gray-400 hover:text-blue-500 border rounded px-1.5 py-0.5 hover:border-blue-300 transition-colors disabled:opacity-50">
+              title="Definir logo personalizada (vazio = usa logo da tela)"
+              className="flex items-center gap-1 text-[11px] text-gray-300 hover:text-blue-500 border border-dashed rounded px-1.5 py-0.5 hover:border-blue-300 transition-colors disabled:opacity-50">
               <Upload size={10} /> {logoUploading ? '…' : 'Logo'}
             </button>
           )}
           {/* Cor de fundo */}
-          <label className="flex items-center gap-1 text-[11px] text-gray-400 hover:text-blue-500 border rounded px-1.5 py-0.5 hover:border-blue-300 transition-colors cursor-pointer" title="Cor de fundo do rodapé">
+          <label
+            className={`flex items-center gap-1 text-[11px] border rounded px-1.5 py-0.5 transition-colors cursor-pointer hover:border-blue-300 hover:text-blue-500
+              ${item.footer_override.bg_color ? 'text-gray-400 border-gray-300' : 'text-gray-300 border-dashed'}`}
+            title={item.footer_override.bg_color ? 'Cor personalizada (clique para mudar)' : 'Cor de fundo (vazio = usa cor da tela)'}>
             <span className="w-3 h-3 rounded-sm border border-gray-300 shrink-0"
-              style={{ background: item.footer_override.bg_color ?? '#000000' }} />
+              style={item.footer_override.bg_color
+                ? { background: item.footer_override.bg_color }
+                : { background: 'repeating-linear-gradient(45deg,#ccc 0,#ccc 2px,#fff 2px,#fff 5px)' }} />
             Fundo
             <input type="color" className="w-0 h-0 opacity-0 absolute"
               value={item.footer_override.bg_color ?? '#000000'}
