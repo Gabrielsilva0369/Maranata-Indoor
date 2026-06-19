@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import type { Media, MediaType, ClockConfig, WeatherConfig, QuotesConfig, MediaFolder, Client } from '../lib/database.types'
-import { Upload, Trash2, Plus, Image, Film, Code, Clock, Cloud, Search, MapPin, Pencil, FolderPlus, Youtube, Radio, Quote, Images, X } from 'lucide-react'
+import { Upload, Trash2, Plus, Image, Film, Code, Clock, Cloud, Search, MapPin, Pencil, FolderPlus, Youtube, Radio, Quote, Images, X, Eye } from 'lucide-react'
 import { transcodeVideoRenditions } from '../lib/videoTranscode'
 import { uploadToSpaces, deleteFromSpaces, mediaUrl } from '../lib/spaces'
 import { putAsset, releaseAsset, retainAsset } from '../lib/assets'
@@ -1068,11 +1068,82 @@ export function MediaFormModal({ editing = null, defaultClientId = null, default
   )
 }
 
+// ── Preview de clima com dados ao vivo (para o modal de preview) ─────────────
+function WeatherLivePreview({ cfg }: { cfg: WeatherConfig }) {
+  const [live, setLive] = useState<LiveWeather | null>(null)
+  useEffect(() => {
+    if (!cfg.latitude || !cfg.longitude) return
+    fetch(
+      `https://api.open-meteo.com/v1/forecast?latitude=${cfg.latitude}&longitude=${cfg.longitude}` +
+      `&current=temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,weather_code` +
+      `&wind_speed_unit=kmh&timezone=auto`
+    ).then(r => r.json()).then(d => setLive(d.current)).catch(() => {})
+  }, [cfg.latitude, cfg.longitude])
+  return <WeatherPreviewCard cfg={cfg} live={live} />
+}
+
+// ── Modal de preview de mídia ─────────────────────────────────────────────────
+function MediaPreviewModal({ item, onClose }: { item: Media; onClose: () => void }) {
+  const bgUrl = item.clock_config?.bg_image_path
+    ? mediaUrl(item.clock_config.bg_image_path)
+    : item.quotes_config?.bg_image_path
+    ? mediaUrl(item.quotes_config.bg_image_path)
+    : undefined
+
+  const ytId = item.url ? youtubeId(item.url) : null
+
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', h)
+    return () => window.removeEventListener('keydown', h)
+  }, [onClose])
+
+  const inner = () => {
+    if (item.type === 'image' && item.storage_path)
+      return <img src={mediaUrl(item.storage_path)} alt={item.name} className="w-full h-full object-contain" />
+    if (item.type === 'video' && item.storage_path)
+      return <video src={mediaUrl(item.storage_path)} controls autoPlay className="w-full h-full" />
+    if (item.type === 'html')
+      return <iframe
+        srcDoc={item.html_content || undefined}
+        src={!item.html_content && item.url ? item.url : undefined}
+        className="w-full h-full border-0" sandbox="allow-scripts allow-same-origin" title={item.name} />
+    if (item.type === 'youtube' && ytId)
+      return <iframe src={`https://www.youtube.com/embed/${ytId}?autoplay=1&mute=1`}
+        className="w-full h-full border-0" allow="autoplay; fullscreen" title={item.name} />
+    if (item.type === 'stream' && item.url)
+      return <video src={item.url} autoPlay controls muted className="w-full h-full" />
+    if (item.type === 'clock' && item.clock_config)
+      return <ClockPreview cfg={item.clock_config} bgUrl={bgUrl} />
+    if (item.type === 'weather' && item.weather_config)
+      return <WeatherLivePreview cfg={item.weather_config} />
+    if (item.type === 'quotes' && item.quotes_config)
+      return <QuotesPreview cfg={item.quotes_config} bgUrl={bgUrl} />
+    return <div className="flex items-center justify-center h-full text-gray-500 text-sm">Sem preview disponível</div>
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/85 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="relative w-full max-w-4xl" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-3">
+          <p className="text-white font-medium truncate">{item.name}</p>
+          <button onClick={onClose} className="ml-4 flex-shrink-0 text-white/70 hover:text-white"><X size={24} /></button>
+        </div>
+        <div className="aspect-video bg-black rounded-xl overflow-hidden">
+          {inner()}
+        </div>
+        <p className="text-white/40 text-xs text-center mt-2">{TYPE_LABELS[item.type]}</p>
+      </div>
+    </div>
+  )
+}
+
 // ── Página principal ──────────────────────────────────────────────────────────
 export default function MediaPage() {
   const qc = useQueryClient()
   const [modalOpen, setModalOpen] = useState(false)
   const [editingMedia, setEditingMedia] = useState<Media | null>(null)
+  const [previewMedia, setPreviewMedia] = useState<Media | null>(null)
 
   // Pastas: 'all' = todas, null = sem pasta, ou um id de pasta
   const [selectedFolder, setSelectedFolder] = useState<string | null | 'all'>('all')
@@ -1223,6 +1294,9 @@ export default function MediaPage() {
         />
       )}
 
+      {/* Modal de preview */}
+      {previewMedia && <MediaPreviewModal item={previewMedia} onClose={() => setPreviewMedia(null)} />}
+
       {/* Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
         {visibleMedia.map(item => (
@@ -1256,6 +1330,9 @@ export default function MediaPage() {
                 />
               )}
               <div className="absolute top-2 right-2 flex gap-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                <button onClick={() => setPreviewMedia(item)} title="Preview"
+                  className="bg-white/95 text-gray-700 hover:bg-white p-2 sm:p-1.5 rounded-lg shadow-md sm:shadow"
+                ><Eye size={18} className="sm:hidden" /> <Eye size={14} className="hidden sm:block" /></button>
                 <button onClick={() => openEdit(item)} title="Editar"
                   className="bg-white/95 text-gray-700 hover:bg-white p-2 sm:p-1.5 rounded-lg shadow-md sm:shadow"
                 ><Pencil size={18} className="sm:hidden" /> <Pencil size={14} className="hidden sm:block" /></button>
