@@ -149,10 +149,23 @@ export function useScreenSync({ screenId, currentMedia, currentItemId = '', orie
     let sessionSet = false
     const startTime = Date.now()
 
+    const logAuto = async (action: 'reload' | 'clear_cache') => {
+      try {
+        await supabase.from('screen_action_logs').insert({
+          screen_id: screenId,
+          action,
+          executed_by: 'player-auto',
+          status: 'completed',
+          completed_at: new Date().toISOString(),
+        })
+      } catch { /* não bloqueia o reload se o log falhar */ }
+    }
+
     const beat = async () => {
       // Reload a cada 1h: disparado aqui porque setTimeout no Android entra em
       // suspensão com power-saving, mas o heartbeat (que faz rede) continua rodando.
       if (!disabled && Date.now() - startTime > 60 * 60 * 1000) {
+        await logAuto('reload')
         location.reload()
         return
       }
@@ -172,6 +185,7 @@ export function useScreenSync({ screenId, currentMedia, currentItemId = '', orie
           if (online) {
             localStorage.setItem('screen_last_full_clear', nowMs.toString())
             localStorage.removeItem('screen_needs_full_clear')
+            await logAuto('clear_cache')
             await clearAllCache()
             location.reload()
             return
