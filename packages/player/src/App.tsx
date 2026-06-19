@@ -12,17 +12,6 @@ import LoadingScreen from './components/LoadingScreen'
 import UpdatingScreen from './components/UpdatingScreen'
 import { applyUpdate } from './lib/appUpdate'
 
-const RSS_SYNC_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/rss-sync`
-const ANON_KEY     = import.meta.env.VITE_SUPABASE_ANON_KEY as string
-
-function triggerRssSync() {
-  // A Edge Function exige Authorization (verify_jwt). Só 'apikey' retorna 401.
-  fetch(RSS_SYNC_URL, {
-    method: 'POST',
-    headers: { apikey: ANON_KEY, Authorization: `Bearer ${ANON_KEY}` },
-  }).catch(() => {})
-}
-
 export default function App() {
   const { token, pairCode, preview } = useScreenToken()
   const { screen, items, paired, loading, refetch, syncStatus } = usePlaylist(token)
@@ -78,13 +67,6 @@ export default function App() {
     const t = setTimeout(() => setMinElapsed(true), remaining)
     return () => clearTimeout(t)
   }, [ready])
-
-  // Sincroniza feeds RSS a cada 10 minutos
-  useEffect(() => {
-    triggerRssSync()
-    const id = setInterval(triggerRssSync, 10 * 60 * 1000)
-    return () => clearInterval(id)
-  }, [])
 
   // Desbloqueia áudio na primeira interação (política de autoplay do navegador)
   useEffect(() => { initAudioUnlock() }, [])
