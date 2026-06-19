@@ -37,13 +37,8 @@ registerSW({
   },
 })
 
-// Restart leve a cada 1h: recarrega a página pra liberar memória acumulada
-// (vazamentos do WebView/decoder em box fraco que levam a crash/reboot). NÃO
-// re-baixa nada (o cache continua); o re-sync no boot só RE-VERIFICA a
-// integridade do que já está baixado. Pulado no preview do admin.
-if (typeof window !== 'undefined' && !new URLSearchParams(location.search).get('preview')) {
-  setTimeout(() => location.reload(), 60 * 60 * 1000)
-}
+// Reload a cada 1h controlado pelo heartbeat (useScreenSync) que já faz chamadas
+// de rede e resiste ao power-saving do Android — ver useScreenSync.ts.
 
 // ============================================================
 // Diagnóstico visível: qualquer erro grave aparece na tela

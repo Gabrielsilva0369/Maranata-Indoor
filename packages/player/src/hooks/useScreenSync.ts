@@ -147,8 +147,40 @@ export function useScreenSync({ screenId, currentMedia, currentItemId = '', orie
   useEffect(() => {
     if (!screenId || disabled) return
     let sessionSet = false
+    const startTime = Date.now()
 
     const beat = async () => {
+      // Reload a cada 1h: disparado aqui porque setTimeout no Android entra em
+      // suspensão com power-saving, mas o heartbeat (que faz rede) continua rodando.
+      if (!disabled && Date.now() - startTime > 60 * 60 * 1000) {
+        location.reload()
+        return
+      }
+
+      // Clear total do cache a cada 24h (com internet). Se estiver sem internet,
+      // marca flag e tenta de novo no próximo beat que tiver conexão.
+      const nowMs = Date.now()
+      const lastClearStr = localStorage.getItem('screen_last_full_clear')
+      if (!lastClearStr) {
+        // Primeira execução: inicializa o contador sem limpar ainda.
+        localStorage.setItem('screen_last_full_clear', nowMs.toString())
+      } else {
+        const needsClear = localStorage.getItem('screen_needs_full_clear') === 'true'
+        const elapsed = nowMs - parseInt(lastClearStr)
+        if (needsClear || elapsed > 24 * 60 * 60 * 1000) {
+          const online = await hasInternet()
+          if (online) {
+            localStorage.setItem('screen_last_full_clear', nowMs.toString())
+            localStorage.removeItem('screen_needs_full_clear')
+            await clearAllCache()
+            location.reload()
+            return
+          } else {
+            localStorage.setItem('screen_needs_full_clear', 'true')
+          }
+        }
+      }
+
       const telemetry = await buildTelemetry(mediaRef.current, itemIdRef.current, orientationRef.current, true)
       const now = new Date()
       const patch: Record<string, unknown> = {
