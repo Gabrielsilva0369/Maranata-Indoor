@@ -1,6 +1,10 @@
 package com.maranata.indoor;
 
+import android.content.Intent;
+import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
+import android.provider.Settings;
 import android.view.View;
 import android.view.WindowManager;
 import android.webkit.WebSettings;
@@ -10,9 +14,23 @@ import com.getcapacitor.BridgeActivity;
 
 public class MainActivity extends BridgeActivity {
 
+    private static final int REQ_OVERLAY = 4272;
+
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
+            startActivityForResult(
+                new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                    Uri.parse("package:" + getPackageName())),
+                REQ_OVERLAY);
+        }
+
+        if (!isAccessibilityEnabled()) {
+            startActivityForResult(
+                new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS), REQ_OVERLAY);
+        }
 
         // Tela sempre ligada — signage não pode apagar/dormir.
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
@@ -60,6 +78,19 @@ public class MainActivity extends BridgeActivity {
     }
 
     // Modo imersivo: esconde barra de status e de navegação (tela cheia total).
+    private boolean isAccessibilityEnabled() {
+        try {
+            int enabled = Settings.Secure.getInt(getContentResolver(),
+                    Settings.Secure.ACCESSIBILITY_ENABLED);
+            if (enabled != 1) return false;
+            String services = Settings.Secure.getString(getContentResolver(),
+                    Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES);
+            return services != null && services.contains(getPackageName());
+        } catch (Settings.SettingNotFoundException e) {
+            return false;
+        }
+    }
+
     private void hideSystemBars() {
         View decor = getWindow().getDecorView();
         decor.setSystemUiVisibility(
