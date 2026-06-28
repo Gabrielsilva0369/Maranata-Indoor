@@ -33,9 +33,12 @@ function parseStorageStr(s: string | undefined): number | undefined {
   return m[2].toUpperCase() === 'GB' ? n * 1024 * 1024 * 1024 : n * 1024 * 1024
 }
 
-function uptime(since: string | null, online: boolean) {
-  if (!since || !online) return '—'
-  const ms = Date.now() - new Date(since).getTime()
+function uptime(since: string | null, online: boolean, lastSeen?: string | null) {
+  if (!since) return '—'
+  const end = online ? Date.now() : (lastSeen ? new Date(lastSeen).getTime() : null)
+  if (!end) return '—'
+  const ms = end - new Date(since).getTime()
+  if (ms < 0) return '—'
   const min = Math.floor(ms / 60000)
   if (min < 60) return `${min} min`
   const h = Math.floor(min / 60)
@@ -348,13 +351,13 @@ export default function ScreenDetail() {
                     ? <span className="text-amber-600 font-medium">Sem internet</span>
                     : <span className="text-green-600 font-medium">OK</span>}
               </Info>
-              <Info label="Online desde a última atualização">{uptime(screen.session_started_at, online)}</Info>
-              <Info label="Online hoje">{uptime(screen.day_started_at, online)}</Info>
-              <Info label="Online essa semana">{uptime(screen.week_started_at, online)}</Info>
-              <Info label="Online esse mês">{uptime(screen.online_since, online)}</Info>
-              <Info label="Última Atualização">
+              <Info label="Visto por último">
                 {screen.last_seen ? new Date(screen.last_seen).toLocaleString('pt-BR') : '—'}
               </Info>
+              <Info label="Online desde a última atualização">{uptime(screen.session_started_at, online, screen.last_seen)}</Info>
+              <Info label="Online hoje">{uptime(screen.day_started_at, online, screen.last_seen)}</Info>
+              <Info label="Online essa semana">{uptime(screen.week_started_at, online, screen.last_seen)}</Info>
+              <Info label="Online esse mês">{uptime(screen.online_since, online, screen.last_seen)}</Info>
               <Info label="Exibindo agora">
                 <span className="inline-flex items-center gap-1.5">
                   <MonitorPlay size={14} className="text-gray-400" />
