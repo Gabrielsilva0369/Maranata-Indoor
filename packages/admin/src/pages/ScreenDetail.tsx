@@ -352,7 +352,9 @@ export default function ScreenDetail() {
                     : <span className="text-green-600 font-medium">OK</span>}
               </Info>
               <Info label="Visto por último">
-                {screen.last_seen ? new Date(screen.last_seen).toLocaleString('pt-BR') : '—'}
+                {screen.last_seen
+                  ? new Date(screen.last_seen).toLocaleString('pt-BR', screen.profile?.timezone ? { timeZone: screen.profile.timezone } : undefined)
+                  : '—'}
               </Info>
               <Info label="Online desde a última atualização">{uptime(screen.session_started_at, online, screen.last_seen)}</Info>
               <Info label="Online hoje">{uptime(screen.day_started_at, online, screen.last_seen)}</Info>
